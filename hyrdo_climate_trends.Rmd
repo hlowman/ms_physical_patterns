@@ -1,0 +1,165 @@
+---
+title: "hydro_climate_trends"
+author: "Nick Gubbins"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load packages.
+library(here)
+library(tidyverse)
+library(ggplot2)
+library(naniar)
+library(lubridate)
+library(feather)
+library(macrosheds)
+library(moments)
+library(feather)
+library(lfstat)
+library(trend)
+
+# Set directory to folder containing new data.
+my_ms_dir <- "data_raw"
+```
+
+First reading in summary data and work that Heili already did.
+
+```{r}
+#from MS
+ws_sums <- read_feather(here('data_raw', 'watershed_summaries.feather'))
+hydro <- read_feather(here('data_raw', 'spatial_timeseries_hydrology.feather'))
+### this next one will take a minute
+clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
+  mutate(year = year(date),
+         month = month(date),
+        water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+                                TRUE ~ year)) %>%
+    select(site_code, date, water_year, var, val) %>%
+    pivot_wider(id_cols = c(site_code, date, water_year,), 
+                names_from = var, values_from = val, values_fn = mean) %>%
+    group_by(site_code, water_year) %>%
+    summarize(precip_mean_ann = mean(cc_precip_median, na.rm = T),
+              precip_total_ann = sum(cc_precip_median, na.rm = T),
+              temp_mean_ann = mean(cc_temp_mean_median, na.rm = T)
+              )
+
+# From q_metrics script
+q_metrics <- load(here('data_working', 'discharge_7metrics_site_081924.RDS'))
+```
+Next, join climate summaries to magnificent 7 from q_metrics script. 
+
+```{r}
+com <- q_metrics %>%
+    full_join(clim, by = c('site_code', 'water_year'))
+```
+
+Perform trend detection at each site. 
+
+```{r}
+#initialize output
+out_frame <- tibble(site_code = as.character(),
+    
+                    flow_start = as.integer(),
+                    flow_end = as.integer(),
+                    flow_n = as.integer(),
+                    flow_trend = as.numeric(),
+                    flow_p = as.numeric(),
+                    
+                    precip_mean_start = as.integer(),
+                    precip_mean_end = as.integer(),
+                    precip_mean_n = as.integer(),
+                    precip_mean_trend = as.numeric(),
+                    precip_mean_p = as.numeric(),
+                    
+                    precip_total_start = as.integer(),
+                    precip_total_end = as.integer(),
+                    precip_total_n = as.integer(),
+                    precip_total_trend = as.numeric(),
+                    precip_total_p = as.numeric(),
+                    
+                    temp_start = as.integer(),
+                    temp_end = as.integer(),
+                    temp_n = as.integer(),
+                    temp_trend = as.numeric(),
+                    temp_p = as.numeric()
+                    )
+# loop through sites and detect trends
+for(i in unique(com$site_code)) {
+    
+    target_dat <- filter(com, site_code == i)
+    
+    dat_check <- na.omit(target_dat)
+    
+    if(nrow(dat_check) > 1){
+    # flow
+    flow <- select(target_dat, water_year, m1_meanq) %>%
+        na.omit()
+    flow_start <- min(flow$water_year)
+    flow_end <- max(flow$water_year)
+    flow_n <- nrow(flow)
+    flow_test <- sens.slope(flow$m1_meanq)
+    flow_trend <- flow_test[[1]]
+    flow_p <- flow_test[[2]]
+    # total precip
+    precip <- select(target_dat, water_year, precip = precip_total_ann) %>%
+        na.omit()
+    precip_total_start <- min(precip$water_year)
+    precip_total_end <- max(precip$water_year)
+    precip_total_n <- nrow(precip)
+    precip_total_test <- sens.slope(precip$precip)
+    precip_total_trend <- precip_total_test[[1]]
+    precip_total_p <- precip_total_test[[2]]
+    # mean precip
+    precip <- select(target_dat, water_year, precip = precip_mean_ann) %>%
+        na.omit()
+    precip_mean_start <- min(precip$water_year)
+    precip_mean_end <- max(precip$water_year)
+    precip_mean_n <- nrow(precip)
+    precip_mean_test <- sens.slope(precip$precip)
+    precip_mean_trend <- precip_mean_test[[1]]
+    precip_mean_p <- precip_mean_test[[2]]
+    # temp
+    temp <- select(target_dat, water_year, temp_mean_ann) %>%
+        na.omit()
+    temp_start <- min(temp$water_year)
+    temp_end <- max(temp$water_year)
+    temp_n <- nrow(temp)
+    temp_test <- sens.slope(temp$temp_mean_ann)
+    temp_trend <- temp_test[[1]]
+    temp_p <- temp_test[[2]]
+    
+    inner <- tibble(site_code = i,
+        
+                    flow_start = flow_start,
+                    flow_end = flow_end,
+                    flow_n = flow_n,
+                    flow_trend = flow_trend,
+                    flow_p = flow_p,
+                    
+                    precip_mean_start = precip_mean_start,
+                    precip_mean_end = precip_mean_end,
+                    precip_mean_n = precip_mean_n,
+                    precip_mean_trend = precip_mean_trend,
+                    precip_mean_p = precip_mean_p,
+                    
+                    precip_total_start = precip_total_start,
+                    precip_total_end = precip_total_end,
+                    precip_total_n = precip_total_n,
+                    precip_total_trend = precip_total_trend,
+                    precip_total_p = precip_total_p,
+                    
+                    temp_start = temp_start,
+                    temp_end = temp_end,
+                    temp_n =  temp_n,
+                    temp_trend = temp_trend,
+                    temp_p = temp_p
+                    )
+    out_frame <- rbind(out_frame, inner)
+    }else{next}
+}
+```
+
+
+
