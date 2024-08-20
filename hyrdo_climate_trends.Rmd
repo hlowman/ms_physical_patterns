@@ -19,10 +19,15 @@ library(moments)
 library(feather)
 library(lfstat)
 library(trend)
+library(ggrepel)
+library(ggthemes)
 
 # Set directory to folder containing new data.
 my_ms_dir <- "data_raw"
 ```
+# Trend detection
+
+## Reading in and summarizing data.
 
 First reading in summary data and work that Heili already did.
 
@@ -37,7 +42,7 @@ clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
         water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                 TRUE ~ year)) %>%
     select(site_code, date, water_year, var, val) %>%
-    pivot_wider(id_cols = c(site_code, date, water_year,), 
+    pivot_wider(id_cols = c(site_code, date, water_year), 
                 names_from = var, values_from = val, values_fn = mean) %>%
     group_by(site_code, water_year) %>%
     summarize(precip_mean_ann = mean(cc_precip_median, na.rm = T),
@@ -55,110 +60,99 @@ com <- q_metrics %>%
     full_join(clim, by = c('site_code', 'water_year'))
 ```
 
-Perform trend detection at each site. 
+Perform trend detection at each site.
 
 ```{r}
-#initialize output
+com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val')
+
 out_frame <- tibble(site_code = as.character(),
+                    var = as.character(),
+                    start = as.integer(),
+                    end = as.integer(),
+                    trend = as.integer(),
+                    p = as.integer())
+
+for(i in unique(com_long$site_code)) {
     
-                    flow_start = as.integer(),
-                    flow_end = as.integer(),
-                    flow_n = as.integer(),
-                    flow_trend = as.numeric(),
-                    flow_p = as.numeric(),
-                    
-                    precip_mean_start = as.integer(),
-                    precip_mean_end = as.integer(),
-                    precip_mean_n = as.integer(),
-                    precip_mean_trend = as.numeric(),
-                    precip_mean_p = as.numeric(),
-                    
-                    precip_total_start = as.integer(),
-                    precip_total_end = as.integer(),
-                    precip_total_n = as.integer(),
-                    precip_total_trend = as.numeric(),
-                    precip_total_p = as.numeric(),
-                    
-                    temp_start = as.integer(),
-                    temp_end = as.integer(),
-                    temp_n = as.integer(),
-                    temp_trend = as.numeric(),
-                    temp_p = as.numeric()
-                    )
-# loop through sites and detect trends
-for(i in unique(com$site_code)) {
+    target_site <- filter(com_long, site_code == i) 
     
-    target_dat <- filter(com, site_code == i)
-    
-    dat_check <- na.omit(target_dat)
+    dat_check <- na.omit(target_site)
     
     if(nrow(dat_check) > 1){
-    # flow
-    flow <- select(target_dat, water_year, m1_meanq) %>%
+    #loop  through metrics
+    for(j in unique(target_site$var)){
+        
+    target_solute <- filter(target_site, var == j)  %>%
+        arrange(water_year) %>%
         na.omit()
-    flow_start <- min(flow$water_year)
-    flow_end <- max(flow$water_year)
-    flow_n <- nrow(flow)
-    flow_test <- sens.slope(flow$m1_meanq)
-    flow_trend <- flow_test[[1]]
-    flow_p <- flow_test[[2]]
-    # total precip
-    precip <- select(target_dat, water_year, precip = precip_total_ann) %>%
-        na.omit()
-    precip_total_start <- min(precip$water_year)
-    precip_total_end <- max(precip$water_year)
-    precip_total_n <- nrow(precip)
-    precip_total_test <- sens.slope(precip$precip)
-    precip_total_trend <- precip_total_test[[1]]
-    precip_total_p <- precip_total_test[[2]]
-    # mean precip
-    precip <- select(target_dat, water_year, precip = precip_mean_ann) %>%
-        na.omit()
-    precip_mean_start <- min(precip$water_year)
-    precip_mean_end <- max(precip$water_year)
-    precip_mean_n <- nrow(precip)
-    precip_mean_test <- sens.slope(precip$precip)
-    precip_mean_trend <- precip_mean_test[[1]]
-    precip_mean_p <- precip_mean_test[[2]]
-    # temp
-    temp <- select(target_dat, water_year, temp_mean_ann) %>%
-        na.omit()
-    temp_start <- min(temp$water_year)
-    temp_end <- max(temp$water_year)
-    temp_n <- nrow(temp)
-    temp_test <- sens.slope(temp$temp_mean_ann)
-    temp_trend <- temp_test[[1]]
-    temp_p <- temp_test[[2]]
+        
+    if(nrow(target_solute) > 2){ 
+
+    start <- min(target_solute$water_year)
+    end <- max(target_solute$water_year)
+    n <- nrow(target_solute)
+    test <- sens.slope(target_solute$val)
+    trend <- test[[1]]
+    p <- test[[2]]
+    
     
     inner <- tibble(site_code = i,
-        
-                    flow_start = flow_start,
-                    flow_end = flow_end,
-                    flow_n = flow_n,
-                    flow_trend = flow_trend,
-                    flow_p = flow_p,
-                    
-                    precip_mean_start = precip_mean_start,
-                    precip_mean_end = precip_mean_end,
-                    precip_mean_n = precip_mean_n,
-                    precip_mean_trend = precip_mean_trend,
-                    precip_mean_p = precip_mean_p,
-                    
-                    precip_total_start = precip_total_start,
-                    precip_total_end = precip_total_end,
-                    precip_total_n = precip_total_n,
-                    precip_total_trend = precip_total_trend,
-                    precip_total_p = precip_total_p,
-                    
-                    temp_start = temp_start,
-                    temp_end = temp_end,
-                    temp_n =  temp_n,
-                    temp_trend = temp_trend,
-                    temp_p = temp_p
+                    var = j,
+                    start = start,
+                    end = end,
+                    n = n,
+                    trend = trend,
+                    p = p
                     )
     out_frame <- rbind(out_frame, inner)
-    }else{next}
-}
+    }else{next} #solute level data avail check
+        }# end solute loop
+    }else{next} # site level data avail check
+} #end site loop
+
+write_csv(out_frame, file = here('data_working', 'hydro_climate_trends.csv'))
+```
+
+# Figure creation
+
+## Trend histograms/density plots
+
+Make kernel density plots for each trend. 
+
+```{r}
+trends <- out_frame
+#trends <- read_csv(here('data_working', 'hydro_climate_trends.csv'))
+trends %>%
+    filter(p > 0.05) %>% # sign trends only
+ggplot(aes(x = trend))+
+    geom_density()+
+    facet_wrap(~var, scales = 'free')+
+    theme_few()
+```
+## Scatters
+
+Make scatter plots to put domains in context. Going to pull average each domain for now, will want to pick specific exemplar sites in the near future.
+
+
+```{r}
+context <- com %>%
+    left_join(., ms_load_sites(), by = 'site_code') %>%
+    filter(water_year %in% 2000:2009) %>%
+    group_by(domain) %>%
+    summarize(flow = mean(m1_meanq, na.rm = T),
+              temp = mean(temp_mean_ann, na.rm = T),
+              precip = mean(precip_mean_ann, na.rm = T))
+
+ggplot(context, aes(x = temp, y = precip, color = domain)) +
+    geom_point()+
+    geom_label_repel(aes(label = domain),
+                  label.size = .1,
+                  box.padding   = 0.35, 
+                  point.padding = 0.5,
+                  segment.color = 'grey50',
+                  max.overlaps = 25)+
+        theme_few() +
+        theme(legend.position = 'none')
 ```
 
 
