@@ -48,10 +48,26 @@ q_data <- ms_load_product(
   prodname = "discharge"
   )
 
-#### Water Years ####
+#### Tidy ####
 
-# Filter out repeat measures detected at COMO/MCDI.
+# Filter out repeat measures detected.
 q_data_nodup <- dplyr::distinct(q_data, site_code, datetime, .keep_all = TRUE)
+
+# And filter out sites that were interpolated.
+q_data_nodup <- q_data_nodup %>%
+  filter(ms_interp == 0)
+
+# Only ~ 2% of records were marked as "1" or "questionable"
+# in the ms_status column, so we've left that as is.
+
+# And finally, normalize by watershed area.
+area <- ms_site_data %>%
+  select(site_code, ws_area_ha)
+
+q_data_nodup <- left_join(q_data_nodup, area, by = c("site_code")) %>%
+  mutate(val_ha = val/ws_area_ha)
+
+#### Water Years ####
 
 # Assign a consistent water year designation to all data,
 # from October 1 of the previous year to September 30 of
@@ -72,13 +88,13 @@ q_data_nodup <- q_data_nodup %>%
 # Calculate long-term monthly means.
 q_data_monthly <- q_data_nodup %>%
   group_by(site_code, month) %>%
-  summarize(lt_meanQ = mean(val, na.rm = TRUE)) %>%
+  summarize(lt_meanQ = mean(val_ha, na.rm = TRUE)) %>%
   ungroup()
 
 # And use those values to calculate deseasonalized Q.
 q_data_nodup <- q_data_nodup %>%
   plyr::join(q_data_monthly, by = c("site_code", "month")) %>%
-  mutate(deseasonQ = val - lt_meanQ)
+  mutate(deseasonQ = val_ha - lt_meanQ)
 
 # And scale those values to use in the AR(1) calculations.
 q_data_nodup$scaleQds = (q_data_nodup$deseasonQ - mean(q_data_nodup$deseasonQ, na.rm = TRUE))/
@@ -96,9 +112,9 @@ acf_print <- function(x) {
 # using scaled (but not deseasonalized) discharge data
 # as well as decimal year.
 q_data_nodup <- q_data_nodup %>%
-  mutate(scaleQ = (q_data_nodup$val - 
-                     mean(q_data_nodup$val, na.rm = TRUE))/
-           sd(q_data_nodup$val, na.rm = TRUE),
+  mutate(scaleQ = (q_data_nodup$val_ha - 
+                     mean(q_data_nodup$val_ha, na.rm = TRUE))/
+           sd(q_data_nodup$val_ha, na.rm = TRUE),
          decimalY = decimal_date(datetime))
 
 # Add covariates for streamflow signal regression.
@@ -113,13 +129,13 @@ q_metrics_siteyear <- q_data_nodup %>%
   # drop all NA discharge values
   # otherwise the lm() with full missing WYs below will throw
   # an error message and not output the summarized data
-  drop_na(val) %>%
+  drop_na(val_ha) %>%
   group_by(site_code, water_year) %>%
-  summarize(m1_meanq = mean(val, na.rm = TRUE), # mean
-            m2_cvq = (sd(val, na.rm = TRUE)/
-                        mean(val, na.rm = TRUE)), # coefficient of variation
-            m3_skewq = skewness(val, na.rm = TRUE), # skewness
-            m4_kurtq = kurtosis(val, na.rm = TRUE), # kurtosis
+  summarize(m1_meanq = mean(val_ha, na.rm = TRUE), # mean
+            m2_cvq = (sd(val_ha, na.rm = TRUE)/
+                        mean(val_ha, na.rm = TRUE)), # coefficient of variation
+            m3_skewq = skewness(val_ha, na.rm = TRUE), # skewness
+            m4_kurtq = kurtosis(val_ha, na.rm = TRUE), # kurtosis
             m5_ar1q = acf_print(scaleQds), # AR(1) coefficient
             # seasonal flow signal metrics a + b
             # per p. 1169 in Archfield et al., 2014
@@ -132,19 +148,22 @@ q_metrics_siteyear <- q_data_nodup %>%
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 # Export data.
-# saveRDS(q_metrics_siteyear, "data_working/discharge_7metrics_siteyear_081924.rds")
+# saveRDS(q_metrics_siteyear, "data_working/discharge_7metrics_siteyear_082024.rds")
   
 # Then, summarize discharge metrics by site
 # for easier plotting/visualization.
 
-# Create summarized dataset with all 7 metrics.
+# Create summarized dataset with all 7 metrics for full time series.
 q_metrics_site <- q_data_nodup %>%
   group_by(site_code) %>%
-  summarize(m1_meanq = mean(val, na.rm = TRUE), # mean
-            m2_cvq = (sd(val, na.rm = TRUE)/
-                        mean(val, na.rm = TRUE)), # coefficient of variation
-            m3_skewq = skewness(val, na.rm = TRUE), # skewness
-            m4_kurtq = kurtosis(val, na.rm = TRUE), # kurtosis
+  # drop all NA discharge values
+  # otherwise the lm() will throw an error message
+  drop_na(val_ha) %>%
+  summarize(m1_meanq = mean(val_ha, na.rm = TRUE), # mean
+            m2_cvq = (sd(val_ha, na.rm = TRUE)/
+                        mean(val_ha, na.rm = TRUE)), # coefficient of variation
+            m3_skewq = skewness(val_ha, na.rm = TRUE), # skewness
+            m4_kurtq = kurtosis(val_ha, na.rm = TRUE), # kurtosis
             m5_ar1q = acf_print(scaleQds), # AR(1) coefficient
             a_flow_sig = lm(scaleQ ~ sin_2pi_year + cos_2pi_year, 
                             na.action = na.omit)$coefficients["sin_2pi_year"],
@@ -155,6 +174,6 @@ q_metrics_site <- q_data_nodup %>%
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 # Export data.
-# saveRDS(q_metrics_site, "data_working/discharge_7metrics_site_081924.rds")
+# saveRDS(q_metrics_site, "data_working/discharge_7metrics_site_082024.rds")
 
 # End of script.
