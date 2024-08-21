@@ -2,6 +2,8 @@
 title: "hydro_climate_trends"
 author: "Nick Gubbins"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r setup, include=FALSE}
@@ -67,9 +69,12 @@ clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
               )
 
 # From q_metrics script
-#source(q_metrics.R)
-q_metrics <- readRDS(here('data_working', 'discharge_7metrics.rds'))
+#if you haven't run it yet, just uncomment the next line to source it
+#source('q_metrics.R')
+q_metrics <- readRDS(here('data_working', 'discharge_7metrics_siteyear.rds'))
 ```
+
+
 Next, join climate summaries to magnificent 7 from q_metrics script. 
 
 ```{r}
@@ -82,79 +87,98 @@ Perform trend detection at each site.
 ```{r}
 com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val')
 
-out_frame <- tibble(site_code = as.character(),
-                    var = as.character(),
-                    start = as.integer(),
-                    end = as.integer(),
-                    trend = as.integer(),
-                    p = as.integer())
-
-for(i in unique(com_long$site_code)) {
-    
-    target_site <- filter(com_long, site_code == i) 
-    
-    dat_check <- na.omit(target_site)
-    
-    if(nrow(dat_check) > 1){
-    #loop  through metrics
-    for(j in unique(target_site$var)){
-        
-    target_solute <- filter(target_site, var == j)  %>%
-        arrange(water_year) %>%
-        na.omit()
-        
-    if(nrow(target_solute) > 9){ 
-    start <- min(target_solute$water_year)
-    end <- max(target_solute$water_year)
-    n <- nrow(target_solute)
-    test <- sens.slope(target_solute$val)
-    trend <- test[[1]]
-    p <- test[[2]]
-    
-    
-    inner <- tibble(site_code = i,
-                    var = j,
-                    start = start,
-                    end = end,
-                    n = n,
-                    trend = trend,
-                    p = p
-                    )
-    out_frame <- rbind(out_frame, inner)
-    
-    diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
-            labs(title = paste0(i, ' ', j),
-                      caption = paste0('n = ', n))+
-            geom_point()+
-        theme_few()
-    
-    quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', i, paste0(i,'_',j,'.png')),
-           create.dir = T))
-    
-    
-    }else{next} #solute level data avail check
-        }# end solute loop
-    }else{next} # site level data avail check
-} #end site loop
+# commenting out all this to save processing time
+# uncomment and run to remake trends datset if needed
+# out_frame <- tibble(site_code = as.character(),
+#                     var = as.character(),
+#                     start = as.integer(),
+#                     end = as.integer(),
+#                     trend = as.integer(),
+#                     p = as.integer())
+# 
+# # for(i in unique(com_long$site_code)) {
+# #     
+#     target_site <- filter(com_long, site_code == i) 
+#     
+#     dat_check <- na.omit(target_site)
+#     
+#     if(nrow(dat_check) > 1){
+#     #loop  through metrics
+#     for(j in unique(target_site$var)){
+#         
+#     target_solute <- filter(target_site, var == j)  %>%
+#         arrange(water_year) %>%
+#         na.omit()
+#         
+#     if(nrow(target_solute) > 9){ 
+#     start <- min(target_solute$water_year)
+#     end <- max(target_solute$water_year)
+#     n <- nrow(target_solute)
+#     test <- sens.slope(target_solute$val)
+#     trend <- test[[1]]
+#     p <- test[[3]]
+#     
+#     
+#     inner <- tibble(site_code = i,
+#                     var = j,
+#                     start = start,
+#                     end = end,
+#                     n = n,
+#                     trend = trend,
+#                     p = p
+#                     )
+#     out_frame <- rbind(out_frame, inner)
+#     
+#     diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
+#             labs(title = paste0(i, ' ', j),
+#                       caption = paste0('n = ', n))+
+#             geom_point()+
+#         theme_few()
+#     
+#     quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', i, paste0(i,'_',j,'.png')),
+#            create.dir = T))
+#     
+#     
+#     }else{next} #solute level data avail check
+#         }# end solute loop
+#     }else{next} # site level data avail check
+# } #end site loop
 
 #write_csv(out_frame, file = here('data_working', 'hydro_climate_trends.csv'))
+
+#trends <- out_frame
+
+# comment this out if you are using the loop to update data
+trends <- read_csv(here('data_working', 'hydro_climate_trends.csv'))
 ```
 
 # Figure creation
 
 ## Trend histograms/density plots
 
+First want an idea of what data is in here. So going to make a quick table.
+
+```{r}
+com %>%
+    left_join(., ms_site_data, by = 'site_code') %>%
+    select(domain, site_code) %>%
+    group_by(domain) %>%
+    summarize(n = n_distinct(site_code))
+```
+
+
 Make kernel density plots for each trend. 
 
 ```{r}
-trends <- out_frame
-#trends <- read_csv(here('data_working', 'hydro_climate_trends.csv'))
 trends %>%
-    filter(p > 0.05) %>% # sign trends only
+    filter(p > 0.05, # sign trends only
+           var != 'a_flow_sig',
+            var != 'b_flow_sig') %>% 
 ggplot(aes(x = trend))+
     geom_density()+
     facet_wrap(~var, scales = 'free')+
-    theme_few()
+    theme_few()+
+    labs(title = 'Trends')
 ```
 ## Scatters
 
@@ -167,7 +191,8 @@ Make scatter plots to put domains in context. Going to pull average each domain 
 
 context <- com %>%
     left_join(., ms_site_data, by = 'site_code') %>%
-    filter(water_year %in% 2000:2009) %>%
+    filter(water_year %in% 2000:2019,
+           site_code %in% unique(trends$site_code)) %>% #only looking at data we have trends for
     group_by(domain) %>%
     summarize(flow = mean(m1_meanq, na.rm = T),
               temp = mean(temp_mean_ann, na.rm = T),
@@ -175,28 +200,58 @@ context <- com %>%
 
 ggplot(context, aes(x = temp, y = precip, color = domain)) +
     geom_point()+
-    geom_label_repel(aes(label = domain),
-                  label.size = .1,
+    geom_text_repel(aes(label = domain),
                   box.padding   = 0.35, 
                   point.padding = 0.5,
                   segment.color = 'grey50',
                   max.overlaps = 25)+
         theme_few() +
-        theme(legend.position = 'none')
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')
 ```
 
 ```{r}
 ggplot(context, aes(x = precip, y = flow, color = domain)) +
     geom_point()+
-    geom_label_repel(aes(label = domain),
-                  label.size = .1,
+    geom_text_repel(aes(label = domain),
                   box.padding   = 0.35, 
                   point.padding = 0.5,
                   segment.color = 'grey50',
                   max.overlaps = 25)+
         geom_abline(slope = 1, color = 'red')+
         theme_few() +
-        theme(legend.position = 'none')
+        theme(legend.position = 'none')+
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Q (mean annual, mm/d)')
 ```
 
+Re-create part of figure 5 from the CAMEL CHEM data paper (G sterle et al 2024).
+
+Need a vertical boxplot of mean daily precip and Q.
+
+```{r}
+context %>%
+    pivot_longer(cols = -domain, names_to = 'var', values_to = 'val') %>%
+    filter(var == 'flow') %>%
+    select(var, val) %>%
+    ggplot(., aes(y = val))+
+    geom_boxplot()+
+    theme_few()+
+    labs(title = 'mean daily Q')+
+    scale_y_continuous(breaks = c(0, 2.5, 5, 7.5, 10, 12.5)) # set breaks to match their figure
+
+```
+
+
+```{r}
+context %>%
+    pivot_longer(cols = -domain, names_to = 'var', values_to = 'val') %>%
+    filter(var == 'precip') %>%
+    select(var, val) %>%
+    ggplot(., aes(y = val))+
+    geom_boxplot()+
+    theme_few()+
+    labs(title = 'mean daily P')+
+    scale_y_continuous(breaks = c(0, 2.5, 5, 7.5, 10)) # set breaks to match their figure
+
+```
 
