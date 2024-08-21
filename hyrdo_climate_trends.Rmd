@@ -24,6 +24,22 @@ library(ggthemes)
 
 # Set directory to folder containing new data.
 my_ms_dir <- "data_raw"
+
+# fix package calls while using v2 ahead of release
+#remove this if using the v2 dataset from the macrosheds package proper
+rdata_path <- my_ms_dir
+load(file.path(rdata_path, 'ms_site_data.RData'))
+load(file.path(rdata_path, 'ms_vars_ws_attr.RData'))
+load(file.path(rdata_path, 'ms_vars_ts.RData'))
+load(file.path(rdata_path, 'ms_var_catalog.RData'))
+
+nv <- as.environment('package:macrosheds')
+
+for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
+    unlockBinding(ms_data, nv)
+    assign(ms_data, get(ms_data), envir = nv)
+    lockBinding(ms_data, nv)
+}
 ```
 # Trend detection
 
@@ -51,7 +67,7 @@ clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
               )
 
 # From q_metrics script
-q_metrics <- load(here('data_working', 'discharge_7metrics_site_081924.RDS'))
+q_metrics <- readRDS(here('data_working', 'discharge_7metrics_siteyear_082024.rds'))
 ```
 Next, join climate summaries to magnificent 7 from q_metrics script. 
 
@@ -86,8 +102,7 @@ for(i in unique(com_long$site_code)) {
         arrange(water_year) %>%
         na.omit()
         
-    if(nrow(target_solute) > 2){ 
-
+    if(nrow(target_solute) > 9){ 
     start <- min(target_solute$water_year)
     end <- max(target_solute$water_year)
     n <- nrow(target_solute)
@@ -105,12 +120,23 @@ for(i in unique(com_long$site_code)) {
                     p = p
                     )
     out_frame <- rbind(out_frame, inner)
+    
+    diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
+            labs(title = paste0(i, ' ', j),
+                      caption = paste0('n = ', n))+
+            geom_point()+
+        theme_few()
+    
+    quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', i, paste0(i,'_',j,'.png')),
+           create.dir = T))
+    
+    
     }else{next} #solute level data avail check
         }# end solute loop
     }else{next} # site level data avail check
 } #end site loop
 
-write_csv(out_frame, file = here('data_working', 'hydro_climate_trends.csv'))
+#write_csv(out_frame, file = here('data_working', 'hydro_climate_trends.csv'))
 ```
 
 # Figure creation
@@ -135,8 +161,11 @@ Make scatter plots to put domains in context. Going to pull average each domain 
 
 
 ```{r}
+#uncomment this if using the v2 dataset from the ms package proper
+#ms_site_data <- ms_load_sites()
+
 context <- com %>%
-    left_join(., ms_load_sites(), by = 'site_code') %>%
+    left_join(., ms_site_data, by = 'site_code') %>%
     filter(water_year %in% 2000:2009) %>%
     group_by(domain) %>%
     summarize(flow = mean(m1_meanq, na.rm = T),
@@ -155,5 +184,18 @@ ggplot(context, aes(x = temp, y = precip, color = domain)) +
         theme(legend.position = 'none')
 ```
 
+```{r}
+ggplot(context, aes(x = precip, y = flow, color = domain)) +
+    geom_point()+
+    geom_label_repel(aes(label = domain),
+                  label.size = .1,
+                  box.padding   = 0.35, 
+                  point.padding = 0.5,
+                  segment.color = 'grey50',
+                  max.overlaps = 25)+
+        geom_abline(slope = 1, color = 'red')+
+        theme_few() +
+        theme(legend.position = 'none')
+```
 
 
