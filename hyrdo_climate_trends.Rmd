@@ -67,7 +67,8 @@ clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
               )
 
 # From q_metrics script
-q_metrics <- readRDS(here('data_working', 'discharge_7metrics_siteyear_082024.rds'))
+#source(q_metrics.R)
+q_metrics <- readRDS(here('data_working', 'discharge_7metrics.rds'))
 ```
 Next, join climate summaries to magnificent 7 from q_metrics script. 
 
