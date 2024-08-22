@@ -23,7 +23,7 @@ library(lfstat)
 library(trend)
 library(ggrepel)
 library(ggthemes)
-library(pals)
+library(viridis)
 
 # Set directory to folder containing new data.
 my_ms_dir <- "data_raw"
@@ -196,7 +196,7 @@ context <- com %>%
     filter(water_year %in% 2000:2019,
            site_code %in% unique(trends$site_code)) %>% #only looking at data we have trends for
     mutate(domain = case_when(domain == 'neon' ~ paste0(domain, '_', site_code),
-                              domain != 'neon' ~ domain)) %>%
+                              domain != 'neon' ~ domain)) %>% # disaggregate neon sites since its national scale
     group_by(domain) %>%
     summarize(flow = mean(m1_meanq, na.rm = T),
               temp = mean(temp_mean_ann, na.rm = T),
@@ -211,8 +211,8 @@ ggplot(context, aes(x = temp, y = precip, color = domain)) +
                   max.overlaps = 30)+
         theme_few(base_size = 20) +
         theme(legend.position = 'none') +
-        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')#+
-        #scale_color_manual(values=unname(polychrome()))
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)
 ```
 
 ```{r}
@@ -230,9 +230,53 @@ ggplot(., aes(x = precip, y = flow, color = domain)) +
         theme_few(base_size = 20) +
         theme(legend.position = 'none')+
         labs(x = 'Precip (mean annual, mm/d)', y = 'Q (mean annual, mm/d)',
-             caption = 'Note: NEON_MCDI off scale Q. (Q 270, P 2.6)')#+
-        #scale_color_manual(values=unname(polychrome()))
+             caption = 'Note: NEON_MCDI off scale Q. (Q 270, P 2.6)')+
+        scale_color_viridis(discrete = T)
 ```
+
+Rainfall runoff ratio to precip. 
+
+```{r}
+context %>%
+    mutate(runoff_ratio = flow/precip) %>%
+    filter(domain != 'neon_MCDI') %>%
+ggplot(., aes(x = precip, y = runoff_ratio, color = domain)) +
+    geom_point()+
+    geom_text_repel(aes(label = domain),
+                  box.padding   = 0.35, 
+                  point.padding = 0.5,
+                  segment.color = 'grey50',
+                  max.overlaps = 30,
+                  force = 20)+
+        geom_hline(yintercept= 1, color = 'red')+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)
+```
+
+Make another one with neon excluded.
+
+```{r}
+context %>%
+    mutate(runoff_ratio = flow/precip) %>%
+    filter(!grepl('neon', domain)) %>%
+ggplot(., aes(x = precip, y = runoff_ratio, color = domain)) +
+    geom_point()+
+    geom_text_repel(aes(label = domain),
+                  box.padding   = 0.35, 
+                  point.padding = 0.5,
+                  segment.color = 'grey50',
+                  max.overlaps = 30,
+                  force = 20)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             title = 'neon excluded')+
+        scale_color_viridis(discrete = T)
+```
+
 
 Re-create part of figure 5 from the CAMEL CHEM data paper (G sterle et al 2024).
 
