@@ -23,6 +23,7 @@ library(lfstat)
 library(trend)
 library(ggrepel)
 library(ggthemes)
+library(pals)
 
 # Set directory to folder containing new data.
 my_ms_dir <- "data_raw"
@@ -180,6 +181,7 @@ ggplot(aes(x = trend))+
     theme_few()+
     labs(title = 'Trends')
 ```
+
 ## Scatters
 
 Make scatter plots to put domains in context. Going to pull average each domain for now, will want to pick specific exemplar sites in the near future.
@@ -193,6 +195,8 @@ context <- com %>%
     left_join(., ms_site_data, by = 'site_code') %>%
     filter(water_year %in% 2000:2019,
            site_code %in% unique(trends$site_code)) %>% #only looking at data we have trends for
+    mutate(domain = case_when(domain == 'neon' ~ paste0(domain, '_', site_code),
+                              domain != 'neon' ~ domain)) %>%
     group_by(domain) %>%
     summarize(flow = mean(m1_meanq, na.rm = T),
               temp = mean(temp_mean_ann, na.rm = T),
@@ -204,24 +208,30 @@ ggplot(context, aes(x = temp, y = precip, color = domain)) +
                   box.padding   = 0.35, 
                   point.padding = 0.5,
                   segment.color = 'grey50',
-                  max.overlaps = 25)+
-        theme_few() +
+                  max.overlaps = 30)+
+        theme_few(base_size = 20) +
         theme(legend.position = 'none') +
-        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')#+
+        #scale_color_manual(values=unname(polychrome()))
 ```
 
 ```{r}
-ggplot(context, aes(x = precip, y = flow, color = domain)) +
+context %>%
+    filter(domain != 'neon_MCDI') %>%
+ggplot(., aes(x = precip, y = flow, color = domain)) +
     geom_point()+
     geom_text_repel(aes(label = domain),
                   box.padding   = 0.35, 
                   point.padding = 0.5,
                   segment.color = 'grey50',
-                  max.overlaps = 25)+
+                  max.overlaps = 30,
+                  force = 20)+
         geom_abline(slope = 1, color = 'red')+
-        theme_few() +
+        theme_few(base_size = 20) +
         theme(legend.position = 'none')+
-        labs(x = 'Precip (mean annual, mm/d)', y = 'Q (mean annual, mm/d)')
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Q (mean annual, mm/d)',
+             caption = 'Note: NEON_MCDI off scale Q. (Q 270, P 2.6)')#+
+        #scale_color_manual(values=unname(polychrome()))
 ```
 
 Re-create part of figure 5 from the CAMEL CHEM data paper (G sterle et al 2024).
@@ -235,7 +245,7 @@ context %>%
     select(var, val) %>%
     ggplot(., aes(y = val))+
     geom_boxplot()+
-    theme_few()+
+    theme_few(base_size = 30)+
     labs(title = 'mean daily Q')+
     scale_y_continuous(breaks = c(0, 2.5, 5, 7.5, 10, 12.5)) # set breaks to match their figure
 
@@ -249,7 +259,7 @@ context %>%
     select(var, val) %>%
     ggplot(., aes(y = val))+
     geom_boxplot()+
-    theme_few()+
+    theme_few(base_size = 30)+
     labs(title = 'mean daily P')+
     scale_y_continuous(breaks = c(0, 2.5, 5, 7.5, 10)) # set breaks to match their figure
 
