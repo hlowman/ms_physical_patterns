@@ -2,6 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+macrosheds_dataset_v2
 
 # Folders ignored on Heili's fork
 data_raw
