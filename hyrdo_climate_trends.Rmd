@@ -171,15 +171,26 @@ com %>%
 Make kernel density plots for each trend. 
 
 ```{r}
-trends %>%
-    filter(p > 0.05, # sign trends only
+trends_flagged <- trends %>%
+    filter(
+           #p > 0.05, # sig trends only
            var != 'a_flow_sig',
-            var != 'b_flow_sig') %>% 
-ggplot(aes(x = trend))+
+           var != 'b_flow_sig') %>% 
+    mutate(flag = case_when(p >= 0.05 ~ 'non-significant',
+                            p < 0.05 & trend > 0 ~ 'increasing',
+                            p < 0.05 & trend < 0 ~ 'decreasing',
+                            p <0.05 & trend == 0 ~ 'flat')) %>%
+    filter(!is.nan(flag),
+           !is.na(flag))
+flag_colors <- c('non-significant' = "grey", 'increasing' = "orange", 'decreasing' = "purple", 'flat' = 'green')
+
+
+ggplot(trends_flagged, aes(x = trend, fill = flag))+
     geom_density()+
     facet_wrap(~var, scales = 'free')+
     theme_few()+
-    labs(title = 'Trends')
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
 ```
 
 ## Scatters
