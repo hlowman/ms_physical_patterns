@@ -5,10 +5,11 @@
 #### READ ME ####
 
 # The following script will calculate the "magnificent 7"
-# discharge metrics (Archfield et al., 2014) for all of
-# the MacroSheds sites at which data is currently available.
+# discharge metrics (Archfield et al., 2014) as well as
+# the Richards-Baker Flashiness Index (Baker et al., 2004)
+# for all MacroSheds sites at which data is currently available.
 
-# Note, this script uses a newer version of the data sent by
+# Note, this script uses a newer version of the data (v2) sent by
 # Mike on 8/19/24, not the current package version of the dataset.
 
 #### Setup ####
@@ -51,22 +52,25 @@ q_data <- ms_load_product(
 
 #### Tidy ####
 
-# Filter out repeat measures detected.
+# Filter out repeat measures detected (n = 3,741 or ~ 0.1%).
 q_data_nodup <- dplyr::distinct(q_data, site_code, datetime, .keep_all = TRUE)
 
-# And filter out sites that were interpolated.
+# And filter out sites that were interpolated (n = 490,424 or ~ 25%).
 q_data_nodup <- q_data_nodup %>%
   filter(ms_interp == 0)
 
 # Only ~ 2% of records were marked as "1" or "questionable"
 # in the ms_status column, so we've left that as is.
 
-# And finally, normalize by watershed area.
+# Normalize by watershed area.
 area <- ms_site_data %>%
   select(site_code, ws_area_ha)
 
+# And convert to mm/d.
+# --- Conversion equation ---
+# (L/s*ha) * (86,400 s/d) * (10e6 mm^3/L) * (10e-9 ha/mm^2) = 86.4 mm/d
 q_data_nodup <- left_join(q_data_nodup, area, by = c("site_code")) %>%
-  mutate(val_mmd = (val*86400*0.0001*1000)/(ws_area_ha*1000)) # seconds in day, m3 in L,ha in m2, mm3 in m3
+  mutate(val_mmd = (val*86400*1000000)/(ws_area_ha*1000000000))
 
 #### Water Years ####
 
@@ -133,6 +137,13 @@ q_metrics_siteyear <- q_data_nodup %>%
   drop_na(val_mmd) %>%
   group_by(site_code, water_year) %>%
   summarize(m1_meanq = mean(val_mmd, na.rm = TRUE), # mean
+            q1 = quantile(val_mmd, probs = 0.01, na.rm = TRUE), # 1st percentile Q
+            q5 = quantile(val_mmd, probs = 0.05, na.rm = TRUE), # 5th percentile Q
+            q25 = quantile(val_mmd, probs = 0.25, na.rm = TRUE), # 25th percentile Q
+            q50 = quantile(val_mmd, probs = 0.50, na.rm = TRUE), # median Q
+            q75 = quantile(val_mmd, probs = 0.75, na.rm = TRUE), # 75th percentile Q
+            q95 = quantile(val_mmd, probs = 0.95, na.rm = TRUE), # 95th percentile Q
+            q99 = quantile(val_mmd, probs = 0.99, na.rm = TRUE), # 99th percentile Q
             m2_cvq = (sd(val_mmd, na.rm = TRUE)/
                         mean(val_mmd, na.rm = TRUE)), # coefficient of variation
             m3_skewq = skewness(val_mmd, na.rm = TRUE), # skewness
