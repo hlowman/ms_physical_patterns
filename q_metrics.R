@@ -206,7 +206,7 @@ q_metrics_siteyear <- q_data_nodup %>%
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 # Export data.
-saveRDS(q_metrics_siteyear, "data_working/discharge_7metrics_siteyear.rds")
+saveRDS(q_metrics_siteyear, "data_working/discharge_8metrics_siteyear.rds")
 
 # Create summarized dataset with all 8 metrics for full time series at each site.
 q_metrics_site <- q_data_nodup %>%
@@ -243,6 +243,6 @@ q_metrics_site <- q_data_nodup %>%
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 # Export data.
-saveRDS(q_metrics_site, "data_working/discharge_7metrics.rds")
+saveRDS(q_metrics_site, "data_working/discharge_8metrics.rds")
 
 # End of script.
