@@ -7,3 +7,5 @@ macrosheds_dataset_v2
 # Folders ignored on Heili's fork
 data_raw
 data_working
+figures
+ms_physical_patterns.Rproj
