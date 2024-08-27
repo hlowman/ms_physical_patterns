@@ -24,25 +24,28 @@ library(trend)
 library(ggrepel)
 library(ggthemes)
 library(viridis)
+library(patchwork)
 
-# Set directory to folder containing new data.
-my_ms_dir <- "data_raw"
+source('q_metrics.R')
 
-# fix package calls while using v2 ahead of release
-#remove this if using the v2 dataset from the macrosheds package proper
-rdata_path <- my_ms_dir
-load(file.path(rdata_path, 'ms_site_data.RData'))
-load(file.path(rdata_path, 'ms_vars_ws_attr.RData'))
-load(file.path(rdata_path, 'ms_vars_ts.RData'))
-load(file.path(rdata_path, 'ms_var_catalog.RData'))
-
-nv <- as.environment('package:macrosheds')
-
-for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
-    unlockBinding(ms_data, nv)
-    assign(ms_data, get(ms_data), envir = nv)
-    lockBinding(ms_data, nv)
-}
+# # Set directory to folder containing new data.
+# my_ms_dir <- "data_raw"
+# 
+# # fix package calls while using v2 ahead of release
+# #remove this if using the v2 dataset from the macrosheds package proper
+# rdata_path <- my_ms_dir
+# load(file.path(rdata_path, 'ms_site_data.RData'))
+# load(file.path(rdata_path, 'ms_vars_ws_attr.RData'))
+# load(file.path(rdata_path, 'ms_vars_ts.RData'))
+# load(file.path(rdata_path, 'ms_var_catalog.RData'))
+# 
+# nv <- as.environment('package:macrosheds')
+# 
+# for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
+#     unlockBinding(ms_data, nv)
+#     assign(ms_data, get(ms_data), envir = nv)
+#     lockBinding(ms_data, nv)
+# }
 ```
 # Trend detection
 
@@ -72,7 +75,7 @@ clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
 # From q_metrics script
 #if you haven't run it yet, just uncomment the next line to source it
 #source('q_metrics.R')
-q_metrics <- readRDS(here('data_working', 'discharge_7metrics_siteyear.rds'))
+q_metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds'))
 ```
 
 
@@ -182,7 +185,7 @@ trends_flagged <- trends %>%
                             p <0.05 & trend == 0 ~ 'flat')) %>%
     filter(!is.nan(flag),
            !is.na(flag))
-flag_colors <- c('non-significant' = "grey", 'increasing' = "orange", 'decreasing' = "purple", 'flat' = 'green')
+flag_colors <- c('increasing' = "orange", 'decreasing' = "purple", 'flat' = 'green', 'non-significant' = "grey")
 
 
 ggplot(trends_flagged, aes(x = trend, fill = flag))+
@@ -191,7 +194,92 @@ ggplot(trends_flagged, aes(x = trend, fill = flag))+
     theme_few()+
     labs(title = 'Trends')+
     scale_fill_manual(values = flag_colors)
+
+ggplot(trends_flagged, aes(x = trend, fill = flag))+
+    geom_histogram(position = 'dodge')+
+    facet_wrap(~var, scales = 'free', ncol = 2)+
+    theme_few()+
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
 ```
+
+Make kernal density plot for each trend, but at the variable level. Split out trends as facets. Display data as lines in accessory panel for context. See issue #16 on github for example.
+
+```{r}
+
+target_trend <- unique(trends_flagged$var)[1]
+trends_flagged %>%
+    filter(var == target_trend) %>%
+    ggplot(., aes(x = trend, fill = flag))+
+        geom_histogram()+
+        scale_fill_manual(values = flag_colors)+
+        facet_wrap(~flag, ncol = 1)+
+        theme_few()+
+        theme(legend.position = 'none')+
+        labs(title = target_trend)
+
+com_long %>%
+    filter(var == target_trend) %>%
+    ggplot(., aes(x = trend, fill = flag))+
+        geom_histogram()+
+        scale_fill_manual(values = flag_colors)+
+        facet_wrap(~flag, ncol = 1)+
+        theme_few()+
+        theme(legend.position = 'none')
+
+com_long %>%
+    filter(var == target_trend) %>%
+    left_join(., trends_flagged, by = c('site_code', 'var')) %>%
+    ggplot(., aes(x = water_year, y = val, color = site_code)) +
+    #geom_point()+
+    geom_abline(aes(slope=trend, intercept = 0, color = site_code))+
+    theme(legend.position = 'none')
+
+
+
+```
+
+Wow this is tricky. Going to try adapting their code from the paper here. 
+
+https://github.com/bellaoleksy/rocky-mtn-color/blob/main/3_Trends_In_Color.Rmd
+
+```{r}
+library(ggridges)
+# png(filename = 'figs/Figure4B.trend_ridges.png',
+#     width = 2, height = 5.75, units = 'in', res = 300)
+target_trend <- unique(trends_flagged$var)[1]
+
+plot_dat <- com_long %>%
+    left_join(., trends_flagged, by = c('site_code', 'var'))
+
+plot_dat %>%
+    filter(var == target_trend) %>%
+ggplot(., aes(x = trend)) +
+  geom_density(alpha = .4)+
+    theme(legend.position = 'none')
+    #scale_fill_manual(values=trendColors)
+
+plot_dat %>%
+ggplot(., aes(x = trend, color = flag)) +
+  # geom_histogram(aes(x=elev, y = ..density.., fill=Trend),
+  #                color = 'black',bins = 50) + 
+  # geom_density(aes(x=elev)) + 
+  geom_freqpoly(bins = 20, size = 1) + 
+  #scale_color_manual(values=trendColors)+
+  facet_wrap(~trend,nrow=4,scales="free_y")+
+  #geom_vline(xintercept=2617.32)+
+  theme(legend.position="none")
+
+
+plot_dat %>%
+    filter(flag != 'flat', !is.na(flag)) %>%
+  select(site_code, flag, trend) %>%
+  ggplot(aes(x = trend)) +
+  geom_density(alpha = .4, aes(fill = flag))+
+  #scale_fill_manual(values=trendColors)+
+  facet_wrap(flag~., scales="free")
+```
+
 
 ## Scatters
 

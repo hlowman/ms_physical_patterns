@@ -206,7 +206,7 @@ q_metrics_siteyear <- q_data_nodup %>%
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 # Export data.
-saveRDS(q_metrics_siteyear, "data_working/discharge_8metrics_siteyear.rds")
+saveRDS(q_metrics_siteyear, "data_working/discharge_metrics_siteyear.rds")
 
 # Create summarized dataset with all 8 metrics for full time series at each site.
 q_metrics_site <- q_data_nodup %>%
@@ -232,7 +232,7 @@ q_metrics_site <- q_data_nodup %>%
                         mean(val_mmd, na.rm = TRUE)), # coefficient of variation
             m3_skewq = skewness(val_mmd, na.rm = TRUE), # skewness
             m4_kurtq = kurtosis(val_mmd, na.rm = TRUE), # kurtosis
-            m5_ar1q = acf_print(scaleQds), # AR(1) coefficient
+            m5_ar1q = ar1_print(scaleQds), # AR(1) coefficient
             rbiq = rbi_print(val_mmd), # Richards-Baker flashiness index
             a_flow_sig = lm(scaleQ ~ sin_2pi_year + cos_2pi_year,
                             na.action = na.omit)$coefficients["sin_2pi_year"],
@@ -243,6 +243,6 @@ q_metrics_site <- q_data_nodup %>%
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 # Export data.
-saveRDS(q_metrics_site, "data_working/discharge_8metrics.rds")
+saveRDS(q_metrics_site, "data_working/discharge_metrics.rds")
 
 # End of script.
