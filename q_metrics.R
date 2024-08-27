@@ -70,7 +70,7 @@ area <- ms_site_data %>%
 # --- Conversion equation ---
 # (L/s*ha) * (86,400 s/d) * (10e6 mm^3/L) * (10e-9 ha/mm^2) = 86.4 mm/d
 q_data_nodup <- left_join(q_data_nodup, area, by = c("site_code")) %>%
-  mutate(val_mmd = (val*86400*1000000)/(ws_area_ha*1000000000))
+  mutate(val_mmd = (val*86400*10000)/(ws_area_ha*100000000))
 
 #### Water Years ####
 
