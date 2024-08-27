@@ -287,6 +287,7 @@ plot_dat %>%
 Make scatter plots to put domains in context. Going to pull average each domain for now, will want to pick specific exemplar sites in the near future.
 
 
+### Prep data
 ```{r}
 #uncomment this if using the v2 dataset from the ms package proper
 #ms_site_data <- ms_load_sites()
@@ -296,13 +297,17 @@ context <- com %>%
     filter(water_year %in% 2000:2019,
            site_code %in% unique(trends$site_code)) %>% #only looking at data we have trends for
     mutate(domain = case_when(domain == 'neon' ~ paste0(domain, '_', site_code),
-                              domain != 'neon' ~ domain),
-           runoff_ratio = flow/precip) %>% # disaggregate neon sites since its national scale
+                              domain != 'neon' ~ domain)) %>% # disaggregate neon sites since its national scale
     group_by(domain) %>%
     summarize(flow = mean(m1_meanq, na.rm = T),
               temp = mean(temp_mean_ann, na.rm = T),
-              precip = mean(precip_mean_ann, na.rm = T))
+              precip = mean(precip_mean_ann, na.rm = T)) %>%
+    mutate(runoff_ratio = flow/precip)
+```
 
+### Climate
+
+```{r}
 ggplot(context, aes(x = temp, y = precip, color = domain)) +
     geom_point()+
     geom_text_repel(aes(label = domain),
@@ -315,6 +320,8 @@ ggplot(context, aes(x = temp, y = precip, color = domain)) +
         labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
         scale_color_viridis(discrete = T)
 ```
+
+### Flow vs Precip
 
 ```{r}
 context %>%
@@ -335,7 +342,7 @@ ggplot(., aes(x = precip, y = flow, color = domain)) +
         scale_color_viridis(discrete = T)
 ```
 
-Rainfall runoff ratio to precip. 
+### runoff ratio to precip (all)
 
 ```{r}
 context %>%
@@ -356,7 +363,7 @@ ggplot(., aes(x = precip, y = runoff_ratio, color = domain)) +
         scale_color_viridis(discrete = T)
 ```
 
-Make another one with neon excluded.
+### runoff ratio to precip (-neon)
 
 ```{r}
 context %>%
@@ -377,7 +384,9 @@ ggplot(., aes(x = precip, y = runoff_ratio, color = domain)) +
         scale_color_viridis(discrete = T)
 ```
 
+## Boxplots
 
+### CAMELS chem comparison
 Re-create part of figure 5 from the CAMEL CHEM data paper (G sterle et al 2024).
 
 Need a vertical boxplot of mean daily precip and Q.
