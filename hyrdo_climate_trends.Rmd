@@ -93,7 +93,7 @@ Perform trend detection at each site.
 com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val')
 
 # commenting out all this to save processing time
-# uncomment and run to remake trends datset if needed
+# # uncomment and run to remake trends datset if needed
 # out_frame <- tibble(site_code = as.character(),
 #                     var = as.character(),
 #                     start = as.integer(),
@@ -219,14 +219,14 @@ trends_flagged %>%
         theme(legend.position = 'none')+
         labs(title = target_trend)
 
-com_long %>%
-    filter(var == target_trend) %>%
-    ggplot(., aes(x = trend, fill = flag))+
-        geom_histogram()+
-        scale_fill_manual(values = flag_colors)+
-        facet_wrap(~flag, ncol = 1)+
-        theme_few()+
-        theme(legend.position = 'none')
+# com_long %>%
+#     filter(var == target_trend) %>%
+#     ggplot(., aes(x = trend, fill = flag))+
+#         geom_histogram()+
+#         scale_fill_manual(values = flag_colors)+
+#         facet_wrap(~flag, ncol = 1)+
+#         theme_few()+
+#         theme(legend.position = 'none')
 
 com_long %>%
     filter(var == target_trend) %>%
@@ -296,7 +296,8 @@ context <- com %>%
     filter(water_year %in% 2000:2019,
            site_code %in% unique(trends$site_code)) %>% #only looking at data we have trends for
     mutate(domain = case_when(domain == 'neon' ~ paste0(domain, '_', site_code),
-                              domain != 'neon' ~ domain)) %>% # disaggregate neon sites since its national scale
+                              domain != 'neon' ~ domain),
+           runoff_ratio = flow/precip) %>% # disaggregate neon sites since its national scale
     group_by(domain) %>%
     summarize(flow = mean(m1_meanq, na.rm = T),
               temp = mean(temp_mean_ann, na.rm = T),
@@ -338,7 +339,6 @@ Rainfall runoff ratio to precip.
 
 ```{r}
 context %>%
-    mutate(runoff_ratio = flow/precip) %>%
     filter(domain != 'neon_MCDI') %>%
 ggplot(., aes(x = precip, y = runoff_ratio, color = domain)) +
     geom_point()+
