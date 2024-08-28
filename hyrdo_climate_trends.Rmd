@@ -230,12 +230,19 @@ trends_flagged %>%
 
 com_long %>%
     filter(var == target_trend) %>%
+    select(site_code, var, val) %>%
     left_join(., trends_flagged, by = c('site_code', 'var')) %>%
-    ggplot(., aes(x = water_year, y = val, color = site_code)) +
-    #geom_point()+
-    geom_abline(aes(slope=trend, intercept = 0, color = site_code))+
-    theme(legend.position = 'none')
-
+    filter(!is.na(flag)) %>%
+    ggplot(., aes(x = as.integer(water_year), y = val)) +
+        geom_abline(aes(slope=trend, intercept = .5, color = site_code))+
+        theme(legend.position = 'none')+
+        facet_wrap(~flag, ncol = 1, scales = 'free') +
+        #theme_few()+
+        theme(legend.position = 'none')+
+        #scale_y_continuous(breaks = c(1, 0, -1))+
+        scale_x_continuous(breaks = com_long$water_year, 
+                           limits = c(2000,2010)
+                           )
 
 
 ```
@@ -260,16 +267,16 @@ ggplot(., aes(x = trend)) +
     theme(legend.position = 'none')
     #scale_fill_manual(values=trendColors)
 
-plot_dat %>%
-ggplot(., aes(x = trend, color = flag)) +
-  # geom_histogram(aes(x=elev, y = ..density.., fill=Trend),
-  #                color = 'black',bins = 50) + 
-  # geom_density(aes(x=elev)) + 
-  geom_freqpoly(bins = 20, size = 1) + 
-  #scale_color_manual(values=trendColors)+
-  facet_wrap(~trend,nrow=4,scales="free_y")+
-  #geom_vline(xintercept=2617.32)+
-  theme(legend.position="none")
+# plot_dat %>%
+# ggplot(., aes(x = trend, color = flag)) +
+#   # geom_histogram(aes(x=elev, y = ..density.., fill=Trend),
+#   #                color = 'black',bins = 50) + 
+#   # geom_density(aes(x=elev)) + 
+#   geom_freqpoly(bins = 20, size = 1) + 
+#   #scale_color_manual(values=trendColors)+
+#   facet_wrap(~trend,nrow=4,scales="free_y")+
+#   #geom_vline(xintercept=2617.32)+
+#   theme(legend.position="none")
 
 
 plot_dat %>%
@@ -278,7 +285,33 @@ plot_dat %>%
   ggplot(aes(x = trend)) +
   geom_density(alpha = .4, aes(fill = flag))+
   #scale_fill_manual(values=trendColors)+
-  facet_wrap(flag~., scales="free")
+  facet_wrap(flag~., scales="fixed", ncol = 1)
+
+
+
+gplot(plot_dat, aes(x = water_year, y = val, group = site_code)) +
+  geom_abline(aes(intercept = intercept, slope = slope), color="grey50", size=0.1, alpha=0.5) + #background Sen's slopes
+  geom_abline(data = full_spec, 
+              aes(intercept = intercept, slope = slope, color=Trend),
+              size=1) + #Sen's slope for selected sites
+  geom_point(data = full_spec, aes(fill=Trend), shape=21) + 
+  scale_fill_manual(values=trendColors)+
+  scale_color_manual(values=trendColors)+
+  geom_text(x = 1990, y = 585,
+            aes(group=Trend, label = paste("n =",n,";",perc,"%")),
+            color="black",
+            data = trend_labels, size=3)+ #Add label for sample size
+  scale_x_continuous(breaks=seq(1986, 2018, 6))+
+  scale_y_continuous(breaks=seq(500, 575, 25))+
+  facet_wrap(~Trend, nrow=5) + 
+  theme_few()+
+  theme(legend.position="none",
+        plot.margin = unit(c(0,0.2,0,0), "cm"),)+
+  labs(y="Dominant wavelength (nm)",
+       x="Year") +
+
+
+
 ```
 
 
@@ -305,7 +338,7 @@ context <- com %>%
     mutate(runoff_ratio = flow/precip)
 ```
 
-### Climate
+### precip & temp
 
 ```{r}
 ggplot(context, aes(x = temp, y = precip, color = domain)) +
@@ -321,7 +354,7 @@ ggplot(context, aes(x = temp, y = precip, color = domain)) +
         scale_color_viridis(discrete = T)
 ```
 
-### Flow vs Precip
+### Flow & Precip
 
 ```{r}
 context %>%
