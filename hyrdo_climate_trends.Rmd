@@ -197,7 +197,27 @@ ggplot(trends_flagged, aes(x = trend, fill = flag))+
     labs(title = 'Trends')+
     scale_fill_manual(values = flag_colors)
 
+trends_flagged %>%
+    filter(var %in% c('m1_meanq', 'q1', 'q50', 'q99')) %>%
+    ggplot(., aes(x = trend, fill = flag))+
+    geom_density()+
+    facet_wrap(~var, scales = 'free')+
+    theme_few()+
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
+
+
+
 ggplot(trends_flagged, aes(x = trend, fill = flag))+
+    geom_histogram(position = 'dodge')+
+    facet_wrap(~var, scales = 'free', ncol = 2)+
+    theme_few()+
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
+
+trends_flagged %>%
+    filter(var %in% c('m1_meanq', 'q1', 'q50', 'q99')) %>%
+    ggplot(., aes(x = trend, fill = flag))+
     geom_histogram(position = 'dodge')+
     facet_wrap(~var, scales = 'free', ncol = 2)+
     theme_few()+
@@ -508,6 +528,84 @@ plot_dat <- start %>%
     
 ```
 
+temp
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'temp_mean_ann') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code')
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing Temp')+
+        scale_x_continuous(breaks = c(0,5,10,15))+
+        scale_y_continuous(breaks = c(2,4,6))
+    
+```
+
+precip
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'precip_mean_ann') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code')
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing Precip')+
+        scale_x_continuous(breaks = c(0,5,10,15),
+                           limits = c(0,15))+
+        scale_y_continuous(breaks = c(2,4,6),
+                           limits = c(0,6))
+    
+    plot_dat %>%
+        filter(flag == 'decreasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Decreasing Precip')+
+        scale_x_continuous(breaks = c(0,5,10,15),
+                           limits = c(0,15))+
+        scale_y_continuous(breaks = c(2,4,6),
+                           limits = c(0,6))
+    
+    
+```
 
 ### Flow & Precip
 
