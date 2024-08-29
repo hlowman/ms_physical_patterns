@@ -325,10 +325,12 @@ Make scatter plots to put domains in context. Going to pull average each domain 
 #uncomment this if using the v2 dataset from the ms package proper
 #ms_site_data <- ms_load_sites()
 
-context <- com %>%
+context_site <- com %>%
     left_join(., ms_site_data, by = 'site_code') %>%
     filter(water_year %in% 2000:2019,
-           site_code %in% unique(trends$site_code)) %>% #only looking at data we have trends for
+           site_code %in% unique(trends$site_code)) #only looking at data we have trends for
+    
+context_domain <- context_site %>%
     mutate(domain = case_when(domain == 'neon' ~ paste0(domain, '_', site_code),
                               domain != 'neon' ~ domain)) %>% # disaggregate neon sites since its national scale
     group_by(domain) %>%
@@ -341,7 +343,7 @@ context <- com %>%
 ### precip & temp
 
 ```{r}
-ggplot(context, aes(x = temp, y = precip, color = domain)) +
+ggplot(context_domain, aes(x = temp, y = precip, color = domain)) +
     geom_point()+
     geom_text_repel(aes(label = domain),
                   box.padding   = 0.35, 
