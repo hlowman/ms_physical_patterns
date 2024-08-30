@@ -173,6 +173,28 @@ q_metrics_siteyear <- q_data_nodup %>%
   mutate(m6_ampq = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
+
+# join in climate data
+### this next one will take a minute
+#only need to run it once!
+# clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
+#   mutate(year = year(date),
+#          month = month(date),
+#         water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+#                                 TRUE ~ year)) %>%
+#     select(site_code, date, water_year, var, val) %>%
+#     pivot_wider(id_cols = c(site_code, date, water_year),
+#                 names_from = var, values_from = val, values_fn = mean) %>%
+#     group_by(site_code, water_year) %>%
+#     summarize(precip_mean_ann = mean(cc_precip_median, na.rm = T),
+#               precip_total_ann = sum(cc_precip_median, na.rm = T),
+#               temp_mean_ann = mean(cc_temp_mean_median, na.rm = T)
+#               )
+#saveRDS(clim, file = here('data_working', 'clim_summaries.rds'))
+
+clim <- readRDS(here('data_working', 'clim_summaries.rds'))
+
+
 # Export data.
 saveRDS(q_metrics_siteyear, "data_working/discharge_metrics_siteyear.rds")
 
