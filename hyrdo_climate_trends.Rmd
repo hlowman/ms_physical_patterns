@@ -26,8 +26,8 @@ ws_sums <- read_feather(here('data_raw', 'watershed_summaries.feather'))
 hydro <- read_feather(here('data_raw', 'spatial_timeseries_hydrology.feather'))
 
 # From q_metrics script
-# if rds is not there uncomment and run q_metrics
-#source('q_metrics.R')
+# if you want to save runtime comment out source(q_metrics.r)
+source(here('src', 'q_metrics.R'))
 com <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds'))
 ```
 
