@@ -117,7 +117,7 @@ com %>%
 ```
 
 
-Make kernel density plots for each trend. 
+Flag trends
 
 ```{r}
 trends_flagged <- trends %>%
@@ -132,15 +132,21 @@ trends_flagged <- trends %>%
     filter(!is.nan(flag),
            !is.na(flag))
 flag_colors <- c('increasing' = "orange", 'decreasing' = "purple", 'flat' = 'green', 'non-significant' = "grey")
+```
 
+Make kernel density plots for each trend. 
 
+```{r}
 ggplot(trends_flagged, aes(x = trend, fill = flag))+
     geom_density()+
     facet_wrap(~var, scales = 'free')+
     theme_few()+
     labs(title = 'Trends')+
     scale_fill_manual(values = flag_colors)
+```
 
+
+```{r}
 trends_flagged %>%
     filter(var %in% c('m1_meanq', 'q1', 'q50', 'q99')) %>%
     ggplot(., aes(x = trend, fill = flag))+
@@ -149,16 +155,20 @@ trends_flagged %>%
     theme_few()+
     labs(title = 'Trends')+
     scale_fill_manual(values = flag_colors)
+```
 
 
-
+```{r}
 ggplot(trends_flagged, aes(x = trend, fill = flag))+
     geom_histogram(position = 'dodge')+
     facet_wrap(~var, scales = 'free', ncol = 2)+
     theme_few()+
     labs(title = 'Trends')+
     scale_fill_manual(values = flag_colors)
+```
 
+
+```{r}
 trends_flagged %>%
     filter(var %in% c('m1_meanq', 'q1', 'q50', 'q99')) %>%
     ggplot(., aes(x = trend, fill = flag))+
@@ -774,7 +784,7 @@ Re-create part of figure 5 from the CAMEL CHEM data paper (G sterle et al 2024).
 Need a vertical boxplot of mean daily precip and Q.
 
 ```{r}
-context %>%
+context_domain %>%
     pivot_longer(cols = -domain, names_to = 'var', values_to = 'val') %>%
     filter(var == 'flow') %>%
     select(var, val) %>%
@@ -788,7 +798,7 @@ context %>%
 
 
 ```{r}
-context %>%
+context_domain %>%
     pivot_longer(cols = -domain, names_to = 'var', values_to = 'val') %>%
     filter(var == 'precip') %>%
     select(var, val) %>%

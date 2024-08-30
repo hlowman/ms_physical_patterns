@@ -51,6 +51,16 @@ q_data_nodup <- q_data_nodup %>%
   mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                 TRUE ~ year))
 
+#### Filter to complete years ####
+# will need to run q_good_data script first, uncomment next line to make the rds needed
+#source(here('src', 'q_good_data.R'))
+good_site_years <- readRDS(here('data_working', 'good_site_years.RDS'))
+
+q_data_nodup <- q_data_nodup %>%
+    right_join(., good_site_years, by = c('site_code')) %>%
+    filter(water_year > start,
+           water_year < end)
+
 #### Q Metrics ####
 
 ##### AR(1) #####

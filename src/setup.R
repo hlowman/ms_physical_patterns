@@ -19,7 +19,7 @@ library(ggthemes)
 library(viridis)
 library(patchwork)
 library(ggforce)
-
+library(e1071)
 
 # Using revised code from Mike to point to new data.
 rdata_path <- "data_raw" # updated path

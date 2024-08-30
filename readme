@@ -1,0 +1,5 @@
+Run order of this repo:
+1) make sure macrosheds v2 dataset is dumped into data_working, along with rds metadata files/remap
+2) run q_metrics.R
+3) run hydro_climate_trends.rmd
+4) run q_pca
