@@ -194,9 +194,11 @@ q_metrics_siteyear <- q_data_nodup %>%
 
 clim <- readRDS(here('data_working', 'clim_summaries.rds'))
 
-
+q_metrics_siteyear %>%
+    left_join(., clim, by = c('site_code', 'water_year')) %>%
+    mutate(runoff_ratio = m1_meanq/precip_mean_ann) %>%
 # Export data.
-saveRDS(q_metrics_siteyear, "data_working/discharge_metrics_siteyear.rds")
+saveRDS(., "data_working/discharge_metrics_siteyear.rds")
 
 # Create summarized dataset with all 8 metrics for full time series at each site.
 q_metrics_site <- q_data_nodup %>%
