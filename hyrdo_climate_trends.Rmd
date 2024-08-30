@@ -28,16 +28,9 @@ hydro <- read_feather(here('data_raw', 'spatial_timeseries_hydrology.feather'))
 # From q_metrics script
 # if rds is not there uncomment and run q_metrics
 #source('q_metrics.R')
-q_metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds'))
+com <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds'))
 ```
 
-
-Next, join climate summaries to magnificent 7 from q_metrics script. 
-
-```{r}
-com <- q_metrics %>%
-    full_join(clim, by = c('site_code', 'water_year'))
-```
 
 Perform trend detection at each site.
 
