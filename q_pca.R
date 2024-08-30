@@ -14,7 +14,7 @@
 source(here('src', 'setup.R'))
 
 # Load data with discharge metrics.
-q_metrics <- readRDS("data_working/discharge_8metrics.rds")
+q_metrics <- readRDS("data_working/discharge_metrics.rds")
 
 # And load trends data.
 hydro_trend_data <- read_csv("data_working/hydro_climate_trends.csv")
