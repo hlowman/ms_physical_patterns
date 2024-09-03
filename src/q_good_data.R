@@ -13,8 +13,7 @@ minimum_continuous_record_length_master <- 10
 q_data <- ms_load_product(
     macrosheds_root = here(my_ms_dir),
     prodname = "discharge",
-    warn = F
-) %>%
+    warn = F) %>%
     mutate(water_year = as.integer(as.character(water_year(datetime, origin = 'usgs')))) %>%
     distinct(., site_code, datetime, .keep_all = TRUE) %>%
     filter(ms_interp == 0) %>%
@@ -22,7 +21,8 @@ q_data <- ms_load_product(
     filter(water_year >= start_year_master) # filter for MODIS sat data
 
 # 2 Data frequency check ####
-# only want sites that are reporting q at 2 times a week
+# only want sites that are reporting q at 4 times a week
+# note this spits out number of weeks in a given water year
 freq_check <- q_data %>%
     mutate(week_year = paste0(week(datetime), '_', water_year)) %>%
     group_by(site_code, week_year) %>%
@@ -156,7 +156,7 @@ ggplot(test, aes(y = site_code, color = domain))+
     theme_few()+
     scale_color_viridis(discrete = T)
 
-## make tiblle of good site years ####
+## make tibble of good site years ####
 good_site_years <- longest_runs %>%
     filter(record_length >= minimum_continuous_record_length_master)
 
