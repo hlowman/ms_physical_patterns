@@ -11,33 +11,10 @@
 # Mike on 8/19/24, not the current package version of the dataset.
 
 #### Setup ####
-
-# Load packages.
-library(here)
-library(tidyverse)
-library(ggplot2)
-library(macrosheds)
-library(patchwork)
-library(viridis)
-
-# Using revised code from Mike to point to new data.
-rdata_path <- "data_raw" # updated path
-
-load(file.path(rdata_path, 'ms_site_data.RData'))
-load(file.path(rdata_path, 'ms_vars_ws_attr.RData'))
-load(file.path(rdata_path, 'ms_vars_ts.RData'))
-load(file.path(rdata_path, 'ms_var_catalog.RData'))
-
-nv <- as.environment('package:macrosheds')
-
-for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
-    unlockBinding(ms_data, nv)
-    assign(ms_data, get(ms_data), envir = nv)
-    lockBinding(ms_data, nv)
-}
+source(here('src', 'setup.R'))
 
 # Load data with discharge metrics.
-q_metrics <- readRDS("data_working/discharge_8metrics.rds")
+q_metrics <- readRDS("data_working/discharge_metrics.rds")
 
 # And load trends data.
 hydro_trend_data <- read_csv("data_working/hydro_climate_trends.csv")

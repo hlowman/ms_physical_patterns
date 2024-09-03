@@ -8,40 +8,8 @@
 # discharge metrics (Archfield et al., 2014) as well as
 # the Richards-Baker Flashiness Index (Baker et al., 2004)
 # for all MacroSheds sites at which data is currently available.
-
-# Note, this script uses a newer version of the data (v2) sent by
-# Mike on 8/19/24, not the current package version of the dataset.
-
-#### Setup ####
-
-# Load packages.
 library(here)
-library(tidyverse)
-library(ggplot2)
-library(naniar)
-library(lubridate)
-library(feather)
-library(macrosheds)
-library(moments)
-
-# Using revised code from Mike to point to new data.
-rdata_path <- "data_raw" # updated path
-
-load(file.path(rdata_path, 'ms_site_data.RData'))
-load(file.path(rdata_path, 'ms_vars_ws_attr.RData'))
-load(file.path(rdata_path, 'ms_vars_ts.RData'))
-load(file.path(rdata_path, 'ms_var_catalog.RData'))
-
-nv <- as.environment('package:macrosheds')
-
-for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
-  unlockBinding(ms_data, nv)
-  assign(ms_data, get(ms_data), envir = nv)
-  lockBinding(ms_data, nv)
-}
-
-# Set directory to folder containing new data.
-my_ms_dir <- "data_raw"
+source(here('src', 'setup.R'))
 
 # Load dataset - be patient, takes just a moment.
 q_data <- ms_load_product(
@@ -70,7 +38,7 @@ area <- ms_site_data %>%
 # --- Conversion equation ---
 # (L/s*ha) * (86,400 s/d) * (10e6 mm^3/L) * (10e-9 ha/mm^2) = 86.4 mm/d
 q_data_nodup <- left_join(q_data_nodup, area, by = c("site_code")) %>%
-  mutate(val_mmd = (val*86400*1000000)/(ws_area_ha*1000000000))
+  mutate(val_mmd = (val*86400*10000)/(ws_area_ha*100000000))
 
 #### Water Years ####
 
@@ -82,6 +50,16 @@ q_data_nodup <- q_data_nodup %>%
          year = year(datetime)) %>%
   mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                 TRUE ~ year))
+
+#### Filter to complete years ####
+# will need to run q_good_data script first, uncomment next line to make the rds needed
+#source(here('src', 'q_good_data.R'))
+good_site_years <- readRDS(here('data_working', 'good_site_years.RDS'))
+
+q_data_nodup <- q_data_nodup %>%
+    right_join(., good_site_years, by = c('site_code')) %>%
+    filter(water_year > start,
+           water_year < end)
 
 #### Q Metrics ####
 
@@ -205,8 +183,32 @@ q_metrics_siteyear <- q_data_nodup %>%
   mutate(m6_ampq = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
+
+# join in climate data
+### this next one will take a minute
+#only need to run it once!
+# clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
+#   mutate(year = year(date),
+#          month = month(date),
+#         water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+#                                 TRUE ~ year)) %>%
+#     select(site_code, date, water_year, var, val) %>%
+#     pivot_wider(id_cols = c(site_code, date, water_year),
+#                 names_from = var, values_from = val, values_fn = mean) %>%
+#     group_by(site_code, water_year) %>%
+#     summarize(precip_mean_ann = mean(cc_precip_median, na.rm = T),
+#               precip_total_ann = sum(cc_precip_median, na.rm = T),
+#               temp_mean_ann = mean(cc_temp_mean_median, na.rm = T)
+#               )
+#saveRDS(clim, file = here('data_working', 'clim_summaries.rds'))
+
+clim <- readRDS(here('data_working', 'clim_summaries.rds'))
+
+q_metrics_siteyear %>%
+    left_join(., clim, by = c('site_code', 'water_year')) %>%
+    mutate(runoff_ratio = m1_meanq/precip_mean_ann) %>%
 # Export data.
-saveRDS(q_metrics_siteyear, "data_working/discharge_8metrics_siteyear.rds")
+saveRDS(., "data_working/discharge_metrics_siteyear.rds")
 
 # Create summarized dataset with all 8 metrics for full time series at each site.
 q_metrics_site <- q_data_nodup %>%
@@ -232,7 +234,7 @@ q_metrics_site <- q_data_nodup %>%
                         mean(val_mmd, na.rm = TRUE)), # coefficient of variation
             m3_skewq = skewness(val_mmd, na.rm = TRUE), # skewness
             m4_kurtq = kurtosis(val_mmd, na.rm = TRUE), # kurtosis
-            m5_ar1q = acf_print(scaleQds), # AR(1) coefficient
+            m5_ar1q = ar1_print(scaleQds), # AR(1) coefficient
             rbiq = rbi_print(val_mmd), # Richards-Baker flashiness index
             a_flow_sig = lm(scaleQ ~ sin_2pi_year + cos_2pi_year,
                             na.action = na.omit)$coefficients["sin_2pi_year"],
@@ -243,6 +245,6 @@ q_metrics_site <- q_data_nodup %>%
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 # Export data.
-saveRDS(q_metrics_site, "data_working/discharge_8metrics.rds")
+saveRDS(q_metrics_site, "data_working/discharge_metrics.rds")
 
 # End of script.

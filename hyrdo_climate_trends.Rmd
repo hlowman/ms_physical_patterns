@@ -11,38 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Load packages.
 library(here)
-library(tidyverse)
-library(ggplot2)
-library(naniar)
-library(lubridate)
-library(feather)
-library(macrosheds)
-library(moments)
-library(feather)
-library(lfstat)
-library(trend)
-library(ggrepel)
-library(ggthemes)
-library(viridis)
+source(here('src', 'setup.R'))
 
-# Set directory to folder containing new data.
-my_ms_dir <- "data_raw"
-
-# fix package calls while using v2 ahead of release
-#remove this if using the v2 dataset from the macrosheds package proper
-rdata_path <- my_ms_dir
-load(file.path(rdata_path, 'ms_site_data.RData'))
-load(file.path(rdata_path, 'ms_vars_ws_attr.RData'))
-load(file.path(rdata_path, 'ms_vars_ts.RData'))
-load(file.path(rdata_path, 'ms_var_catalog.RData'))
-
-nv <- as.environment('package:macrosheds')
-
-for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
-    unlockBinding(ms_data, nv)
-    assign(ms_data, get(ms_data), envir = nv)
-    lockBinding(ms_data, nv)
-}
 ```
 # Trend detection
 
@@ -54,34 +24,13 @@ First reading in summary data and work that Heili already did.
 #from MS
 ws_sums <- read_feather(here('data_raw', 'watershed_summaries.feather'))
 hydro <- read_feather(here('data_raw', 'spatial_timeseries_hydrology.feather'))
-### this next one will take a minute
-clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
-  mutate(year = year(date),
-         month = month(date),
-        water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
-                                TRUE ~ year)) %>%
-    select(site_code, date, water_year, var, val) %>%
-    pivot_wider(id_cols = c(site_code, date, water_year), 
-                names_from = var, values_from = val, values_fn = mean) %>%
-    group_by(site_code, water_year) %>%
-    summarize(precip_mean_ann = mean(cc_precip_median, na.rm = T),
-              precip_total_ann = sum(cc_precip_median, na.rm = T),
-              temp_mean_ann = mean(cc_temp_mean_median, na.rm = T)
-              )
 
 # From q_metrics script
-#if you haven't run it yet, just uncomment the next line to source it
-#source('q_metrics.R')
-q_metrics <- readRDS(here('data_working', 'discharge_7metrics_siteyear.rds'))
+# if you want to save runtime comment out source(q_metrics.r)
+source(here('src', 'q_metrics.R'))
+com <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds'))
 ```
 
-
-Next, join climate summaries to magnificent 7 from q_metrics script. 
-
-```{r}
-com <- q_metrics %>%
-    full_join(clim, by = c('site_code', 'water_year'))
-```
 
 Perform trend detection at each site.
 
@@ -89,7 +38,7 @@ Perform trend detection at each site.
 com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val')
 
 # commenting out all this to save processing time
-# uncomment and run to remake trends datset if needed
+# # uncomment and run to remake trends datset if needed
 # out_frame <- tibble(site_code = as.character(),
 #                     var = as.character(),
 #                     start = as.integer(),
@@ -97,29 +46,29 @@ com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = '
 #                     trend = as.integer(),
 #                     p = as.integer())
 # 
-# # for(i in unique(com_long$site_code)) {
-# #     
-#     target_site <- filter(com_long, site_code == i) 
-#     
+# for(i in unique(com_long$site_code)) {
+# 
+#     target_site <- filter(com_long, site_code == i)
+# 
 #     dat_check <- na.omit(target_site)
-#     
+# 
 #     if(nrow(dat_check) > 1){
 #     #loop  through metrics
 #     for(j in unique(target_site$var)){
-#         
+# 
 #     target_solute <- filter(target_site, var == j)  %>%
 #         arrange(water_year) %>%
 #         na.omit()
-#         
-#     if(nrow(target_solute) > 9){ 
+# 
+#     if(nrow(target_solute) > 9){
 #     start <- min(target_solute$water_year)
 #     end <- max(target_solute$water_year)
 #     n <- nrow(target_solute)
 #     test <- sens.slope(target_solute$val)
 #     trend <- test[[1]]
 #     p <- test[[3]]
-#     
-#     
+# 
+# 
 #     inner <- tibble(site_code = i,
 #                     var = j,
 #                     start = start,
@@ -129,25 +78,25 @@ com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = '
 #                     p = p
 #                     )
 #     out_frame <- rbind(out_frame, inner)
-#     
+# 
 #     diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
 #             labs(title = paste0(i, ' ', j),
 #                       caption = paste0('n = ', n))+
 #             geom_point()+
 #         theme_few()
-#     
+# 
 #     quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', i, paste0(i,'_',j,'.png')),
 #            create.dir = T))
-#     
-#     
+# 
+# 
 #     }else{next} #solute level data avail check
 #         }# end solute loop
 #     }else{next} # site level data avail check
 # } #end site loop
-
-#write_csv(out_frame, file = here('data_working', 'hydro_climate_trends.csv'))
-
-#trends <- out_frame
+# 
+# write_csv(out_frame, file = here('data_working', 'hydro_climate_trends.csv'))
+# 
+# trends <- out_frame
 
 # comment this out if you are using the loop to update data
 trends <- read_csv(here('data_working', 'hydro_climate_trends.csv'))
@@ -168,30 +117,93 @@ com %>%
 ```
 
 
+Flag trends
+
+```{r}
+trends_flagged <- trends %>%
+    filter(
+           #p > 0.05, # sig trends only
+           var != 'a_flow_sig',
+           var != 'b_flow_sig') %>% 
+    mutate(flag = case_when(p >= 0.05 ~ 'non-significant',
+                            p < 0.05 & trend > 0 ~ 'increasing',
+                            p < 0.05 & trend < 0 ~ 'decreasing',
+                            p <0.05 & trend == 0 ~ 'flat')) %>%
+    filter(!is.nan(flag),
+           !is.na(flag))
+flag_colors <- c('increasing' = "orange", 'decreasing' = "purple", 'flat' = 'green', 'non-significant' = "grey")
+```
+
 Make kernel density plots for each trend. 
 
 ```{r}
-trends %>%
-    filter(p > 0.05, # sign trends only
-           var != 'a_flow_sig',
-            var != 'b_flow_sig') %>% 
-ggplot(aes(x = trend))+
+ggplot(trends_flagged, aes(x = trend, fill = flag))+
     geom_density()+
     facet_wrap(~var, scales = 'free')+
     theme_few()+
-    labs(title = 'Trends')
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
 ```
+
+
+```{r}
+trends_flagged %>%
+    filter(var %in% c('m1_meanq', 'q1', 'q50', 'q99')) %>%
+    ggplot(., aes(x = trend, fill = flag))+
+    geom_density()+
+    facet_wrap(~var, scales = 'free')+
+    theme_few()+
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
+```
+
+
+```{r}
+ggplot(trends_flagged, aes(x = trend, fill = flag))+
+    geom_histogram(position = 'dodge')+
+    facet_wrap(~var, scales = 'free', ncol = 2)+
+    theme_few()+
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
+```
+
+
+```{r}
+trends_flagged %>%
+    filter(var %in% c('m1_meanq', 'q1', 'q50', 'q99')) %>%
+    ggplot(., aes(x = trend, fill = flag))+
+    geom_histogram(position = 'dodge')+
+    facet_wrap(~var, scales = 'free', ncol = 2)+
+    theme_few()+
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
+```
+
+Make kernal density plot for each trend, but at the variable level. Split out trends as facets. Display data as lines in accessory panel for context. See issue #16 on github for example.
+
+Wow this is tricky. Going to try adapting their code from the paper here. 
+
+https://github.com/bellaoleksy/rocky-mtn-color/blob/main/3_Trends_In_Color.Rmd
+
 
 ## Scatters
 
 Make scatter plots to put domains in context. Going to pull average each domain for now, will want to pick specific exemplar sites in the near future.
 
 
+### Prep data
 ```{r}
 #uncomment this if using the v2 dataset from the ms package proper
 #ms_site_data <- ms_load_sites()
 
-context <- com %>%
+context_site <- com_long %>%
+    left_join(trends_flagged, by = c('site_code', 'var')) %>%
+    left_join(., ms_site_data, by = 'site_code') %>%
+    filter(water_year %in% 2000:2019,
+           site_code %in% unique(trends$site_code)) #only looking at data we have trends for
+
+
+context_domain <- com %>%
     left_join(., ms_site_data, by = 'site_code') %>%
     filter(water_year %in% 2000:2019,
            site_code %in% unique(trends$site_code)) %>% #only looking at data we have trends for
@@ -200,9 +212,14 @@ context <- com %>%
     group_by(domain) %>%
     summarize(flow = mean(m1_meanq, na.rm = T),
               temp = mean(temp_mean_ann, na.rm = T),
-              precip = mean(precip_mean_ann, na.rm = T))
+              precip = mean(precip_mean_ann, na.rm = T)) %>%
+    mutate(runoff_ratio = flow/precip)
+```
 
-ggplot(context, aes(x = temp, y = precip, color = domain)) +
+### precip & temp
+
+```{r}
+ggplot(context_domain, aes(x = temp, y = precip, color = domain)) +
     geom_point()+
     geom_text_repel(aes(label = domain),
                   box.padding   = 0.35, 
@@ -215,8 +232,235 @@ ggplot(context, aes(x = temp, y = precip, color = domain)) +
         scale_color_viridis(discrete = T)
 ```
 
+
+Break out plots for m1, ar1, rbi.
+
+First m1:
+
 ```{r}
-context %>%
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'm1_meanq') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code')
+
+    ggplot(plot_dat, aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'All')
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing Flow')+
+        scale_x_continuous(breaks = c(0,5,10,15))+
+        scale_y_continuous(breaks = c(2,4,6))
+    
+    plot_dat %>%
+        filter(flag == 'decreasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Decreasing Flow')+
+        scale_x_continuous(breaks = c(0,5,10,15))+
+        scale_y_continuous(breaks = c(2,4,6))
+    
+```
+
+Ar1:
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'm5_ar1q') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code')
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing AR1')+
+        scale_x_continuous(breaks = c(0,5,10,15))+
+        scale_y_continuous(breaks = c(2,4,6))
+    
+    plot_dat %>%
+        filter(flag == 'decreasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Decreasing AR1')+
+        scale_x_continuous(breaks = c(0,5,10,15))+
+        scale_y_continuous(breaks = c(2,4,6))
+    
+```
+
+
+Rbi
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'rbiq') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code')
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing RBI')+
+        scale_x_continuous(breaks = c(0,5,10,15))+
+        scale_y_continuous(breaks = c(2,4,6))
+    
+    plot_dat %>%
+        filter(flag == 'decreasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Decreasing RBI')+
+        scale_x_continuous(breaks = c(0,5,10,15))+
+        scale_y_continuous(breaks = c(2,4,6))
+    
+```
+
+temp
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'temp_mean_ann') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code')
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing Temp')+
+        scale_x_continuous(breaks = c(0,5,10,15))+
+        scale_y_continuous(breaks = c(2,4,6))
+    
+```
+
+precip
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'precip_mean_ann') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code')
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing Precip')+
+        scale_x_continuous(breaks = c(0,5,10,15),
+                           limits = c(0,15))+
+        scale_y_continuous(breaks = c(2,4,6),
+                           limits = c(0,6))
+    
+    plot_dat %>%
+        filter(flag == 'decreasing') %>%
+    ggplot(aes(x = temp_mean_ann, y = precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Decreasing Precip')+
+        scale_x_continuous(breaks = c(0,5,10,15),
+                           limits = c(0,15))+
+        scale_y_continuous(breaks = c(2,4,6),
+                           limits = c(0,6))
+    
+    
+```
+
+### Flow & Precip
+
+```{r}
+context_domain %>%
     filter(domain != 'neon_MCDI') %>%
 ggplot(., aes(x = precip, y = flow, color = domain)) +
     geom_point()+
@@ -231,14 +475,15 @@ ggplot(., aes(x = precip, y = flow, color = domain)) +
         theme(legend.position = 'none')+
         labs(x = 'Precip (mean annual, mm/d)', y = 'Q (mean annual, mm/d)',
              caption = 'Note: NEON_MCDI off scale Q. (Q 270, P 2.6)')+
-        scale_color_viridis(discrete = T)
+        scale_color_viridis(discrete = T) 
+
+
 ```
 
-Rainfall runoff ratio to precip. 
+### runoff ratio to precip (all)
 
 ```{r}
 context %>%
-    mutate(runoff_ratio = flow/precip) %>%
     filter(domain != 'neon_MCDI') %>%
 ggplot(., aes(x = precip, y = runoff_ratio, color = domain)) +
     geom_point()+
@@ -256,7 +501,261 @@ ggplot(., aes(x = precip, y = runoff_ratio, color = domain)) +
         scale_color_viridis(discrete = T)
 ```
 
-Make another one with neon excluded.
+For mean q:
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'm1_meanq') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code') %>%
+    filter(site_code != 'MCDI')
+
+
+    ggplot(plot_dat, aes(x = precip_mean_ann, y = m1_meanq/precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        geom_hline(yintercept= 1, color = 'red')+
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)+
+        scale_y_continuous(limits = c(0, 6))+
+        labs(title = 'All')
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(., aes(x = precip_mean_ann, y = m1_meanq/precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        geom_hline(yintercept= 1, color = 'red')+
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing Flow')+
+        scale_y_continuous(limits = c(0, 6))+
+        scale_x_continuous(breaks = c(2,4,6))
+    
+    plot_dat %>%
+        filter(flag == 'decreasing') %>%
+    ggplot(., aes(x = precip_mean_ann, y = m1_meanq/precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        geom_hline(yintercept= 1, color = 'red')+
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Decreasing Flow')+
+        scale_y_continuous(limits = c(0, 6))+
+        scale_x_continuous(breaks = c(2,4,6))
+    
+```
+
+for ar1
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'm5_ar1q') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code') %>%
+    filter(site_code != 'MCDI')
+
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(., aes(x = precip_mean_ann, y = m1_meanq/precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        geom_hline(yintercept= 1, color = 'red')+
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing AR1')+
+        scale_y_continuous(limits = c(0, 6))+
+        scale_x_continuous(breaks = c(2,4,6),
+                           limits = c(0, 6))
+    
+    plot_dat %>%
+        filter(flag == 'decreasing') %>%
+    ggplot(., aes(x = precip_mean_ann, y = m1_meanq/precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        geom_hline(yintercept= 1, color = 'red')+
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Decreasing AR1')+
+        scale_y_continuous(limits = c(0, 6))+
+        scale_x_continuous(breaks = c(2,4,6),
+                           limits = c(0, 6))
+```
+
+rbi:
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'rbiq') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code') %>%
+    filter(site_code != 'MCDI')
+
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(., aes(x = precip_mean_ann, y = m1_meanq/precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        geom_hline(yintercept= 1, color = 'red')+
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing RBI')+
+        scale_y_continuous(limits = c(0, 6))+
+        scale_x_continuous(breaks = c(2,4,6),
+                           limits = c(0, 6))
+    
+    plot_dat %>%
+        filter(flag == 'decreasing') %>%
+    ggplot(., aes(x = precip_mean_ann, y = m1_meanq/precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        geom_hline(yintercept= 1, color = 'red')+
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Decreasing RBI')+
+        scale_y_continuous(limits = c(0, 6))+
+        scale_x_continuous(breaks = c(2,4,6),
+                           limits = c(0, 6))
+```
+
+for precip
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'precip_mean_ann') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code') %>%
+    filter(site_code != 'MCDI')
+
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(., aes(x = precip_mean_ann, y = m1_meanq/precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        geom_hline(yintercept= 1, color = 'red')+
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing Precip')+
+        scale_y_continuous(limits = c(0, 6))+
+        scale_x_continuous(breaks = c(2,4,6),
+                           limits = c(0, 6))
+    
+    plot_dat %>%
+        filter(flag == 'decreasing') %>%
+    ggplot(., aes(x = precip_mean_ann, y = m1_meanq/precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        geom_hline(yintercept= 1, color = 'red')+
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Decreasing Precip')+
+        scale_y_continuous(limits = c(0, 6))+
+        scale_x_continuous(breaks = c(2,4,6),
+                           limits = c(0, 6))
+```
+
+
+for temp:
+
+```{r}
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
+
+trend_fil <- trends_flagged %>%
+    filter(var == 'temp_mean_ann') 
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code') %>%
+    filter(site_code != 'MCDI')
+
+    
+    plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(., aes(x = precip_mean_ann, y = m1_meanq/precip_mean_ann, color = domain))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        geom_hline(yintercept= 1, color = 'red')+
+        theme(legend.position = 'none') +
+        labs(x = 'Precip (mean annual, mm/d)', y = 'Runoff Ratio',
+             caption = 'Note: neon_MCDI off scale (RR 87, P 2.3)')+
+        scale_color_viridis(discrete = T)+
+        labs(title = 'Increasing Temp')+
+        scale_y_continuous(limits = c(0, 6))+
+        scale_x_continuous(breaks = c(2,4,6),
+                           limits = c(0, 6))
+    
+```
+
+
+
+### runoff ratio to precip (-neon)
 
 ```{r}
 context %>%
@@ -277,13 +776,15 @@ ggplot(., aes(x = precip, y = runoff_ratio, color = domain)) +
         scale_color_viridis(discrete = T)
 ```
 
+## Boxplots
 
+### CAMELS chem comparison
 Re-create part of figure 5 from the CAMEL CHEM data paper (G sterle et al 2024).
 
 Need a vertical boxplot of mean daily precip and Q.
 
 ```{r}
-context %>%
+context_domain %>%
     pivot_longer(cols = -domain, names_to = 'var', values_to = 'val') %>%
     filter(var == 'flow') %>%
     select(var, val) %>%
@@ -297,7 +798,7 @@ context %>%
 
 
 ```{r}
-context %>%
+context_domain %>%
     pivot_longer(cols = -domain, names_to = 'var', values_to = 'val') %>%
     filter(var == 'precip') %>%
     select(var, val) %>%
