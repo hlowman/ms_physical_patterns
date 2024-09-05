@@ -7,6 +7,7 @@
 # The following script will calculate the "magnificent 7"
 # discharge metrics (Archfield et al., 2014) as well as
 # the Richards-Baker Flashiness Index (Baker et al., 2004)
+# and some other annual temperature/climate metrics
 # for all MacroSheds sites at which data is currently available.
 library(here)
 source(here('src', 'setup.R'))
@@ -36,9 +37,9 @@ area <- ms_site_data %>%
 
 # And convert to mm/d.
 # --- Conversion equation ---
-# (L/s*ha) (1,000 m3s/Lps) * (86,400 s/d) * (1/10,000 ha/m2) * (1/1,000 mm/m) = 8.64 mm/d
+# (L/s*ha) (1,000 m3s/Lps) * (86,400 s/d) * (1/10,000 ha/m2) * (1/1,000 mm/m) = 8.64 mm/d*ha
 q_data_nodup <- left_join(q_data_nodup, area, by = c("site_code")) %>%
-  mutate(val_mmd = (val*8.64)/(ws_area_ha))
+  mutate(val_mmd = (val*86400*10000)/(ws_area_ha*100000000))
 
 #### Water Years ####
 
@@ -117,33 +118,28 @@ rbi_print <- function(x) {
     return(RBI)
 }
 
-#### Summary ####
+##### Median Cumulative Q #####
 
-# Calculate number of records for each site-water year,
-# since those with too few records will break the
-# regressions below.
-q_wy_counts <- q_data_nodup %>%
-    drop_na(val_mmd) %>%
-    mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
-    count(site_wy) %>%
+# Calculate the day of year when the median
+# cumulative discharge is reached.
+q_data_50_doy <- q_data_nodup %>%
+    group_by(site_code, water_year) %>%
+        mutate(q50_sum = 0.5*sum(val_mmd),
+               q_sum = cumsum(val_mmd)) %>%
+        mutate(q50_exceed = case_when(q_sum > q50_sum ~ 1,
+                                      q_sum <= q50_sum ~ 0,
+                                      TRUE ~ NA)) %>%
     ungroup() %>%
-    mutate(use = case_when(n > 3 ~ 1,
-                           n <= 3 ~ 0,
-                           TRUE ~ NA))
-# ~75% of site-water years (n = 3,428/4,591) have 360+ days of discharge data
-
-# Also notate sites for which the site-water year mean
-# discharge is zero, which will also not work with the
-# summary calculations below.
-q_wy_mean <- q_data_nodup %>%
-    drop_na(val_mmd) %>%
-    mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
-    group_by(site_wy) %>%
-    summarize(mean = mean(val_mmd, na.rm = TRUE)) %>%
-    ungroup() %>%
-    mutate(use2 = case_when(mean > 0 ~ 1,
-                           mean <= 0 ~ 0,
-                           TRUE ~ NA))
+    filter(q50_exceed == 1) %>%
+    group_by(site_code, water_year) %>%
+    slice_head() %>%
+    # reformat date to be dys into the WY
+    mutate(q50_dowy_exceed = as.numeric(difftime(datetime,
+                                                 as_date(paste(water_year-1, "10", "01")),
+                                                 units = "days"))) %>%
+    # and keep only columns of interest for later joining
+    rename(q50_date_exceed = datetime) %>%
+    select(site_code, water_year, q50_sum, q50_date_exceed, q50_dowy_exceed)
 
 # Create summarized dataset with all 8 metrics by site-water year.
 q_metrics_siteyear <- q_data_nodup %>%
@@ -153,10 +149,10 @@ q_metrics_siteyear <- q_data_nodup %>%
   drop_na(val_mmd) %>%
   # also dropping site-water years that broke the regressions' code
   mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
-  full_join(q_wy_counts) %>%
-  full_join(q_wy_mean) %>%
-  filter(use == 1) %>%
-  filter(use2 == 1) %>%
+  #full_join(q_wy_counts) %>%
+  #full_join(q_wy_mean) %>%
+  #filter(use == 1) %>%
+  #filter(use2 == 1) %>%
   # finally, calculate the discharge metrics
   group_by(site_code, water_year) %>%
   summarize(m1_meanq = mean(val_mmd, na.rm = TRUE), # mean
@@ -183,24 +179,78 @@ q_metrics_siteyear <- q_data_nodup %>%
   mutate(m6_ampq = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
+# Join with days on which 50% of cumulative flow is exceeded.
+q_metrics_siteyear <- full_join(q_metrics_siteyear, q_data_50_doy)
+
+#### Climate Metrics ####
 
 # join in climate data
 ### this next one will take a minute
-#only need to run it once!
-# clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
-#   mutate(year = year(date),
-#          month = month(date),
-#         water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
-#                                 TRUE ~ year)) %>%
-#     select(site_code, date, water_year, var, val) %>%
-#     pivot_wider(id_cols = c(site_code, date, water_year),
-#                 names_from = var, values_from = val, values_fn = mean) %>%
-#     group_by(site_code, water_year) %>%
-#     summarize(precip_mean_ann = mean(cc_precip_median, na.rm = T),
-#               precip_total_ann = sum(cc_precip_median, na.rm = T),
-#               temp_mean_ann = mean(cc_temp_mean_median, na.rm = T)
-#               )
-# saveRDS(clim, file = here('data_working', 'clim_summaries.rds'))
+# only need to run it once!
+clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
+  mutate(year = year(date),
+         month = month(date),
+        water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+                                TRUE ~ year)) %>%
+    select(site_code, date, water_year, var, val) %>%
+    pivot_wider(id_cols = c(site_code, date, water_year),
+                names_from = var, values_from = val, values_fn = mean) %>%
+    mutate(month = month(date)) %>%
+    mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
+                              month %in% c(12,1,2) ~ "Winter",
+                              TRUE ~ NA))
+
+##### Winter Min #####
+
+clim_Wmin <- clim %>%
+    filter(season == "Winter") %>%
+    group_by(site_code, water_year) %>%
+    drop_na(cc_temp_mean_median) %>%
+    summarize(mintemp_winter = min(cc_temp_mean_median)) %>%
+    ungroup()
+
+##### Summer Mean #####
+
+clim_Smean <- clim %>%
+    filter(season == "Summer") %>%
+    group_by(site_code, water_year) %>%
+    drop_na(cc_temp_mean_median) %>%
+    summarize(meantemp_summer = min(cc_temp_mean_median)) %>%
+    ungroup()
+
+##### Median Cumulative P #####
+# Calculate the day of year when the median
+# precip is reached.
+clim_50_doy <- clim %>%
+    group_by(site_code, water_year) %>%
+    mutate(p50_sum = 0.5*sum(cc_precip_median, na.rm = T),
+           p_sum = cumsum(cc_precip_median)) %>%
+    mutate(p50_exceed = case_when(p_sum > p50_sum ~ 1,
+                                  p_sum <= p50_sum ~ 0,
+                                  TRUE ~ NA)) %>%
+    ungroup() %>%
+    filter(p50_exceed == 1) %>%
+    group_by(site_code, water_year) %>%
+    slice_head() %>%
+    # reformat date to be dys into the WY
+    mutate(p50_dowy_exceed = as.numeric(difftime(date,
+                                                 as_date(paste(water_year-1, "10", "01")),
+                                                 units = "days"))) %>%
+    # and keep only columns of interest for later joining
+    rename(p50_date_exceed = date) %>%
+    select(site_code, water_year, p50_sum, p50_date_exceed, p50_dowy_exceed)
+
+clim_metrics_siteyear <- clim %>%
+    group_by(site_code, water_year) %>%
+    summarize(precip_mean_ann = mean(cc_precip_median, na.rm = T),
+              precip_total_ann = sum(cc_precip_median, na.rm = T),
+              temp_mean_ann = mean(cc_temp_mean_median, na.rm = T))
+
+clim_metrics_siteyear <- left_join(clim_metrics_siteyear, clim_Wmin)
+clim_metrics_siteyear <- left_join(clim_metrics_siteyear, clim_Smean)
+clim_metrics_siteyear <- left_join(clim_metrics_siteyear, clim_50_doy)
+
+saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds'))
 
 clim <- readRDS(here('data_working', 'clim_summaries.rds'))
 
@@ -218,7 +268,6 @@ q_metrics_site <- q_data_nodup %>%
   drop_na(val_mmd) %>%
   # also dropping site-water years that broke the regressions' code previously
   mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
-  full_join(q_wy_counts) %>%
   full_join(q_wy_mean) %>%
   filter(use == 1) %>%
   filter(use2 == 1) %>%
