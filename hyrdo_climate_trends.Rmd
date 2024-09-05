@@ -23,7 +23,8 @@ First reading in summary data and work that Heili already did.
 ```{r}
 # if you want to save runtime comment out source(q_metrics.r)
 #source(here('src', 'q_metrics.R'))
-com <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds'))
+com <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds')) %>%
+    select(-contains('date')) #removing redundant date columns that are harder to trend
 ```
 
 Perform trend detection at each site.
