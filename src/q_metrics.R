@@ -150,8 +150,6 @@ q_metrics_siteyear <- q_data_nodup %>%
   # also dropping site-water years that broke the regressions' code
   mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
   #full_join(q_wy_counts) %>%
-  #filter(use == 1) %>%
-  #filter(use2 == 1) %>%
   # finally, calculate the discharge metrics
   group_by(site_code, water_year) %>%
   summarize(m1_meanq = mean(val_mmd, na.rm = TRUE), # mean
@@ -184,8 +182,6 @@ q_metrics_siteyear <- full_join(q_metrics_siteyear, q_data_50_doy)
 #### Climate Metrics ####
 
 # join in climate data
-### this next one will take a minute
-# only need to run it once!
 clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
   mutate(year = year(date),
          month = month(date),
@@ -267,8 +263,6 @@ q_metrics_site <- q_data_nodup %>%
   drop_na(val_mmd) %>%
   # also dropping site-water years that broke the regressions' code previously
   mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
-  filter(use == 1) %>%
-  filter(use2 == 1) %>%
   summarize(m1_meanq = mean(val_mmd, na.rm = TRUE), # mean
             q1 = quantile(val_mmd, probs = 0.01, na.rm = TRUE), # 1st percentile Q
             q5 = quantile(val_mmd, probs = 0.05, na.rm = TRUE), # 5th percentile Q
