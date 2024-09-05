@@ -15,7 +15,7 @@ library(here)
 source(here('src', 'setup.R'))
 
 # Load data with discharge metrics.
-q_metrics <- readRDS("data_working/discharge_8metrics.rds")
+q_metrics <- readRDS("data_working/discharge_metrics.rds")
 
 # And load trends data.
 hydro_trend_data <- read_csv("data_working/hydro_climate_trends.csv")
@@ -115,7 +115,7 @@ qPCA3 <- prcomp(q_dat3,
 # Examine output.
 summary(qPCA3)
 # Wow, together the first two components explain
-# 94.52% of the variance - pretty good.
+# 96.29% of the variance - pretty good.
 
 # Pull out PCA score values.
 qPCA3_scores <- qPCA3$x %>%
@@ -137,10 +137,10 @@ qPCA3_vectors <- qPCA3$rotation %>%
                 aes(x = PC1, y = PC2, color = domain),
                 alpha = 0.75, size = 3) +
      scale_color_viridis(discrete = TRUE) +
-     ylim(-1,1) + # omitting four outliers - P6, MCDI, MARTINELLI, NAVAJO
+     #ylim(-1,1) + # omitting outliers
      theme_bw() +
-     labs(x = "PC1 (61.33%)",
-          y = "PC2 (33.19%)",
+     labs(x = "PC1 (65.76%)",
+          y = "PC2 (30.54%)",
           color = "Domain"))
 
 (fig_PCA3vcts <- ggplot() +
@@ -151,19 +151,19 @@ qPCA3_vectors <- qPCA3$rotation %>%
         # add eigenvector labels
         geom_text(data = qPCA3_vectors, aes(x = PC1, y = PC2,
                                            label = rownames(qPCA3_vectors))) +
-        ylim(-1,1) +
-        xlim(-4,2) +
+        # ylim(-1,1) +
+        # xlim(-4,2) +
         theme_bw() +
-        labs(x = "PC1 (61.33%)",
-             y = "PC2 (33.19%)",
+        labs(x = "PC1 (65.76%)",
+             y = "PC2 (30.54%)",
              title = "PCA of Key Macroshed Q Metrics"))
 
 (fig_PCA3 <- fig_PCA3vcts + fig_PCA3pts)
 
-# ggsave(plot = fig_PCA3,
-#        filename = "figures/hydro_pca_090424.jpg",
-#        width = 25,
-#        height = 10,
-#        units = "cm")
+ggsave(plot = fig_PCA3,
+       filename = "figures/hydro_pca_090524.jpg",
+       width = 30,
+       height = 15,
+       units = "cm")
 
 # End of script.
