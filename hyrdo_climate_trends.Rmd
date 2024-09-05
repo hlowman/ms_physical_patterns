@@ -34,60 +34,60 @@ com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = '
 
 #commenting out all this to save processing time
 # uncomment and run to remake trends datset if needed
-out_frame <- tibble(site_code = as.character(),
-                    var = as.character(),
-                    start = as.integer(),
-                    end = as.integer(),
-                    trend = as.integer(),
-                    p = as.integer())
-
-for(i in unique(com_long$site_code)) {
-
-    target_site <- filter(com_long, site_code == i)
-
-    dat_check <- na.omit(target_site)
-
-    if(nrow(dat_check) > 1){
-    #loop  through metrics
-    for(j in unique(target_site$var)){
-
-    target_solute <- filter(target_site, var == j)  %>%
-        arrange(water_year) %>%
-        na.omit()
-
-    if(nrow(target_solute) > 9){
-    start <- min(target_solute$water_year)
-    end <- max(target_solute$water_year)
-    n <- nrow(target_solute)
-    test <- sens.slope(target_solute$val)
-    trend <- test[[1]]
-    p <- test[[3]]
-
-
-    inner <- tibble(site_code = i,
-                    var = j,
-                    start = start,
-                    end = end,
-                    n = n,
-                    trend = trend,
-                    p = p
-                    )
-    out_frame <- rbind(out_frame, inner)
-
-    diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
-            labs(title = paste0(i, ' ', j),
-                      caption = paste0('n = ', n))+
-            geom_point()+
-        theme_few()
-
-    quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', i, paste0(i,'_',j,'.png')),
-           create.dir = T))
-
-
-    }else{next} #solute level data avail check
-        }# end solute loop
-    }else{next} # site level data avail check
-} #end site loop
+# out_frame <- tibble(site_code = as.character(),
+#                     var = as.character(),
+#                     start = as.integer(),
+#                     end = as.integer(),
+#                     trend = as.integer(),
+#                     p = as.integer())
+# 
+# for(i in unique(com_long$site_code)) {
+# 
+#     target_site <- filter(com_long, site_code == i)
+# 
+#     dat_check <- na.omit(target_site)
+# 
+#     if(nrow(dat_check) > 1){
+#     #loop  through metrics
+#     for(j in unique(target_site$var)){
+# 
+#     target_solute <- filter(target_site, var == j)  %>%
+#         arrange(water_year) %>%
+#         na.omit()
+# 
+#     if(nrow(target_solute) > 9){
+#     start <- min(target_solute$water_year)
+#     end <- max(target_solute$water_year)
+#     n <- nrow(target_solute)
+#     test <- sens.slope(target_solute$val)
+#     trend <- test[[1]]
+#     p <- test[[3]]
+# 
+# 
+#     inner <- tibble(site_code = i,
+#                     var = j,
+#                     start = start,
+#                     end = end,
+#                     n = n,
+#                     trend = trend,
+#                     p = p
+#                     )
+#     out_frame <- rbind(out_frame, inner)
+# 
+#     diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
+#             labs(title = paste0(i, ' ', j),
+#                       caption = paste0('n = ', n))+
+#             geom_point()+
+#         theme_few()
+# 
+#     quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', i, paste0(i,'_',j,'.png')),
+#            create.dir = T))
+# 
+# 
+#     }else{next} #solute level data avail check
+#         }# end solute loop
+#     }else{next} # site level data avail check
+# } #end site loop
 
 write_csv(out_frame, file = here('data_working', 'hydro_climate_trends.csv'))
 
@@ -127,12 +127,30 @@ trends_flagged <- trends %>%
     filter(!is.nan(flag),
            !is.na(flag))
 flag_colors <- c('increasing' = "orange", 'decreasing' = "purple", 'flat' = 'green', 'non-significant' = "grey")
+
+full<- as.integer(length(unique(trends_flagged$var)))
+half <- as.integer(length(unique(trends_flagged$var))/2 )
 ```
 
 Make kernel density plots for each trend. 
 
 ```{r}
-ggplot(trends_flagged, aes(x = trend, fill = flag))+
+trends_flagged %>%
+    filter(var %in% unique(trends_flagged$var)[1:half]) %>%
+ggplot(., aes(x = trend, fill = flag))+
+    geom_density()+
+    facet_wrap(~var, scales = 'free')+
+    theme_few()+
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
+```
+
+
+
+```{r}
+trends_flagged %>%
+    filter(var %in% unique(trends_flagged$var)[half+1:full]) %>%
+ggplot(., aes(x = trend, fill = flag))+
     geom_density()+
     facet_wrap(~var, scales = 'free')+
     theme_few()+
@@ -154,13 +172,28 @@ trends_flagged %>%
 
 
 ```{r}
-ggplot(trends_flagged, aes(x = trend, fill = flag))+
+trends_flagged %>%
+    filter(var %in% unique(trends_flagged$var)[1:half]) %>%
+ggplot(.,aes(x = trend, fill = flag))+
     geom_histogram(position = 'dodge')+
     facet_wrap(~var, scales = 'free', ncol = 2)+
     theme_few()+
     labs(title = 'Trends')+
     scale_fill_manual(values = flag_colors)
 ```
+
+
+```{r}
+trends_flagged %>%
+    filter(var %in% unique(trends_flagged$var)[half+1:full])%>%
+ggplot(.,aes(x = trend, fill = flag))+
+    geom_histogram(position = 'dodge')+
+    facet_wrap(~var, scales = 'free', ncol = 2)+
+    theme_few()+
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
+```
+
 
 
 ```{r}
