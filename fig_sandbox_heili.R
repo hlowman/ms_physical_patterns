@@ -11,17 +11,10 @@
 
 # Load packages.
 library(here)
-library(tidyverse)
-library(ggplot2)
-library(naniar)
-library(lubridate)
-library(macrosheds)
-library(patchwork)
-
 source(here('src', 'setup.R'))
 
 # Load trend dataset.
-hydro_trend_data <- read_csv("data_working/hydro_climate_trends.csv") # hydroclimate trends
+hydro_trend_data <- read_csv("data_working/hydro_climate_trends.csv")
 
 # Load chemistry dataset - be patient, takes just a moment.
 chem_data <- ms_load_product(
@@ -57,7 +50,7 @@ hydro_data <- hydro_data %>%
   dplyr::filter(!var %in% c("a_flow_sig", "b_flow_sig"))
 
 # And add some more names to the NEON sites.
-# Not using this currently, but keeping here for reference.
+# Not using this currently, but keeping here for future reference.
 hydro_data <- hydro_data %>%
   mutate(domain_specificname = case_when(site_fullname %in% c("Arikaree River", "Upper Big Creek",
                                                               "Blacktail Deer Creek", "Blue River",
@@ -101,7 +94,7 @@ hydro_data <- hydro_data %>%
                   filter(sig == "NO") %>%
                   filter(var == "temp_mean_ann"),
                 color = "grey70", alpha = 0.3) +
-    xlim(-0.06, 0.06) +
+    xlim(-0.15, 0.15) +
     labs(y = "Mean T") +
     theme_bw() +
     theme(axis.text.y = element_blank(),
@@ -119,7 +112,7 @@ hydro_data <- hydro_data %>%
                   filter(sig == "NO") %>%
                   filter(var == "precip_mean_ann"),
                 color = "grey70", alpha = 0.3) +
-    xlim(-0.06, 0.06) +
+    xlim(-0.2, 0.2) +
     labs(y = "Mean P") +
     theme_bw() +
     theme(axis.text.y = element_blank(),
@@ -137,7 +130,7 @@ hydro_data <- hydro_data %>%
                   filter(sig == "NO") %>%
                   filter(var == "precip_total_ann"),
                 color = "grey70", alpha = 0.3) +
-    xlim(-15, 15) +
+    xlim(-75, 75) +
     labs(y = "Tot. P") +
     theme_bw() +
     theme(axis.text.y = element_blank(),
@@ -155,7 +148,7 @@ hydro_data <- hydro_data %>%
                   filter(sig == "NO") %>%
                   filter(var == "m1_meanq"),
                 color = "grey70", alpha = 0.3) +
-    xlim(-0.5, 0.5) +
+    xlim(-0.3, 0.3) +
     labs(y = "Mean Q") +
     theme_bw() +
     theme(axis.text.y = element_blank(),
@@ -173,7 +166,7 @@ hydro_data <- hydro_data %>%
                   filter(sig == "NO") %>%
                   filter(var == "m2_cvq"),
                 color = "grey70", alpha = 0.3) +
-    xlim(-0.5, 0.5) +
+    xlim(-0.2, 0.2) +
     labs(y = "C.V. Q") +
     theme_bw() +
     theme(axis.text.y = element_blank(),
@@ -191,7 +184,7 @@ hydro_data <- hydro_data %>%
                   filter(sig == "NO") %>%
                   filter(var == "m3_skewq"),
                 color = "grey70", alpha = 0.3) +
-    xlim(-0.5, 0.5) +
+    xlim(-0.6, 0.6) +
     labs(y = "Skew Q") +
     theme_bw() +
     theme(axis.text.y = element_blank(),
@@ -227,7 +220,7 @@ hydro_data <- hydro_data %>%
                   filter(sig == "NO") %>%
                   filter(var == "m5_ar1q"),
                 color = "grey70", alpha = 0.3) +
-    xlim(-0.06, 0.06) +
+    xlim(-0.03, 0.03) +
     labs(y = "AR(1) Q") +
     theme_bw() +
     theme(axis.text.y = element_blank(),
@@ -245,7 +238,7 @@ hydro_data <- hydro_data %>%
                   filter(sig == "NO") %>%
                   filter(var == "m6_ampq"),
                 color = "grey70", alpha = 0.3) +
-    xlim(-0.06, 0.06) +
+    xlim(-0.08, 0.08) +
     labs(y = "Amp. Q") +
     theme_bw() +
     theme(axis.text.y = element_blank(),
@@ -263,7 +256,7 @@ hydro_data <- hydro_data %>%
                   filter(sig == "NO") %>%
                   filter(var == "m7_phiq"),
                 color = "grey70", alpha = 0.3) +
-    xlim(-0.2, 0.2) +
+    xlim(-0.5, 0.5) +
     labs(y = "Phi Q") +
     theme_bw() +
     theme(axis.text.y = element_blank(),
@@ -281,13 +274,12 @@ hydro_data <- hydro_data %>%
                         filter(sig == "NO") %>%
                         filter(var == "rbiq"),
                     color = "grey70", alpha = 0.3) +
-        xlim(-0.05, 0.05) +
+        xlim(-0.02, 0.02) +
         labs(x = "Trend Value", y = "RBI Q") +
         theme_bw() +
         theme(axis.text.y = element_blank(),
               axis.ticks.y = element_blank(),
               legend.position = "none"))
-
 
 (fig_boxplot <- fig_boxplot_tempann /
     fig_boxplot_precipann /
@@ -318,7 +310,7 @@ hydro_data <- hydro_data %>%
                         filter(sig == "NO") %>%
                         filter(var == "q1"),
                     color = "grey70", alpha = 0.3) +
-        xlim(-0.6, 0.6) +
+        xlim(-0.04, 0.04) +
         labs(y = "1st Q") +
         theme_bw() +
         theme(axis.text.y = element_blank(),
@@ -336,7 +328,7 @@ hydro_data <- hydro_data %>%
                         filter(sig == "NO") %>%
                         filter(var == "q5"),
                     color = "grey70", alpha = 0.3) +
-        xlim(-0.4, 0.4) +
+        xlim(-0.06, 0.06) +
         labs(y = "5th Q") +
         theme_bw() +
         theme(axis.text.y = element_blank(),
@@ -354,7 +346,7 @@ hydro_data <- hydro_data %>%
                         filter(sig == "NO") %>%
                         filter(var == "q25"),
                     color = "grey70", alpha = 0.3) +
-        xlim(-0.7, 0.7) +
+        xlim(-0.1, 0.1) +
         labs(y = "25th Q") +
         theme_bw() +
         theme(axis.text.y = element_blank(),
@@ -372,7 +364,7 @@ hydro_data <- hydro_data %>%
                         filter(sig == "NO") %>%
                         filter(var == "q50"),
                     color = "grey70", alpha = 0.3) +
-        xlim(-0.9, 0.9) +
+        xlim(-0.1, 0.1) +
         labs(y = "Median Q") +
         theme_bw() +
         theme(axis.text.y = element_blank(),
@@ -390,7 +382,7 @@ hydro_data <- hydro_data %>%
                         filter(sig == "NO") %>%
                         filter(var == "q75"),
                     color = "grey70", alpha = 0.3) +
-        xlim(-1.2, 1.2) +
+        xlim(-0.3, 0.3) +
         labs(y = "75th Q") +
         theme_bw() +
         theme(axis.text.y = element_blank(),
@@ -409,7 +401,7 @@ hydro_data <- hydro_data %>%
                         filter(sig == "NO") %>%
                         filter(var == "q95"),
                     color = "grey70", alpha = 0.3) +
-        xlim(-2, 2) +
+        xlim(-1.5, 1.5) +
         labs(y = "95th Q") +
         theme_bw() +
         theme(axis.text.y = element_blank(),
@@ -427,7 +419,7 @@ hydro_data <- hydro_data %>%
                         filter(sig == "NO") %>%
                         filter(var == "q99"),
                     color = "grey70", alpha = 0.3) +
-        xlim(-3.5, 3.5) +
+        xlim(-3, 3) +
         labs(x = "Trend Value", y = "99th Q") +
         theme_bw() +
         theme(axis.text.y = element_blank(),
