@@ -247,10 +247,8 @@ clim_metrics_siteyear <- left_join(clim_metrics_siteyear, clim_50_doy)
 
 saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds'))
 
-clim <- readRDS(here('data_working', 'clim_summaries.rds'))
-
 q_metrics_siteyear %>%
-    left_join(., clim, by = c('site_code', 'water_year')) %>%
+    left_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%
     mutate(runoff_ratio = m1_meanq/precip_mean_ann) %>%
 # Export data.
 saveRDS(., "data_working/discharge_metrics_siteyear.rds")
