@@ -36,9 +36,9 @@ area <- ms_site_data %>%
 
 # And convert to mm/d.
 # --- Conversion equation ---
-# (L/s*ha) * (86,400 s/d) * (10e6 mm^3/L) * (10e-9 ha/mm^2) = 86.4 mm/d
+# (L/s*ha) (1,000 m3s/Lps) * (86,400 s/d) * (1/10,000 ha/m2) * (1/1,000 mm/m) = 8.64 mm/d
 q_data_nodup <- left_join(q_data_nodup, area, by = c("site_code")) %>%
-  mutate(val_mmd = (val*86400*10000)/(ws_area_ha*100000000))
+  mutate(val_mmd = (val*8.64)/(ws_area_ha))
 
 #### Water Years ####
 
@@ -200,7 +200,7 @@ q_metrics_siteyear <- q_data_nodup %>%
 #               precip_total_ann = sum(cc_precip_median, na.rm = T),
 #               temp_mean_ann = mean(cc_temp_mean_median, na.rm = T)
 #               )
-#saveRDS(clim, file = here('data_working', 'clim_summaries.rds'))
+# saveRDS(clim, file = here('data_working', 'clim_summaries.rds'))
 
 clim <- readRDS(here('data_working', 'clim_summaries.rds'))
 

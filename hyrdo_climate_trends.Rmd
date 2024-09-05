@@ -21,16 +21,10 @@ source(here('src', 'setup.R'))
 First reading in summary data and work that Heili already did.
 
 ```{r}
-#from MS
-ws_sums <- read_feather(here('data_raw', 'watershed_summaries.feather'))
-hydro <- read_feather(here('data_raw', 'spatial_timeseries_hydrology.feather'))
-
-# From q_metrics script
 # if you want to save runtime comment out source(q_metrics.r)
-source(here('src', 'q_metrics.R'))
+#source(here('src', 'q_metrics.R'))
 com <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds'))
 ```
-
 
 Perform trend detection at each site.
 
