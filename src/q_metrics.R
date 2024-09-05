@@ -150,7 +150,6 @@ q_metrics_siteyear <- q_data_nodup %>%
   # also dropping site-water years that broke the regressions' code
   mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
   #full_join(q_wy_counts) %>%
-  #full_join(q_wy_mean) %>%
   #filter(use == 1) %>%
   #filter(use2 == 1) %>%
   # finally, calculate the discharge metrics
@@ -268,7 +267,6 @@ q_metrics_site <- q_data_nodup %>%
   drop_na(val_mmd) %>%
   # also dropping site-water years that broke the regressions' code previously
   mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
-  full_join(q_wy_mean) %>%
   filter(use == 1) %>%
   filter(use2 == 1) %>%
   summarize(m1_meanq = mean(val_mmd, na.rm = TRUE), # mean
