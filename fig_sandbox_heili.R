@@ -94,7 +94,7 @@ hydro_data <- hydro_data %>%
                   filter(sig == "NO") %>%
                   filter(var == "temp_mean_ann"),
                 color = "grey70", alpha = 0.3) +
-    xlim(-0.15, 0.15) +
+    xlim(-0.2, 0.2) +
     labs(y = "Mean T") +
     theme_bw() +
     theme(axis.text.y = element_blank(),
@@ -482,5 +482,27 @@ length(unique(airwater_temp$site_code))
 #        width = 30,
 #        height = 20,
 #        units = "cm")
+
+#### Sample heatmap ####
+
+# filter down data to only 2 vars
+hydro_trends2 <- hydro_trend_data %>%
+    filter(var %in% c("precip_total_ann",
+                      "temp_mean_ann")) %>%
+    arrange(desc(n))
+
+ggplot(hydro_trends2, aes(x = var,
+                          y = site_code,
+                          fill = trend)) +
+    geom_tile() +
+    #geom_text(aes(label = round(trend, 1))) +
+    scale_fill_gradient2( low = "blue",
+                          mid = "white",
+                          high = "red",
+                          na.value = "grey50") +
+    theme_bw() +
+    theme(axis.title.y=element_blank(),
+          axis.text.y=element_blank(),
+          axis.ticks.y=element_blank())
 
 # End of script.
