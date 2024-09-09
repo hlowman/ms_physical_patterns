@@ -21,11 +21,6 @@ source(here('src', 'setup.R'))
 First reading in summary data and work that Heili already did.
 
 ```{r}
-#from MS
-ws_sums <- read_feather(here('data_raw', 'watershed_summaries.feather'))
-hydro <- read_feather(here('data_raw', 'spatial_timeseries_hydrology.feather'))
-
-# From q_metrics script
 # if you want to save runtime comment out source(q_metrics.r)
 #source(here('src', 'q_metrics.R'))
 com <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds')) %>%
@@ -33,13 +28,12 @@ com <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds')) %>%
     select(-c("q50_date_exceed", "p50_date_exceed"))
 ```
 
-
 Perform trend detection at each site.
 
 ```{r}
 com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val')
 
-# commenting out all this to save processing time
+#commenting out all this to save processing time
 # uncomment and run to remake trends datset if needed
 out_frame <- tibble(site_code = as.character(),
                     var = as.character(),
@@ -98,10 +92,10 @@ for(i in unique(com_long$site_code)) {
 
 write_csv(out_frame, file = here('data_working', 'hydro_climate_trends.csv'))
 
-trends <- out_frame
+#trends <- out_frame
 
 # comment this out if you are using the loop to update data
-#trends <- read_csv(here('data_working', 'hydro_climate_trends.csv'))
+trends <- read_csv(here('data_working', 'hydro_climate_trends.csv'))
 ```
 
 # Figure creation

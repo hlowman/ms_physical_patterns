@@ -141,34 +141,6 @@ q_data_50_doy <- q_data_nodup %>%
     rename(q50_date_exceed = datetime) %>%
     select(site_code, water_year, q50_sum, q50_date_exceed, q50_dowy_exceed)
 
-# Commenting out this bit of code since we've already pulled
-# out the "good" data using the output of the q_good_data.R script.
-
-# Calculate number of records for each site-water year,
-# since those with too few records will break the
-# regressions below.
-# q_wy_counts <- q_data_nodup %>%
-#     drop_na(val_mmd) %>%
-#     mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
-#     count(site_wy) %>%
-#     ungroup() %>%
-#     mutate(use = case_when(n > 3 ~ 1,
-#                            n <= 3 ~ 0,
-#                            TRUE ~ NA))
-
-# Also notate sites for which the site-water year mean
-# discharge is zero, which will also not work with the
-# summary calculations below.
-# q_wy_mean <- q_data_nodup %>%
-#     drop_na(val_mmd) %>%
-#     mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
-#     group_by(site_wy) %>%
-#     summarize(mean = mean(val_mmd, na.rm = TRUE)) %>%
-#     ungroup() %>%
-#     mutate(use2 = case_when(mean > 0 ~ 1,
-#                            mean <= 0 ~ 0,
-#                            TRUE ~ NA))
-
 # Create summarized dataset with all 8 metrics by site-water year.
 q_metrics_siteyear <- q_data_nodup %>%
   # drop all NA discharge values
@@ -178,9 +150,6 @@ q_metrics_siteyear <- q_data_nodup %>%
   # also dropping site-water years that broke the regressions' code
   mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
   #full_join(q_wy_counts) %>%
-  #full_join(q_wy_mean) %>%
-  #filter(use == 1) %>%
-  #filter(use2 == 1) %>%
   # finally, calculate the discharge metrics
   group_by(site_code, water_year) %>%
   summarize(m1_meanq = mean(val_mmd, na.rm = TRUE), # mean
@@ -213,8 +182,6 @@ q_metrics_siteyear <- full_join(q_metrics_siteyear, q_data_50_doy)
 #### Climate Metrics ####
 
 # join in climate data
-### this next one will take a minute
-# only need to run it once!
 clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
   mutate(year = year(date),
          month = month(date),
@@ -280,10 +247,8 @@ clim_metrics_siteyear <- left_join(clim_metrics_siteyear, clim_50_doy)
 
 saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds'))
 
-clim <- readRDS(here('data_working', 'clim_summaries.rds'))
-
 q_metrics_siteyear %>%
-    left_join(., clim, by = c('site_code', 'water_year')) %>%
+    left_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%
     mutate(runoff_ratio = m1_meanq/precip_mean_ann) %>%
 # Export data.
 saveRDS(., "data_working/discharge_metrics_siteyear.rds")
