@@ -11,7 +11,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Load packages.
 library(here)
-library(patchwork)
 source(here('src', 'setup.R'))
 
 ```
@@ -81,7 +80,7 @@ com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = '
 #             geom_point()+
 #         theme_few()
 # 
-#     quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', i, paste0(i,'_',j,'.png')),
+#     quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', 'main_analysis', i, paste0(i,'_',j,'.png')),
 #            create.dir = T))
 # 
 # 
@@ -127,7 +126,11 @@ trends_flagged <- trends %>%
                             p <0.05 & trend == 0 ~ 'flat')) %>%
     filter(!is.nan(flag),
            !is.na(flag))
+
 flag_colors <- c('increasing' = "orange", 'decreasing' = "purple", 'flat' = 'green', 'non-significant' = "grey")
+
+write_csv(trends_flagged, file = here('data_working', 'hydro_climate_trends_flagged.csv'))
+
 
 full<- as.integer(length(unique(trends_flagged$var)))
 half <- as.integer(length(unique(trends_flagged$var))/2 )
