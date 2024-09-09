@@ -93,10 +93,34 @@ detect_trends <- function(df_in, diag_string){
             }# end solute loop
         }else{next} # site level data avail check
     } #end site loop
+return(out_frame)
 } #end function
+
+# make function to add flags to trend data
+# needs a p-value in column called 'p'
+# needs slope in column called 'trend'
+add_flags <- function(data_in){
+    data_out <- data_in %>%
+        filter(
+        #p > 0.05, # sig trends only
+        var != 'a_flow_sig',
+        var != 'b_flow_sig') %>%
+        mutate(flag = case_when(p >= 0.05 ~ 'non-significant',
+                                p < 0.05 & trend > 0 ~ 'increasing',
+                                p < 0.05 & trend < 0 ~ 'decreasing',
+                                p <0.05 & trend == 0 ~ 'flat')) %>%
+        filter(!is.nan(flag),
+               !is.na(flag))
+    return(data_out)
+}
+
 
 clim <- readRDS(file = here('data_working', 'clim_summaries.rds')) %>%
     select(-contains('date')) %>%
     pivot_longer(cols = -c(site_code, water_year), names_to = 'var', values_to = 'val')
 
 clim_trends <- detect_trends(clim, 'full_prisim')
+
+clim_trends %>%
+    add_flags()%>%
+    write_csv(.,file = here('data_working', 'climate_trends_full_prisim.csv'))
