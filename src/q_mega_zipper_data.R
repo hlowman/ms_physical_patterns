@@ -160,5 +160,11 @@ for(i in unique(good_site_years_fp$site_code)){
 
 saveRDS(out_frame, here('data_working', 'longest_run_prisim_covered_site_years.RDS'))
 # filter full dataset to longest runs during prisim
-readRDS(here('data_working', 'discharge_metrics_siteyear_prisim.rds'))
+prisim_data <- readRDS(here('data_working', 'discharge_metrics_siteyear_prisim.rds')) %>%
+    select(-contains('date')) %>%
+    pivot_longer(cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val')
 
+# do trend analysis
+prisim_trends <- detect_trends(prisim_data, 'prisim_longest_site_run') %>%
+    add_flags()
+saveRDS(here('data_working', ''))
