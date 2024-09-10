@@ -55,7 +55,7 @@ c_master <- ggplot(q_plot_data, aes(x = water_year, y = reorder(site_code, n), c
     theme_few()+
     theme(legend.position = 'none',
           axis.text.y = element_blank(),
-          axis.title.y = element_blank(),
+          axis.title = element_blank(),
           axis.ticks.y = element_blank())+
     scale_color_viridis(discrete = T) +
     annotate("text", x=modis_year-1, y=25, label="MODIS", angle=90, size=5, color="red")+

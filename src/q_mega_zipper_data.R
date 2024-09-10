@@ -25,7 +25,7 @@ freq_check <- q_data %>%
     group_by(site_code, water_year) %>%
     summarize(n = n())
 
-## make tibble of good site years for data frequency ####
+# make tibble of good site years for data frequency ####
 good_site_year_freq <- freq_check %>%
     filter(n >= good_weeks_to_year_master) %>%
     select(site_code, water_year)
@@ -33,6 +33,7 @@ good_site_year_freq <- freq_check %>%
 # create and save final tibble of site codes and years
 saveRDS(good_site_year_freq, here('data_working', 'good_zipper_plot_years.RDS'))
 
+# trend detection ####
 # making a function for this
 # df_in needs to be a long dataframe with site, water_year, var, and val
 # outputs a
@@ -114,13 +115,52 @@ add_flags <- function(data_in){
     return(data_out)
 }
 
-
+# adding if statement to make rerunning easier
+# if file exisits it will print the file creation time
+# delete file or rerun this chunk manually to make a new one
+if(!file.exists(here('data_working', 'climate_trends_full_prisim.csv'))){
+# create full prisim trends data #####
 clim <- readRDS(file = here('data_working', 'clim_summaries.rds')) %>%
     select(-contains('date')) %>%
     pivot_longer(cols = -c(site_code, water_year), names_to = 'var', values_to = 'val')
 
+# run trend analysis
 clim_trends <- detect_trends(clim, 'full_prisim')
 
+# save trend analysis
 clim_trends %>%
     add_flags()%>%
     write_csv(.,file = here('data_working', 'climate_trends_full_prisim.csv'))
+}else(print(file.info(here('data_working', 'climate_trends_full_prisim.csv'))$ctime))
+
+# create longest run w/ prisim data ####
+# start with site years that passed freq check
+good_site_years_fp <- good_site_year_freq %>%
+    filter(water_year >= prisim_year)
+# initialize output
+out_frame <- tibble(site_code = as.character(), water_year = as.integer(), n = as.integer())
+
+# loop through sites
+for(i in unique(good_site_years_fp$site_code)){
+    target_site <- i
+
+    site_data <- good_site_years_fp %>%
+        filter(site_code == target_site)
+
+    years <- site_data$water_year
+    # https://stackoverflow.com/questions/26639110/find-longest-consecutive-number-in-r
+    s <- split(years, cumsum(c(TRUE, diff(years) != 1)))
+    out_years <- s[[which.max(lengths(s))]]
+
+    out_data <- site_data %>%
+        filter(water_year %in% out_years)
+
+    out_frame <- rbind(out_frame, out_data)
+}
+
+saveRDS(out_frame, here('data_working', 'longest_run_prisim_covered_site_years.RDS'))
+# filter full dataset to longest runs during prisim
+clim %>%
+    right_join(., out_frame, by = c('site_code', 'water_year'))
+
+
