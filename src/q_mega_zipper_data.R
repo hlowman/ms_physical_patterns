@@ -167,4 +167,6 @@ prisim_data <- readRDS(here('data_working', 'discharge_metrics_siteyear_prisim.r
 # do trend analysis
 prisim_trends <- detect_trends(prisim_data, 'prisim_longest_site_run') %>%
     add_flags()
-saveRDS(here('data_working', ''))
+
+# save results out
+saveRDS(prisim_trends, here('data_working', 'longest_run_prisim_covered_trends.RDS'))
