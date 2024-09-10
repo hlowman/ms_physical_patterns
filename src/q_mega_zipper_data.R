@@ -160,7 +160,5 @@ for(i in unique(good_site_years_fp$site_code)){
 
 saveRDS(out_frame, here('data_working', 'longest_run_prisim_covered_site_years.RDS'))
 # filter full dataset to longest runs during prisim
-clim %>%
-    right_join(., out_frame, by = c('site_code', 'water_year'))
-
+readRDS(here('data_working', 'discharge_metrics_siteyear_prisim.rds'))
 
