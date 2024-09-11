@@ -4,23 +4,31 @@
 # Mike on 8/19/24, not the current package version of the dataset.
 
 # Load common packages.
+## core
 library(here)
-library(tidyverse)
-library(ggplot2)
-library(naniar)
-library(lubridate)
-library(feather)
 library(macrosheds)
-library(feather)
-library(lfstat)
-library(trend)
+## data vis
+library(ggplot2)
 library(ggrepel)
 library(ggthemes)
 library(viridis)
 library(patchwork)
 library(ggforce)
+library(mapview)
+library(plotly)
+library(ggplotify)
+library(gt)
+## stats
 library(e1071)
-library(patchwork)
+library(lfstat)
+library(trend)
+## data carpentry
+library(naniar)
+library(lubridate)
+library(tidyverse)
+library(sf)
+## util
+library(feather)
 
 # Using revised code from Mike to point to new data.
 rdata_path <- "data_raw" # updated path

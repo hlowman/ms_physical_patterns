@@ -8,8 +8,8 @@ source(here('src', 'q_mega_zipper_data.R'))
 
 
 # read in data####
-trends_flagged <- read_csv(here('data_working', 'hydro_climate_trends_flagged.csv'))
-flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "plum1")
+longest_run_prisim_covered_trends <- readRDS(here('data_working', 'longest_run_prisim_covered_trends.RDS'))
+flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "grey")
 
 
 sort_order <- readRDS(here('data_working', 'good_zipper_plot_years.RDS')) %>%
@@ -20,15 +20,17 @@ sort_order <- readRDS(here('data_working', 'good_zipper_plot_years.RDS')) %>%
 
 q_plot_data <- right_join(sort_order, readRDS(here('data_working', 'good_zipper_plot_years.RDS')), by = 'site_code') %>%
     left_join(., ms_site_data, by = 'site_code') %>%
-    left_join(., trends_flagged, by = 'site_code', relationship = "many-to-many") %>%
+    left_join(., longest_run_prisim_covered_trends, by = 'site_code', relationship = "many-to-many") %>%
     rename(n = n.x)
 
 # make full, non-site climate data record ####
 full_prisim <- q_plot_data %>%
     select(site_code, n) %>%
-    left_join(., read_csv(here('data_working', 'climate_trends_full_prisim.csv')), by = 'site_code') %>%
+    left_join(., na.omit(read_csv(here('data_working', 'climate_trends_full_prisim.csv'))), by = 'site_code',
+              relationship = 'many-to-many') %>%
     select(site_code, n = n.x, var, trend, p, flag)
 
+full_prisim_plot <- drop_na(full_prisim)
 # make longest run of site data during prisim data record
 trends_prisim_long_run <- readRDS(here('data_working', 'longest_run_prisim_covered_trends.RDS'))
 
@@ -38,16 +40,15 @@ longest_run_prisim <- q_plot_data %>%
               by = 'site_code', relationship = "many-to-many") %>%
     select(site_code, n = n.x, var, trend, p, flag)
 
-# make longest run site data record ####
-
 # plots #####
 make_trend_panel <- function(data_in, target_trend, title_string){
     plot_data <- data_in
 
     plot_data %>%
         filter(var %in% c(target_trend, NA)) %>%
+        distinct()%>%
     ggplot(aes(y = reorder(site_code, n), fill = flag))+
-        geom_bar(width = .4)+
+        geom_bar(width = 1)+
         coord_cartesian(xlim = c(0.4, .6))+
         scale_fill_manual(values = flag_colors, na.value = 'black',
                           labels = c('Decreasing', 'Increasing', 'Non-significant', 'Insufficient Data'))+
@@ -69,29 +70,30 @@ prisim_year <- 1980
 landsat_year <- 1984
 modis_year <- 2000
 
-c_master <- ggplot(q_plot_data, aes(x = water_year, y = reorder(site_code, n),
-                                    #color = domain
-                                    ))+
-    geom_text(aes(label = "-"), size = 15, family = "mono") +
+contrast_color <- 'darkorange'
+
+c_master <- q_plot_data %>%
+    ggplot(., aes(x = water_year, y = reorder(site_code, n)))+
+    geom_text(aes(label = "-"), size = 15, family = "mono")+
     theme_few()+
     theme(legend.position = 'none',
           axis.text.y = element_blank(),
           axis.title = element_blank(),
           axis.ticks.y = element_blank())+
     #scale_color_viridis(discrete = T) +
-    annotate("text", x=modis_year-1, y=25, label="MODIS", angle=90, size=5, color="red")+
-    geom_vline(xintercept = modis_year, color = 'red')+
-    annotate("text", x=landsat_year-1, y=25, label="LANDSAT-5", angle=90, size=5, color="red")+
-    geom_vline(xintercept = landsat_year, color = 'red')+
-    annotate("text", x=prisim_year-1, y=25, label="PRISM", angle=90, size=5, color="red")+
-    geom_vline(xintercept = prisim_year, color = 'red')+
-    labs(title = 'Data Coverage')
-c_master
+    annotate("text", x=modis_year-1, y=25, label="MODIS", angle=90, size=5, color=contrast_color)+
+    geom_vline(xintercept = modis_year, color = contrast_color)+
+    annotate("text", x=landsat_year-1, y=25, label="LANDSAT-5", angle=90, size=5, color=contrast_color)+
+    geom_vline(xintercept = landsat_year, color = contrast_color)+
+    annotate("text", x=prisim_year-1, y=25, label="PRISM", angle=90, size=5, color=contrast_color)+
+    geom_vline(xintercept = prisim_year, color = contrast_color)+
+    labs(title = 'MS Site Data')
+#c_master
 
 
 ## assemble plot #####
-make_trend_panel(full_prisim, 'temp_mean_ann', 'Ta') +
-    make_trend_panel(full_prisim, 'precip_mean_ann', 'P')+
+zipper_plot <- make_trend_panel(full_prisim_plot, 'temp_mean_ann', 'Ta') +
+    make_trend_panel(full_prisim_plot, 'precip_mean_ann', 'P')+
     c_master +
     make_trend_panel(longest_run_prisim, 'temp_mean_ann', 'Ta') +
     make_trend_panel(longest_run_prisim, 'precip_mean_ann', 'P') +
@@ -99,3 +101,19 @@ make_trend_panel(full_prisim, 'temp_mean_ann', 'Ta') +
     make_trend_panel(longest_run_prisim, 'rbiq', 'RBI') +
     add_legend(make_trend_panel(longest_run_prisim, 'm5_ar1q', 'AR1')) +
     plot_layout(ncol = 8, widths = c(.25, .25, 5, .25, .25, .25, .25, .25))
+zipper_plot
+
+# why are there black bands in our data?
+na_flag_sites <- full_prisim %>% filter(is.na(flag)) %>% select(site_code) %>% distinct()
+
+test_tbl <- ms_site_data %>%
+    filter(site_code %in% na_flag_sites$site_code)
+
+test_tbl %>%
+    st_as_sf(coords = c("longitude","latitude"), crs = 4326) %>%
+    mapview()
+
+
+# # add domain to this tomorrow
+# ggplotly(c_master, tooltip = 'all')
+ggplotly(make_trend_panel(full_prisim, 'temp_mean_ann', 'Ta'))

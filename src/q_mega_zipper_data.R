@@ -122,7 +122,8 @@ if(!file.exists(here('data_working', 'climate_trends_full_prisim.csv'))){
 # create full prisim trends data #####
 clim <- readRDS(file = here('data_working', 'clim_summaries.rds')) %>%
     select(-contains('date')) %>%
-    pivot_longer(cols = -c(site_code, water_year), names_to = 'var', values_to = 'val')
+    pivot_longer(cols = -c(site_code, water_year), names_to = 'var', values_to = 'val') %>%
+    na.omit()
 
 # run trend analysis
 clim_trends <- detect_trends(clim, 'full_prisim')
@@ -133,6 +134,8 @@ clim_trends %>%
     write_csv(.,file = here('data_working', 'climate_trends_full_prisim.csv'))
 }else(print(file.info(here('data_working', 'climate_trends_full_prisim.csv'))$ctime))
 
+clim_trends <- read_csv(here('data_working', 'climate_trends_full_prisim.csv')) %>%
+    na.omit()
 # create longest run w/ prisim data ####
 # start with site years that passed freq check
 good_site_years_fp <- good_site_year_freq %>%
@@ -159,14 +162,18 @@ for(i in unique(good_site_years_fp$site_code)){
 }
 
 saveRDS(out_frame, here('data_working', 'longest_run_prisim_covered_site_years.RDS'))
+longest_run_prisim_covered_site_years <- readRDS(here('data_working', 'longest_run_prisim_covered_site_years.RDS'))
 # filter full dataset to longest runs during prisim
 prisim_data <- readRDS(here('data_working', 'discharge_metrics_siteyear_prisim.rds')) %>%
     select(-contains('date')) %>%
-    pivot_longer(cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val')
+    pivot_longer(cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val') %>%
+    right_join(., longest_run_prisim_covered_site_years, by = c('site_code', 'water_year'))
 
 # do trend analysis
+if(!file.exists( here('data_working', 'longest_run_prisim_covered_trends.RDS'))){
 prisim_trends <- detect_trends(prisim_data, 'prisim_longest_site_run') %>%
     add_flags()
 
 # save results out
 saveRDS(prisim_trends, here('data_working', 'longest_run_prisim_covered_trends.RDS'))
+}
