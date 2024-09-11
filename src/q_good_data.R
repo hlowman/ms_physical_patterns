@@ -1,12 +1,7 @@
 # handle setup
 library(here)
 source(here('src', 'setup.R'))
-
-# set cutoffs ####
-start_year_master <- 2001
-minimum_per_week_sampling_frequency_master <- 4
-good_weeks_to_year_master <- 51
-minimum_continuous_record_length_master <- 10
+source(here('src', 'set_master_coverage_vars.R'))
 
 # 0 Read in q data ####
 # load in q data and remove duplicates
