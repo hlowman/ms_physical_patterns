@@ -90,7 +90,14 @@ detect_trends <- function(df_in, diag_string){
            create.dir = T))
 
 
-        }else{next} #solute level data avail check
+        }else{inner <- tibble(site_code = i,
+                              var = j,
+                              start = NA,
+                              end = NA,
+                              n = NA,
+                              trend = NA,
+                              p = NA)
+        out_frame <- rbind(out_frame, inner)} #solute level data avail check
             }# end solute loop
         }else{next} # site level data avail check
     } #end site loop
