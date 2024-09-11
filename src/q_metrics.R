@@ -53,28 +53,10 @@ q_data_nodup <- q_data_nodup %>%
                                 TRUE ~ year))
 
 #### Filter to complete years ####
-# will need to run q_good_data script first, uncomment next line to make the rds needed
-#source(here('src', 'q_good_data.R'))
+freq_check <- frequency_check(q_data_nodup)
 
-if(cut == 'modis'){
-good_site_years <- readRDS(here('data_working', 'good_site_years.RDS'))
-
-q_data_nodup <- q_data_nodup %>%
-    right_join(., good_site_years, by = c('site_code')) %>%
-    filter(water_year >= start,
-           water_year <= end)
-}
-if(cut == 'prisim'){
-    good_site_years <- readRDS(here('data_working','longest_run_prisim_covered_site_years.RDS')) %>%
-        group_by(site_code) %>%
-        summarize(start = min(water_year),
-                  end = max(water_year))
-
-    q_data_nodup <- q_data_nodup %>%
-        right_join(., good_site_years, by = c('site_code')) %>%
-        filter(water_year >= start,
-               water_year <= end)
-}
+q_data_good <- q_data_nodup %>%
+    right_join(., freq_check, by = c('site_code', 'water_year'))
 
 #### Q Metrics ####
 
@@ -84,20 +66,20 @@ if(cut == 'prisim'){
 # auto-regressive (AR(1)) correlation calculation.
 
 # Calculate long-term monthly means.
-q_data_monthly <- q_data_nodup %>%
+q_data_monthly <- q_data_good %>%
   group_by(site_code, month) %>%
   summarize(lt_meanQ = mean(val_mmd, na.rm = TRUE)) %>%
   ungroup()
 
 # And use those values to calculate deseasonalized Q.
-q_data_nodup <- q_data_nodup %>%
+q_data_good <- q_data_good %>%
   plyr::join(q_data_monthly, by = c("site_code", "month")) %>%
   mutate(deseasonQ = val_mmd - lt_meanQ)
 
 # And scale those values to use in the AR(1) calculations.
-q_data_nodup$scaleQds = (q_data_nodup$deseasonQ - mean(q_data_nodup$deseasonQ,
+q_data_good$scaleQds = (q_data_good$deseasonQ - mean(q_data_good$deseasonQ,
                                                        na.rm = TRUE))/
-  sd(q_data_nodup$deseasonQ, na.rm = TRUE)
+  sd(q_data_good$deseasonQ, na.rm = TRUE)
 
 # Function to pull out AR(1) correlation coefficient
 ar1_print <- function(x) {
@@ -110,14 +92,14 @@ ar1_print <- function(x) {
 # Also, need to solve for streamflow signal at each site
 # using scaled (but not deseasonalized) discharge data
 # as well as decimal year.
-q_data_nodup <- q_data_nodup %>%
-  mutate(scaleQ = (q_data_nodup$val_mmd -
-                     mean(q_data_nodup$val_mmd, na.rm = TRUE))/
-           sd(q_data_nodup$val_mmd, na.rm = TRUE),
+q_data_good <- q_data_good %>%
+  mutate(scaleQ = (q_data_good$val_mmd -
+                     mean(q_data_good$val_mmd, na.rm = TRUE))/
+           sd(q_data_good$val_mmd, na.rm = TRUE),
          decimalY = decimal_date(datetime))
 
 # Add covariates for streamflow signal regression.
-q_data_nodup <- q_data_nodup %>%
+q_data_good <- q_data_good %>%
   mutate(sin_2pi_year = sin(2*pi*decimalY),
          cos_2pi_year = cos(2*pi*decimalY))
 
@@ -136,7 +118,7 @@ rbi_print <- function(x) {
 
 # Calculate the day of year when the median
 # cumulative discharge is reached.
-q_data_50_doy <- q_data_nodup %>%
+q_data_50_doy <- q_data_good %>%
     group_by(site_code, water_year) %>%
         mutate(q50_sum = 0.5*sum(val_mmd),
                q_sum = cumsum(val_mmd)) %>%
@@ -156,7 +138,7 @@ q_data_50_doy <- q_data_nodup %>%
     select(site_code, water_year, q50_sum, q50_date_exceed, q50_dowy_exceed)
 
 # Create summarized dataset with all 8 metrics by site-water year.
-q_metrics_siteyear <- q_data_nodup %>%
+q_metrics_siteyear <- q_data_good %>%
   # drop all NA discharge values
   # otherwise the lm() with full missing WYs below will throw
   # an error message and not output the summarized data
@@ -267,10 +249,10 @@ q_data_out <- q_metrics_siteyear %>%
     left_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%
     mutate(runoff_ratio = m1_meanq/precip_mean_ann)
 # Export data.
-if(cut == 'modis'){saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear.rds'))}
-if(cut == 'prisim'){saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear_prisim.rds'))}
+saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear.rds'))
+
 # Create summarized dataset with all 8 metrics for full time series at each site.
-q_metrics_site <- q_data_nodup %>%
+q_metrics_site <- q_data_good %>%
   group_by(site_code) %>%
   # drop all NA discharge values
   # otherwise the lm() will throw an error message
@@ -300,6 +282,5 @@ q_metrics_site <- q_data_nodup %>%
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 # Export data.
-if(cut == 'modis'){saveRDS(q_metrics_site, here("data_working", "discharge_metrics.rds"))}
-if(cut == 'prisim'){saveRDS(q_metrics_site, here("data_working", "discharge_metrics_prisim.rds"))}
+saveRDS(q_metrics_site, here("data_working", "discharge_metrics.rds"))
 # End of script.
