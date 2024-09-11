@@ -24,8 +24,7 @@ First reading in summary data and work that Heili already did.
 # if you want to save runtime comment out source(q_metrics.r)
 #source(here('src', 'q_metrics.R'))
 com <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds')) %>%
-    # removing columns with dates in them
-    select(-c("q50_date_exceed", "p50_date_exceed"))
+    select(-contains('date')) #removing redundant date columns that are harder to trend
 ```
 
 Perform trend detection at each site.
@@ -35,60 +34,60 @@ com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = '
 
 #commenting out all this to save processing time
 # uncomment and run to remake trends datset if needed
-out_frame <- tibble(site_code = as.character(),
-                    var = as.character(),
-                    start = as.integer(),
-                    end = as.integer(),
-                    trend = as.integer(),
-                    p = as.integer())
-
-for(i in unique(com_long$site_code)) {
-
-    target_site <- filter(com_long, site_code == i)
-
-    dat_check <- na.omit(target_site)
-
-    if(nrow(dat_check) > 1){
-    #loop  through metrics
-    for(j in unique(target_site$var)){
-
-    target_solute <- filter(target_site, var == j)  %>%
-        arrange(water_year) %>%
-        na.omit()
-
-    if(nrow(target_solute) > 9){
-    start <- min(target_solute$water_year)
-    end <- max(target_solute$water_year)
-    n <- nrow(target_solute)
-    test <- sens.slope(target_solute$val)
-    trend <- test[[1]]
-    p <- test[[3]]
-
-
-    inner <- tibble(site_code = i,
-                    var = j,
-                    start = start,
-                    end = end,
-                    n = n,
-                    trend = trend,
-                    p = p
-                    )
-    out_frame <- rbind(out_frame, inner)
-
-    diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
-            labs(title = paste0(i, ' ', j),
-                      caption = paste0('n = ', n))+
-            geom_point()+
-        theme_few()
-
-    quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', i, paste0(i,'_',j,'.png')),
-           create.dir = T))
-
-
-    }else{next} #solute level data avail check
-        }# end solute loop
-    }else{next} # site level data avail check
-} #end site loop
+# out_frame <- tibble(site_code = as.character(),
+#                     var = as.character(),
+#                     start = as.integer(),
+#                     end = as.integer(),
+#                     trend = as.integer(),
+#                     p = as.integer())
+# 
+# for(i in unique(com_long$site_code)) {
+# 
+#     target_site <- filter(com_long, site_code == i)
+# 
+#     dat_check <- na.omit(target_site)
+# 
+#     if(nrow(dat_check) > 1){
+#     #loop  through metrics
+#     for(j in unique(target_site$var)){
+# 
+#     target_solute <- filter(target_site, var == j)  %>%
+#         arrange(water_year) %>%
+#         na.omit()
+# 
+#     if(nrow(target_solute) > 9){
+#     start <- min(target_solute$water_year)
+#     end <- max(target_solute$water_year)
+#     n <- nrow(target_solute)
+#     test <- sens.slope(target_solute$val)
+#     trend <- test[[1]]
+#     p <- test[[3]]
+# 
+# 
+#     inner <- tibble(site_code = i,
+#                     var = j,
+#                     start = start,
+#                     end = end,
+#                     n = n,
+#                     trend = trend,
+#                     p = p
+#                     )
+#     out_frame <- rbind(out_frame, inner)
+# 
+#     diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
+#             labs(title = paste0(i, ' ', j),
+#                       caption = paste0('n = ', n))+
+#             geom_point()+
+#         theme_few()
+# 
+#     quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', 'main_analysis', i, paste0(i,'_',j,'.png')),
+#            create.dir = T))
+# 
+# 
+#     }else{next} #solute level data avail check
+#         }# end solute loop
+#     }else{next} # site level data avail check
+# } #end site loop
 
 write_csv(out_frame, file = here('data_working', 'hydro_climate_trends.csv'))
 
@@ -127,13 +126,35 @@ trends_flagged <- trends %>%
                             p <0.05 & trend == 0 ~ 'flat')) %>%
     filter(!is.nan(flag),
            !is.na(flag))
+
 flag_colors <- c('increasing' = "orange", 'decreasing' = "purple", 'flat' = 'green', 'non-significant' = "grey")
+
+write_csv(trends_flagged, file = here('data_working', 'hydro_climate_trends_flagged.csv'))
+
+
+full<- as.integer(length(unique(trends_flagged$var)))
+half <- as.integer(length(unique(trends_flagged$var))/2 )
 ```
 
 Make kernel density plots for each trend. 
 
 ```{r}
-ggplot(trends_flagged, aes(x = trend, fill = flag))+
+trends_flagged %>%
+    filter(var %in% unique(trends_flagged$var)[1:half]) %>%
+ggplot(., aes(x = trend, fill = flag))+
+    geom_density()+
+    facet_wrap(~var, scales = 'free')+
+    theme_few()+
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
+```
+
+
+
+```{r}
+trends_flagged %>%
+    filter(var %in% unique(trends_flagged$var)[half+1:full]) %>%
+ggplot(., aes(x = trend, fill = flag))+
     geom_density()+
     facet_wrap(~var, scales = 'free')+
     theme_few()+
@@ -155,13 +176,28 @@ trends_flagged %>%
 
 
 ```{r}
-ggplot(trends_flagged, aes(x = trend, fill = flag))+
+trends_flagged %>%
+    filter(var %in% unique(trends_flagged$var)[1:half]) %>%
+ggplot(.,aes(x = trend, fill = flag))+
     geom_histogram(position = 'dodge')+
     facet_wrap(~var, scales = 'free', ncol = 2)+
     theme_few()+
     labs(title = 'Trends')+
     scale_fill_manual(values = flag_colors)
 ```
+
+
+```{r}
+trends_flagged %>%
+    filter(var %in% unique(trends_flagged$var)[half+1:full])%>%
+ggplot(.,aes(x = trend, fill = flag))+
+    geom_histogram(position = 'dodge')+
+    facet_wrap(~var, scales = 'free', ncol = 2)+
+    theme_few()+
+    labs(title = 'Trends')+
+    scale_fill_manual(values = flag_colors)
+```
+
 
 
 ```{r}
@@ -211,6 +247,161 @@ context_domain <- com %>%
               precip = mean(precip_mean_ann, na.rm = T)) %>%
     mutate(runoff_ratio = flow/precip)
 ```
+
+### Make generic plotter to make context plots easier on us.
+
+```{r}
+# first make domain level
+plot_context_domain <- function(x_in = NA, y_in = NA, target_trend = NA){
+  
+x_in <- 'temp'
+y_in <- 'precip' 
+
+
+ggplot(context_domain, aes_string(x = x_in, y = y_in, color = 'domain')) +
+    geom_point()+
+    geom_text_repel(aes(label = domain),
+                  box.padding   = 0.35, 
+                  point.padding = 0.5,
+                  segment.color = 'grey50',
+                  max.overlaps = 30)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        labs(x = 'T (mean annual, C)', y = 'Precip (mean annual, mm/d)')+
+        scale_color_viridis(discrete = T)    
+}
+```
+
+Next make site level plotter
+
+```{r}
+plot_context_site <- function(x_in = NA, y_in = NA, target_trend = NA){
+
+x_in <- x_in
+y_in <- y_in
+target_trend <- target_trend
+
+start <- context_site %>%
+    group_by(site_code, var, domain) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    filter(var %in% c(x_in, y_in)) %>%
+    pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val') %>%
+    na.omit()
+
+trend_fil <- trends_flagged %>%
+    filter(var == target_trend)
+
+plot_dat <- start %>%
+    left_join(., trend_fil, by = 'site_code')
+
+    p_all <- ggplot(plot_dat, aes_string(x = x_in, y = y_in, color = 'domain'))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        scale_color_viridis(discrete = T)+
+        labs(title = 'All')
+ 
+# good chance this will break if they update ggplot!   
+ x_breaks <- ggplot_build(p_all)$layout$panel_params[[1]]$x.sec$breaks
+ y_breaks <- ggplot_build(p_all)$layout$panel_params[[1]]$y.sec$breaks
+ x_lims <- ggplot_build(p_all)$layout$panel_params[[1]]$x.sec$limits
+ y_lims <- ggplot_build(p_all)$layout$panel_params[[1]]$y.sec$limits
+ 
+    p_up <- plot_dat %>%
+        filter(flag == 'increasing') %>%
+    ggplot(aes_string(x = x_in, y = y_in, color = 'domain'))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        scale_color_viridis(discrete = T)+
+        labs(title = paste0('Increasing ', target_trend))+
+        scale_x_continuous(breaks = x_breaks,
+                           limits = x_lims)+
+        scale_y_continuous(breaks = y_breaks,
+                           limits = y_lims)
+    
+    p_down <- plot_dat %>%
+        filter(flag == 'decreasing') %>%
+    ggplot(aes_string(x = x_in, y = y_in, color = 'domain'))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        scale_color_viridis(discrete = T)+
+        labs(title = paste0('Decreasing ', target_trend))+
+        scale_x_continuous(breaks = x_breaks,
+                           limits = x_lims)+
+        scale_y_continuous(breaks = y_breaks,
+                           limits = y_lims)
+    
+    p_non <- plot_dat %>%
+        filter(flag == 'non-significant') %>%
+    ggplot(aes_string(x = x_in, y = y_in, color = 'domain'))+
+        geom_text(aes(label = site_code, size = .0001))+
+        geom_mark_ellipse(aes(label = domain), label.fontsize = 20)+
+        scale_color_viridis(discrete = T)+
+        theme_few(base_size = 20) +
+        theme(legend.position = 'none') +
+        scale_color_viridis(discrete = T)+
+        labs(title = paste0('No dectectable trend in ', target_trend))+
+        scale_x_continuous(breaks = x_breaks,
+                           limits = x_lims)+
+        scale_y_continuous(breaks = y_breaks,
+                           limits = y_lims)
+       
+p_out <- (p_all + p_non) / (p_up + p_down)
+p_out
+}
+
+```
+
+### Apply generic plotter
+
+```{r}
+plot_context_site(x_in = 'precip_mean_ann', y_in = 'runoff_ratio', target_trend = 'rbiq')
+```
+
+```{r}
+plot_context_site(x_in = 'precip_mean_ann', y_in = 'runoff_ratio', target_trend = 'm1_meanq')
+```
+
+```{r}
+plot_context_site(x_in = 'precip_mean_ann', y_in = 'runoff_ratio', target_trend = 'm5_ar1q')
+```
+
+```{r}
+plot_context_site(x_in = 'precip_mean_ann', y_in = 'runoff_ratio', target_trend = 'runoff_ratio')
+```
+
+```{r}
+plot_context_site(x_in = 'precip_mean_ann', y_in = 'runoff_ratio', target_trend = 'precip_mean_ann')
+```
+
+```{r}
+plot_context_site(x_in = 'precip_mean_ann', y_in = 'runoff_ratio', target_trend = 'precip_mean_ann')
+```
+
+```{r}
+plot_context_site(x_in = 'precip_mean_ann', y_in = 'runoff_ratio', target_trend = 'mintemp_winter')
+```
+
+```{r}
+plot_context_site(x_in = 'precip_mean_ann', y_in = 'runoff_ratio', target_trend = 'meantemp_summer')
+```
+
+```{r}
+plot_context_site(x_in = 'precip_mean_ann', y_in = 'runoff_ratio', target_trend = 'q50_dowy_exceed')
+```
+
+```{r}
+plot_context_site(x_in = 'precip_mean_ann', y_in = 'runoff_ratio', target_trend = 'p50_dowy_exceed')
+```
+
 
 ### precip & temp
 

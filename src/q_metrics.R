@@ -12,6 +12,11 @@
 library(here)
 source(here('src', 'setup.R'))
 
+# set the list of good site years to use here!
+# 'modis' : q_good_data is a modis level cut and outputs 'good_site_years.RDS'
+# 'prisim' : q_mega_zipper_data is longest run during prisim and outputs 'longest_run_prisim_covered_site_years.RDS'
+cut <- 'prisim'
+
 # Load dataset - be patient, takes just a moment.
 q_data <- ms_load_product(
   macrosheds_root = here(my_ms_dir),
@@ -55,12 +60,26 @@ q_data_nodup <- q_data_nodup %>%
 #### Filter to complete years ####
 # will need to run q_good_data script first, uncomment next line to make the rds needed
 #source(here('src', 'q_good_data.R'))
+
+if(cut == 'modis'){
 good_site_years <- readRDS(here('data_working', 'good_site_years.RDS'))
 
 q_data_nodup <- q_data_nodup %>%
     right_join(., good_site_years, by = c('site_code')) %>%
-    filter(water_year > start,
-           water_year < end)
+    filter(water_year >= start,
+           water_year <= end)
+}
+if(cut == 'prisim'){
+    good_site_years <- readRDS(here('data_working','longest_run_prisim_covered_site_years.RDS')) %>%
+        group_by(site_code) %>%
+        summarize(start = min(water_year),
+                  end = max(water_year))
+
+    q_data_nodup <- q_data_nodup %>%
+        right_join(., good_site_years, by = c('site_code')) %>%
+        filter(water_year >= start,
+               water_year <= end)
+}
 
 #### Q Metrics ####
 
@@ -180,7 +199,7 @@ q_metrics_siteyear <- q_data_nodup %>%
 q_metrics_siteyear <- full_join(q_metrics_siteyear, q_data_50_doy)
 
 #### Climate Metrics ####
-
+if(!file.exists(here('data_working', 'clim_summaries.rds'))){
 # join in climate data
 clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
   mutate(year = year(date),
@@ -246,13 +265,15 @@ clim_metrics_siteyear <- left_join(clim_metrics_siteyear, clim_Smean)
 clim_metrics_siteyear <- left_join(clim_metrics_siteyear, clim_50_doy)
 
 saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds'))
+}
+clim_metrics_siteyear <- readRDS(here('data_working', 'clim_summaries.rds'))
 
-q_metrics_siteyear %>%
+q_data_out <- q_metrics_siteyear %>%
     left_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%
-    mutate(runoff_ratio = m1_meanq/precip_mean_ann) %>%
+    mutate(runoff_ratio = m1_meanq/precip_mean_ann)
 # Export data.
-saveRDS(., "data_working/discharge_metrics_siteyear.rds")
-
+if(cut == 'modis'){saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear.rds'))}
+if(cut == 'prisim'){saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear_prisim.rds'))}
 # Create summarized dataset with all 8 metrics for full time series at each site.
 q_metrics_site <- q_data_nodup %>%
   group_by(site_code) %>%
@@ -284,6 +305,6 @@ q_metrics_site <- q_data_nodup %>%
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 # Export data.
-saveRDS(q_metrics_site, "data_working/discharge_metrics.rds")
-
+if(cut == 'modis'){saveRDS(q_metrics_site, here("data_working", "discharge_metrics.rds"))}
+if(cut == 'prisim'){saveRDS(q_metrics_site, here("data_working", "discharge_metrics_prisim.rds"))}
 # End of script.
