@@ -1,9 +1,4 @@
-# MacroSheds Discharge Metrics
-# August 19, 2024
-# Heili Lowman
-
 #### READ ME ####
-
 # The following script will calculate the "magnificent 7"
 # discharge metrics (Archfield et al., 2014) as well as
 # the Richards-Baker Flashiness Index (Baker et al., 2004)
@@ -19,7 +14,8 @@ q_data <- ms_load_product(
   warn = F
   )
 
-#### Tidy ####
+# Prep data ####
+## Tidy ####
 
 # Filter out repeat measures detected (n = 3,741 or ~ 0.1%).
 q_data_nodup <- dplyr::distinct(q_data, site_code, datetime, .keep_all = TRUE)
@@ -41,7 +37,7 @@ area <- ms_site_data %>%
 q_data_nodup <- left_join(q_data_nodup, area, by = c("site_code")) %>%
   mutate(val_mmd = (val*86400*10000)/(ws_area_ha*100000000))
 
-#### Water Years ####
+## Water Years ####
 
 # Assign a consistent water year designation to all data,
 # from October 1 of the previous year to September 30 of
@@ -52,15 +48,15 @@ q_data_nodup <- q_data_nodup %>%
   mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                 TRUE ~ year))
 
-#### Filter to complete years ####
+## Filter to complete years ####
 freq_check <- frequency_check(q_data_nodup)
 
 q_data_good <- q_data_nodup %>%
     right_join(., freq_check, by = c('site_code', 'water_year'))
 
-#### Q Metrics ####
+# Q Metrics #####
 
-##### AR(1) #####
+## AR(1) #####
 
 # A few additional calculations are required for the
 # auto-regressive (AR(1)) correlation calculation.
@@ -87,7 +83,7 @@ ar1_print <- function(x) {
   a1$ar
 }
 
-##### Amplitude/Phase #####
+## Amplitude/Phase #####
 
 # Also, need to solve for streamflow signal at each site
 # using scaled (but not deseasonalized) discharge data
@@ -96,14 +92,12 @@ q_data_good <- q_data_good %>%
   mutate(scaleQ = (q_data_good$val_mmd -
                      mean(q_data_good$val_mmd, na.rm = TRUE))/
            sd(q_data_good$val_mmd, na.rm = TRUE),
-         decimalY = decimal_date(datetime))
-
+         decimalY = decimal_date(datetime),
 # Add covariates for streamflow signal regression.
-q_data_good <- q_data_good %>%
-  mutate(sin_2pi_year = sin(2*pi*decimalY),
+        sin_2pi_year = sin(2*pi*decimalY),
          cos_2pi_year = cos(2*pi*decimalY))
 
-##### RBI #####
+## RBI #####
 
 # Function to calculate the Richard-Baker flashiness index.
 rbi_print <- function(x) {
@@ -114,7 +108,7 @@ rbi_print <- function(x) {
     return(RBI)
 }
 
-##### Median Cumulative Q #####
+## Median Cumulative Q #####
 
 # Calculate the day of year when the median
 # cumulative discharge is reached.
@@ -175,9 +169,8 @@ q_metrics_siteyear <- q_data_good %>%
 # Join with days on which 50% of cumulative flow is exceeded.
 q_metrics_siteyear <- full_join(q_metrics_siteyear, q_data_50_doy)
 
-#### Climate Metrics ####
-if(!file.exists(here('data_working', 'clim_summaries.rds'))){
-# join in climate data
+# Climate Metrics #####
+# read in climate data
 clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
   mutate(year = year(date),
          month = month(date),
@@ -191,7 +184,7 @@ clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
                               month %in% c(12,1,2) ~ "Winter",
                               TRUE ~ NA))
 
-##### Winter Min #####
+## Winter Min #####
 
 clim_Wmin <- clim %>%
     filter(season == "Winter") %>%
@@ -200,8 +193,7 @@ clim_Wmin <- clim %>%
     summarize(mintemp_winter = min(cc_temp_mean_median)) %>%
     ungroup()
 
-##### Summer Mean #####
-
+## Summer Mean #####
 clim_Smean <- clim %>%
     filter(season == "Summer") %>%
     group_by(site_code, water_year) %>%
@@ -209,7 +201,7 @@ clim_Smean <- clim %>%
     summarize(meantemp_summer = min(cc_temp_mean_median)) %>%
     ungroup()
 
-##### Median Cumulative P #####
+## Median Cumulative P #####
 # Calculate the day of year when the median
 # precip is reached.
 clim_50_doy <- clim %>%
@@ -231,24 +223,24 @@ clim_50_doy <- clim %>%
     rename(p50_date_exceed = date) %>%
     select(site_code, water_year, p50_sum, p50_date_exceed, p50_dowy_exceed)
 
+# join together
 clim_metrics_siteyear <- clim %>%
     group_by(site_code, water_year) %>%
     summarize(precip_mean_ann = mean(cc_precip_median, na.rm = T),
               precip_total_ann = sum(cc_precip_median, na.rm = T),
-              temp_mean_ann = mean(cc_temp_mean_median, na.rm = T))
+              temp_mean_ann = mean(cc_temp_mean_median, na.rm = T)) %>%
+    left_join(., clim_Wmin) %>%
+    left_join(.,clim_Smean) %>%
+    left_join(., clim_50_doy)
 
-clim_metrics_siteyear <- left_join(clim_metrics_siteyear, clim_Wmin)
-clim_metrics_siteyear <- left_join(clim_metrics_siteyear, clim_Smean)
-clim_metrics_siteyear <- left_join(clim_metrics_siteyear, clim_50_doy)
-
+# Export climate ####
 saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds'))
-}
-clim_metrics_siteyear <- readRDS(here('data_working', 'clim_summaries.rds'))
 
+# Export combined q_metrics ####
 q_data_out <- q_metrics_siteyear %>%
-    left_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%
+    full_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%
     mutate(runoff_ratio = m1_meanq/precip_mean_ann)
-# Export data.
+
 saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear.rds'))
 
 # Create summarized dataset with all 8 metrics for full time series at each site.
@@ -281,6 +273,6 @@ q_metrics_site <- q_data_good %>%
   mutate(m6_ampq = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
-# Export data.
-saveRDS(q_metrics_site, here("data_working", "discharge_metrics.rds"))
+## Export data ####
+saveRDS(q_metrics_site, here("data_working", "discharge_metrics_site.rds"))
 # End of script.
