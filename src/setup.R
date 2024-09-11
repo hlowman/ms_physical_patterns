@@ -52,6 +52,15 @@ my_ms_dir <- "data_raw"
 # set master vars
 source(here('src', 'set_master_coverage_vars.R'))
 
+# set flag colors for plots
+flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "grey")
+
+# set sat launch years
+prisim_year <- 1980
+landsat_year <- 1984
+modis_year <- 2000
+
+
 # helper functions ####
 
 ## CARPENTRY ####

@@ -10,7 +10,7 @@ full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climat
     add_flags()
 longest_run_trends <- read_csv(here('data_working', 'trends', 'longest_site_run_prisim.csv')) %>%
     add_flags()
-flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "grey")
+
 
 # make sort order for coverage plot
 sort_order <- read_csv(here('data_working', 'all_possible_good_siteyears.csv')) %>%
@@ -84,9 +84,6 @@ add_legend <- function(plot){
         labs(fill = 'Trend')
 }
 ## make coverage plot ####
-prisim_year <- 1980
-landsat_year <- 1984
-modis_year <- 2000
 
 contrast_color <- 'darkorange'
 

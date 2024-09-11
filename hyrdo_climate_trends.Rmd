@@ -24,77 +24,20 @@ First reading in summary data and work that Heili already did.
 # if you want to save runtime comment out source(q_metrics.r)
 #source(here('src', 'q_metrics.R'))
 com <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds')) %>%
-    select(-contains('date')) #removing redundant date columns that are harder to trend
+    select(-contains('date')) %>% #removing redundant date columns that are harder to trend
+    filter(water_year >= landsat_year)%>%
+    reduce_to_longest_site_runs()
+
+com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val')
 ```
 
 Perform trend detection at each site.
 
 ```{r}
-com_long <- pivot_longer(com, cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val')
-
-#commenting out all this to save processing time
-# uncomment and run to remake trends datset if needed
-# out_frame <- tibble(site_code = as.character(),
-#                     var = as.character(),
-#                     start = as.integer(),
-#                     end = as.integer(),
-#                     trend = as.integer(),
-#                     p = as.integer())
-# 
-# for(i in unique(com_long$site_code)) {
-# 
-#     target_site <- filter(com_long, site_code == i)
-# 
-#     dat_check <- na.omit(target_site)
-# 
-#     if(nrow(dat_check) > 1){
-#     #loop  through metrics
-#     for(j in unique(target_site$var)){
-# 
-#     target_solute <- filter(target_site, var == j)  %>%
-#         arrange(water_year) %>%
-#         na.omit()
-# 
-#     if(nrow(target_solute) > 9){
-#     start <- min(target_solute$water_year)
-#     end <- max(target_solute$water_year)
-#     n <- nrow(target_solute)
-#     test <- sens.slope(target_solute$val)
-#     trend <- test[[1]]
-#     p <- test[[3]]
-# 
-# 
-#     inner <- tibble(site_code = i,
-#                     var = j,
-#                     start = start,
-#                     end = end,
-#                     n = n,
-#                     trend = trend,
-#                     p = p
-#                     )
-#     out_frame <- rbind(out_frame, inner)
-# 
-#     diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
-#             labs(title = paste0(i, ' ', j),
-#                       caption = paste0('n = ', n))+
-#             geom_point()+
-#         theme_few()
-# 
-#     quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', 'main_analysis', i, paste0(i,'_',j,'.png')),
-#            create.dir = T))
-# 
-# 
-#     }else{next} #solute level data avail check
-#         }# end solute loop
-#     }else{next} # site level data avail check
-# } #end site loop
-
-write_csv(out_frame, file = here('data_working', 'hydro_climate_trends.csv'))
-
-#trends <- out_frame
-
-# comment this out if you are using the loop to update data
-trends <- read_csv(here('data_working', 'hydro_climate_trends.csv'))
+com_trends <- detect_trends(com_long, 'longest_site_run_landsat') %>%
+    add_flags()
+write_csv(com_trends, here('data_working','trends','longest_site_run_landsat.csv'))
+#com_trends <- read_csv(here('data_working', 'hydro_climate_trends.csv'))
 ```
 
 # Figure creation
@@ -111,36 +54,16 @@ com %>%
     summarize(n = n_distinct(site_code))
 ```
 
-
-Flag trends
-
 ```{r}
-trends_flagged <- trends %>%
-    filter(
-           #p > 0.05, # sig trends only
-           var != 'a_flow_sig',
-           var != 'b_flow_sig') %>% 
-    mutate(flag = case_when(p >= 0.05 ~ 'non-significant',
-                            p < 0.05 & trend > 0 ~ 'increasing',
-                            p < 0.05 & trend < 0 ~ 'decreasing',
-                            p <0.05 & trend == 0 ~ 'flat')) %>%
-    filter(!is.nan(flag),
-           !is.na(flag))
-
-flag_colors <- c('increasing' = "orange", 'decreasing' = "purple", 'flat' = 'green', 'non-significant' = "grey")
-
-write_csv(trends_flagged, file = here('data_working', 'hydro_climate_trends_flagged.csv'))
-
-
-full<- as.integer(length(unique(trends_flagged$var)))
-half <- as.integer(length(unique(trends_flagged$var))/2 )
+full<- as.integer(length(unique(com_trends$var)))
+half <- as.integer(length(unique(com_trends$var))/2 )
 ```
 
 Make kernel density plots for each trend. 
 
 ```{r}
-trends_flagged %>%
-    filter(var %in% unique(trends_flagged$var)[1:half]) %>%
+com_trends %>%
+    filter(var %in% unique(com_trends$var)[1:half]) %>%
 ggplot(., aes(x = trend, fill = flag))+
     geom_density()+
     facet_wrap(~var, scales = 'free')+
@@ -152,8 +75,8 @@ ggplot(., aes(x = trend, fill = flag))+
 
 
 ```{r}
-trends_flagged %>%
-    filter(var %in% unique(trends_flagged$var)[half+1:full]) %>%
+com_trends %>%
+    filter(var %in% unique(com_trends$var)[half+1:full]) %>%
 ggplot(., aes(x = trend, fill = flag))+
     geom_density()+
     facet_wrap(~var, scales = 'free')+
@@ -164,7 +87,7 @@ ggplot(., aes(x = trend, fill = flag))+
 
 
 ```{r}
-trends_flagged %>%
+com_trends %>%
     filter(var %in% c('m1_meanq', 'q1', 'q50', 'q99')) %>%
     ggplot(., aes(x = trend, fill = flag))+
     geom_density()+
@@ -176,8 +99,8 @@ trends_flagged %>%
 
 
 ```{r}
-trends_flagged %>%
-    filter(var %in% unique(trends_flagged$var)[1:half]) %>%
+com_trends %>%
+    filter(var %in% unique(com_trends$var)[1:half]) %>%
 ggplot(.,aes(x = trend, fill = flag))+
     geom_histogram(position = 'dodge')+
     facet_wrap(~var, scales = 'free', ncol = 2)+
@@ -188,8 +111,8 @@ ggplot(.,aes(x = trend, fill = flag))+
 
 
 ```{r}
-trends_flagged %>%
-    filter(var %in% unique(trends_flagged$var)[half+1:full])%>%
+com_trends %>%
+    filter(var %in% unique(com_trends$var)[half+1:full])%>%
 ggplot(.,aes(x = trend, fill = flag))+
     geom_histogram(position = 'dodge')+
     facet_wrap(~var, scales = 'free', ncol = 2)+
@@ -201,7 +124,7 @@ ggplot(.,aes(x = trend, fill = flag))+
 
 
 ```{r}
-trends_flagged %>%
+com_trends %>%
     filter(var %in% c('m1_meanq', 'q1', 'q50', 'q99')) %>%
     ggplot(., aes(x = trend, fill = flag))+
     geom_histogram(position = 'dodge')+
@@ -229,7 +152,7 @@ Make scatter plots to put domains in context. Going to pull average each domain 
 #ms_site_data <- ms_load_sites()
 
 context_site <- com_long %>%
-    left_join(trends_flagged, by = c('site_code', 'var')) %>%
+    left_join(com_trends, by = c('site_code', 'var')) %>%
     left_join(., ms_site_data, by = 'site_code') %>%
     filter(water_year %in% 2000:2019,
            site_code %in% unique(trends$site_code)) #only looking at data we have trends for
@@ -288,7 +211,7 @@ start <- context_site %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val') %>%
     na.omit()
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == target_trend)
 
 plot_dat <- start %>%
@@ -430,7 +353,7 @@ start <- context_site %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == 'm1_meanq') 
 
 plot_dat <- start %>%
@@ -484,7 +407,7 @@ start <- context_site %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == 'm5_ar1q') 
 
 plot_dat <- start %>%
@@ -529,7 +452,7 @@ start <- context_site %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == 'rbiq') 
 
 plot_dat <- start %>%
@@ -573,7 +496,7 @@ start <- context_site %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == 'temp_mean_ann') 
 
 plot_dat <- start %>%
@@ -603,7 +526,7 @@ start <- context_site %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == 'precip_mean_ann') 
 
 plot_dat <- start %>%
@@ -696,7 +619,7 @@ start <- context_site %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == 'm1_meanq') 
 
 plot_dat <- start %>%
@@ -759,7 +682,7 @@ start <- context_site %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == 'm5_ar1q') 
 
 plot_dat <- start %>%
@@ -810,7 +733,7 @@ start <- context_site %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == 'rbiq') 
 
 plot_dat <- start %>%
@@ -861,7 +784,7 @@ start <- context_site %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == 'precip_mean_ann') 
 
 plot_dat <- start %>%
@@ -913,7 +836,7 @@ start <- context_site %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'domain'), names_from = 'var', values_from = 'val')
 
-trend_fil <- trends_flagged %>%
+trend_fil <- com_trends %>%
     filter(var == 'temp_mean_ann') 
 
 plot_dat <- start %>%
