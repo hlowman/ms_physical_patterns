@@ -15,7 +15,8 @@ source(here('src', 'setup.R'))
 # set the list of good site years to use here!
 # 'modis' : q_good_data is a modis level cut and outputs 'good_site_years.RDS'
 # 'prisim' : q_mega_zipper_data is longest run during prisim and outputs 'longest_run_prisim_covered_site_years.RDS'
-cut <- 'prisim'
+# 'all' : q_all_data includes all available data and outputs 'all_site_years.RDS'
+cut <- 'all'
 
 # Load dataset - be patient, takes just a moment.
 q_data <- ms_load_product(
@@ -60,6 +61,7 @@ q_data_nodup <- q_data_nodup %>%
 #### Filter to complete years ####
 # will need to run q_good_data script first, uncomment next line to make the rds needed
 #source(here('src', 'q_good_data.R'))
+#source(here('src', 'q_mega_zipper_data.R'))
 
 if(cut == 'modis'){
 good_site_years <- readRDS(here('data_working', 'good_site_years.RDS'))
@@ -79,6 +81,25 @@ if(cut == 'prisim'){
         right_join(., good_site_years, by = c('site_code')) %>%
         filter(water_year >= start,
                water_year <= end)
+}
+if(cut == 'all'){
+    good_site_years <- readRDS(here('data_working',
+                                    'good_zipper_plot_years.RDS')) %>%
+        group_by(site_code) %>%
+        summarize(start = min(water_year),
+                  end = max(water_year))
+
+    q_data_nodup <- q_data_nodup %>%
+        right_join(., good_site_years, by = c('site_code'))
+    # the filtering above was acting up due to naming convention
+    # so just adding some more complex code to achieve the
+    # same result
+    colnames(q_data_nodup)[13] <- "startyr"
+    colnames(q_data_nodup)[14] <- "endyr"
+
+    q_data_nodup <- q_data_nodup %>%
+        filter(water_year >= startyr,
+               water_year <= endyr)
 }
 
 #### Q Metrics ####
@@ -160,15 +181,43 @@ q_data_50_doy <- q_data_nodup %>%
     rename(q50_date_exceed = datetime) %>%
     select(site_code, water_year, q50_sum, q50_date_exceed, q50_dowy_exceed)
 
+# Calculate number of records for each site-water year,
+# since those with too few records will break the
+# regressions below.
+q_wy_counts <- q_data_nodup %>%
+    drop_na(val_mmd) %>%
+    mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
+    count(site_wy) %>%
+    ungroup() %>%
+    mutate(use = case_when(n > 3 ~ 1,
+                           n <= 3 ~ 0,
+                           TRUE ~ NA))
+
+# Also notate sites for which the site-water year mean
+# discharge is zero, which will also not work with the
+# summary calculations below.
+q_wy_mean <- q_data_nodup %>%
+    drop_na(val_mmd) %>%
+    mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
+    group_by(site_wy) %>%
+    summarize(mean = mean(val_mmd, na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(use2 = case_when(mean > 0 ~ 1,
+                            mean <= 0 ~ 0,
+                            TRUE ~ NA))
+
 # Create summarized dataset with all 8 metrics by site-water year.
 q_metrics_siteyear <- q_data_nodup %>%
   # drop all NA discharge values
   # otherwise the lm() with full missing WYs below will throw
   # an error message and not output the summarized data
   drop_na(val_mmd) %>%
-  # also dropping site-water years that broke the regressions' code
   mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
-  #full_join(q_wy_counts) %>%
+  # also dropping site-water years that broke the regressions' code
+  full_join(q_wy_counts) %>%
+  full_join(q_wy_mean) %>%
+  filter(use == 1) %>%
+  filter(use2 == 1) %>%
   # finally, calculate the discharge metrics
   group_by(site_code, water_year) %>%
   summarize(m1_meanq = mean(val_mmd, na.rm = TRUE), # mean
@@ -274,6 +323,8 @@ q_data_out <- q_metrics_siteyear %>%
 # Export data.
 if(cut == 'modis'){saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear.rds'))}
 if(cut == 'prisim'){saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear_prisim.rds'))}
+if(cut == 'all'){saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear_all.rds'))}
+
 # Create summarized dataset with all 8 metrics for full time series at each site.
 q_metrics_site <- q_data_nodup %>%
   group_by(site_code) %>%
@@ -307,4 +358,5 @@ q_metrics_site <- q_data_nodup %>%
 # Export data.
 if(cut == 'modis'){saveRDS(q_metrics_site, here("data_working", "discharge_metrics.rds"))}
 if(cut == 'prisim'){saveRDS(q_metrics_site, here("data_working", "discharge_metrics_prisim.rds"))}
+if(cut == 'all'){saveRDS(q_metrics_site, here("data_working", "discharge_metrics_all.rds"))}
 # End of script.
