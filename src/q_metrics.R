@@ -12,11 +12,6 @@
 library(here)
 source(here('src', 'setup.R'))
 
-# set the list of good site years to use here!
-# 'modis' : q_good_data is a modis level cut and outputs 'good_site_years.RDS'
-# 'prisim' : q_mega_zipper_data is longest run during prisim and outputs 'longest_run_prisim_covered_site_years.RDS'
-cut <- 'prisim'
-
 # Load dataset - be patient, takes just a moment.
 q_data <- ms_load_product(
   macrosheds_root = here(my_ms_dir),

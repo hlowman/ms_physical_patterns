@@ -141,8 +141,7 @@ clim_trends %>%
     write_csv(.,file = here('data_working', 'climate_trends_full_prisim.csv'))
 }else(print(file.info(here('data_working', 'climate_trends_full_prisim.csv'))$ctime))
 
-clim_trends <- read_csv(here('data_working', 'climate_trends_full_prisim.csv')) %>%
-    na.omit()
+clim_trends <- read_csv(here('data_working', 'climate_trends_full_prisim.csv'))
 # create longest run w/ prisim data ####
 # start with site years that passed freq check
 good_site_years_fp <- good_site_year_freq %>%

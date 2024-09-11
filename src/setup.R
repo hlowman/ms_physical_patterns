@@ -49,3 +49,24 @@ for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
 # Set directory to folder containing new data.
 my_ms_dir <- "data_raw"
 
+# set master vars
+source(here('src', 'set_master_coverage_vars.R'))
+
+# helper functions ####
+
+# freq_check needs a data frame of long format q_data with water_year
+frequency_check <- function(data_in){
+
+    q_data <- data_in
+
+    freq_check <- q_data %>%
+    mutate(week_year = paste0(week(datetime), '_', water_year)) %>%
+    group_by(site_code, week_year) %>%
+    summarize(water_year = max(water_year),
+              n = n()) %>%
+    filter(n >= minimum_per_week_sampling_frequency_master) %>%
+    group_by(site_code, water_year) %>%
+    summarize(n = n())
+
+    return(freq_check)
+}

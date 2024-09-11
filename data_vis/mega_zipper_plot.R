@@ -30,7 +30,8 @@ full_prisim <- q_plot_data %>%
               relationship = 'many-to-many') %>%
     select(site_code, n = n.x, var, trend, p, flag)
 
-full_prisim_plot <- drop_na(full_prisim)
+#full_prisim_plot <- drop_na(full_prisim)
+full_prisim_plot <- distinct(full_prisim)
 # make longest run of site data during prisim data record
 trends_prisim_long_run <- readRDS(here('data_working', 'longest_run_prisim_covered_trends.RDS'))
 

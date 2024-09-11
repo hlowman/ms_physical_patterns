@@ -1,7 +1,7 @@
 # handle setup
 library(here)
 source(here('src', 'setup.R'))
-source(here('src', 'set_master_coverage_vars.R'))
+
 
 # 0 Read in q data ####
 # load in q data and remove duplicates
@@ -11,24 +11,17 @@ q_data <- ms_load_product(
     warn = F) %>%
     mutate(water_year = as.integer(as.character(water_year(datetime, origin = 'usgs')))) %>%
     distinct(., site_code, datetime, .keep_all = TRUE) %>%
-    filter(ms_interp == 0) %>%
-# 1 Filter to start year ####
-    filter(water_year >= start_year_master) # filter for MODIS sat data
+    filter(ms_interp == 0)
 
 # 2 Data frequency check ####
 # only want sites that are reporting q at 4 times a week
 # note this spits out number of weeks in a given water year
-freq_check <- q_data %>%
-    mutate(week_year = paste0(week(datetime), '_', water_year)) %>%
-    group_by(site_code, week_year) %>%
-    summarize(water_year = max(water_year),
-              n = n()) %>%
-    filter(n >= minimum_per_week_sampling_frequency_master) %>%
-    group_by(site_code, water_year) %>%
-    summarize(n = n())
+freq_check <- frequency_check(q_data)
 
 # get an idea of what a cutoff could/should be
 freq_check %>%
+    # 1 Filter to start year ####
+filter(water_year >= start_year_master) %>% # filter for MODIS sat data
     ggplot(., aes(x = n)) +
     geom_histogram()
 
