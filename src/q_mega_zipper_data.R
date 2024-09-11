@@ -28,12 +28,13 @@ clim_trends %>%
 # make frame of all data during prism
 prism_site_run_trends_data <- metrics %>%
     select(-contains('date')) %>% # dates breaking math
+    select(site_code, water_year,
+           temp_mean_ann, precip_mean_ann, m1_meanq, m5_ar1q, rbiq) %>%
+    drop_na() %>%
     pivot_longer(cols = -c('site_code', 'water_year'),
                  names_to = 'var',
                  values_to = 'val') %>%
-    filter(var %in% c('temp_mean_ann', 'precip_mean_ann', 'm1_meanq', 'm5_ar1q', 'rbiq'),
-           water_year >= prisim_year) %>%
-    drop_na() %>%
+           filter(water_year >= prisim_year) %>%
     reduce_to_longest_site_runs()
 
 # trend detection ####

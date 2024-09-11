@@ -51,6 +51,8 @@ q_data_nodup <- q_data_nodup %>%
 ## Filter to complete years ####
 freq_check <- frequency_check(q_data_nodup)
 
+write_csv(freq_check, here('data_working', 'all_possible_good_siteyears.csv'))
+
 q_data_good <- q_data_nodup %>%
     right_join(., freq_check, by = c('site_code', 'water_year'))
 

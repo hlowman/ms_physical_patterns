@@ -3,43 +3,60 @@ rm(list = ls())
 # Load packages.
 library(here)
 source(here('src', 'setup.R'))
-source(here('src', 'q_mega_zipper_data.R'))
-
-
+#source(here('src', 'q_mega_zipper_data.R'))
 
 # read in data####
-longest_run_prisim_covered_trends <- readRDS(here('data_working', 'longest_run_prisim_covered_trends.RDS'))
+full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climate.csv')) %>%
+    add_flags()
+longest_run_trends <- read_csv(here('data_working', 'trends', 'longest_site_run_prisim.csv')) %>%
+    add_flags()
 flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "grey")
 
-
-sort_order <- readRDS(here('data_working', 'good_zipper_plot_years.RDS')) %>%
+# make sort order for coverage plot
+sort_order <- read_csv(here('data_working', 'all_possible_good_siteyears.csv')) %>%
     group_by(site_code) %>%
     summarize(n = n()) %>%
     arrange(-n) %>%
     mutate(site_code=factor(site_code, levels=site_code))
 
-q_plot_data <- right_join(sort_order, readRDS(here('data_working', 'good_zipper_plot_years.RDS')), by = 'site_code') %>%
-    left_join(., ms_site_data, by = 'site_code') %>%
-    left_join(., longest_run_prisim_covered_trends, by = 'site_code', relationship = "many-to-many") %>%
-    rename(n = n.x)
+# make q plot data from the full site_year dataset
+full_data <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS'))
+q_plot_data <-  full_data %>%
+    select(site_code, water_year, m1_meanq) %>%
+    drop_na() %>%
+    full_join(sort_order, ., by = 'site_code')
 
 # make full, non-site climate data record ####
 full_prisim <- q_plot_data %>%
     select(site_code, n) %>%
-    left_join(., na.omit(read_csv(here('data_working', 'climate_trends_full_prisim.csv'))), by = 'site_code',
-              relationship = 'many-to-many') %>%
-    select(site_code, n = n.x, var, trend, p, flag)
+    distinct() %>%
+    left_join(., full_prism_trends, by = 'site_code') %>%
+    select(site_code, n = n.x, var, trend, p, flag)%>%
+    full_join(., sort_order, by = 'site_code') %>%
+    rename(n = n.x)
 
-#full_prisim_plot <- drop_na(full_prisim)
-full_prisim_plot <- distinct(full_prisim)
+full_prisim %>%
+    filter(is.na(flag)) %>%
+    left_join(., ms_site_data, by = 'site_code') %>%
+    select(site_code, domain) %>%
+    distinct()
+
 # make longest run of site data during prisim data record
-trends_prisim_long_run <- readRDS(here('data_working', 'longest_run_prisim_covered_trends.RDS'))
-
 longest_run_prisim <- q_plot_data %>%
     select(site_code, n) %>%
-    left_join(., trends_prisim_long_run,
-              by = 'site_code', relationship = "many-to-many") %>%
-    select(site_code, n = n.x, var, trend, p, flag)
+    distinct() %>%
+    right_join(., longest_run_trends, by = 'site_code') %>%
+    select(site_code, n = n.x, var, trend, p, flag)%>%
+    filter(n >= 10) %>%
+    full_join(sort_order,. , by = 'site_code')%>%
+    rename(n = n.x)
+
+longest_run_prisim %>%
+    filter(is.na(flag)) %>%
+    left_join(., ms_site_data, by = 'site_code') %>%
+    select(site_code, domain) %>%
+    distinct()
+
 
 # plots #####
 make_trend_panel <- function(data_in, target_trend, title_string){
@@ -89,12 +106,12 @@ c_master <- q_plot_data %>%
     annotate("text", x=prisim_year-1, y=25, label="PRISM", angle=90, size=5, color=contrast_color)+
     geom_vline(xintercept = prisim_year, color = contrast_color)+
     labs(title = 'MS Site Data')
-#c_master
+c_master
 
 
 ## assemble plot #####
-zipper_plot <- make_trend_panel(full_prisim_plot, 'temp_mean_ann', 'Ta') +
-    make_trend_panel(full_prisim_plot, 'precip_mean_ann', 'P')+
+zipper_plot <- make_trend_panel(full_prisim, 'temp_mean_ann', 'Ta') +
+    make_trend_panel(full_prisim, 'precip_mean_ann', 'P')+
     c_master +
     make_trend_panel(longest_run_prisim, 'temp_mean_ann', 'Ta') +
     make_trend_panel(longest_run_prisim, 'precip_mean_ann', 'P') +
