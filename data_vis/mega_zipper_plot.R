@@ -112,10 +112,11 @@ zipper_plot <- make_trend_panel(full_prisim, 'temp_mean_ann', 'Ta') +
     c_master +
     make_trend_panel(longest_run_prisim, 'temp_mean_ann', 'Ta') +
     make_trend_panel(longest_run_prisim, 'precip_mean_ann', 'P') +
+    make_trend_panel(longest_run_prisim, 'stream_temp_mean_ann', 'Ts') +
     make_trend_panel(longest_run_prisim, 'm1_meanq', 'Q') +
     make_trend_panel(longest_run_prisim, 'rbiq', 'RBI') +
     add_legend(make_trend_panel(longest_run_prisim, 'm5_ar1q', 'AR1')) +
-    plot_layout(ncol = 8, widths = c(.25, .25, 5, .25, .25, .25, .25, .25))
+    plot_layout(ncol = 9, widths = c(.25, .25, 5, .25, .25, .25, .25, .25, .25))
 zipper_plot
 
 # why are there black bands in our data?

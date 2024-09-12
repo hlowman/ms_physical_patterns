@@ -49,8 +49,13 @@ for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
 # Set directory to folder containing new data.
 my_ms_dir <- "data_raw"
 
-# set master vars
-source(here('src', 'set_master_coverage_vars.R'))
+# set master vars for data coverage to define 'good years'
+# shared across all data coverage scripts
+start_year_master <- 2001
+minimum_per_week_sampling_frequency_master <- 4
+good_weeks_to_year_master <- 51
+minimum_continuous_record_length_master <- 10
+
 
 # set flag colors for plots
 flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "grey")

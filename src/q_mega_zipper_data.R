@@ -29,8 +29,8 @@ clim_trends %>%
 prism_site_run_trends_data <- metrics %>%
     select(-contains('date')) %>% # dates breaking math
     select(site_code, water_year,
-           temp_mean_ann, precip_mean_ann, m1_meanq, m5_ar1q, rbiq) %>%
-    drop_na() %>%
+           temp_mean_ann, precip_mean_ann, m1_meanq, m5_ar1q, rbiq, stream_temp_mean_ann) %>%
+    drop_na(temp_mean_ann, precip_mean_ann, m1_meanq, m5_ar1q, rbiq) %>%
     pivot_longer(cols = -c('site_code', 'water_year'),
                  names_to = 'var',
                  values_to = 'val') %>%

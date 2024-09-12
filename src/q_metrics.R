@@ -14,6 +14,17 @@ q_data <- ms_load_product(
   warn = F
   )
 
+t_data <- ms_load_product(
+    macrosheds_root = here(my_ms_dir),
+    prodname = "stream_chemistry",
+    filter_vars = 'temp',
+    warn = F
+) %>%
+    mutate(month = month(datetime),
+           year = year(datetime),
+           water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+                                  TRUE ~ year))
+
 # Prep data ####
 ## Tidy ####
 
@@ -58,7 +69,7 @@ q_data_good <- q_data_nodup %>%
 
 # Q Metrics #####
 
-## AR(1) #####
+## AR(1) ####
 
 # A few additional calculations are required for the
 # auto-regressive (AR(1)) correlation calculation.
@@ -117,8 +128,8 @@ rbi_print <- function(x) {
 q_data_50_doy <- q_data_good %>%
     group_by(site_code, water_year) %>%
         mutate(q50_sum = 0.5*sum(val_mmd),
-               q_sum = cumsum(val_mmd)) %>%
-        mutate(q50_exceed = case_when(q_sum > q50_sum ~ 1,
+               q_sum = cumsum(val_mmd),
+        q50_exceed = case_when(q_sum > q50_sum ~ 1,
                                       q_sum <= q50_sum ~ 0,
                                       TRUE ~ NA)) %>%
     ungroup() %>%
@@ -192,7 +203,7 @@ clim_Wmin <- clim %>%
     filter(season == "Winter") %>%
     group_by(site_code, water_year) %>%
     drop_na(cc_temp_mean_median) %>%
-    summarize(mintemp_winter = min(cc_temp_mean_median)) %>%
+    summarize(min_air_temp_winter = min(cc_temp_mean_median)) %>%
     ungroup()
 
 ## Summer Mean #####
@@ -200,7 +211,7 @@ clim_Smean <- clim %>%
     filter(season == "Summer") %>%
     group_by(site_code, water_year) %>%
     drop_na(cc_temp_mean_median) %>%
-    summarize(meantemp_summer = min(cc_temp_mean_median)) %>%
+    summarize(mean_air_temp_summer = mean(cc_temp_mean_median)) %>%
     ungroup()
 
 ## Median Cumulative P #####
@@ -238,10 +249,60 @@ clim_metrics_siteyear <- clim %>%
 # Export climate ####
 saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds'))
 
+
+# stream temperature ####
+# want at least weekly sampling for most of the year for now
+# 51/52 weeks of the year
+freq_check <- t_data %>%
+            filter(ms_interp == 0) %>%
+            mutate(week_year = paste0(week(datetime), '_', water_year)) %>%
+    group_by(site_code, week_year) %>%
+    summarize(water_year = max(water_year),
+              n = n()) %>%
+    filter(n >= 1) %>%
+    group_by(site_code, water_year) %>%
+    summarize(n = n()) %>%
+    filter(n >= good_weeks_to_year_master)
+
+t_good <- t_data %>%
+    filter(ms_interp == 0) %>%
+    mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
+                              month %in% c(12,1,2) ~ "Winter",
+                              month %in% c(3,4,5) ~ "Spring",
+                              month %in% c(9,10,11) ~ "Fall",
+                              TRUE ~ NA)) %>%
+    right_join(., freq_check, by = c('site_code', 'water_year')) %>%
+    select(site_code, water_year, season, var, val) %>%
+    na.omit()
+
+
+t_ann <- t_good %>%
+    group_by(site_code, water_year, season) %>%
+    summarize(stream_temp_mean_ann = mean(val))
+
+## Winter Min #####
+t_wmin <- t_good %>%
+    filter(season == "Winter") %>%
+    group_by(site_code, water_year) %>%
+    summarize(min_stream_temp_winter = min(val)) %>%
+    ungroup()
+
+## Summer Mean #####
+t_smean <- t_good %>%
+    filter(season == "Summer") %>%
+    group_by(site_code, water_year) %>%
+    summarize(mean_stream_temp_summer = mean(val)) %>%
+    ungroup()
+
+t_out <- t_ann %>%
+    full_join(., t_wmin, by = c('site_code', 'water_year')) %>%
+    full_join(., t_smean, by = c('site_code', 'water_year'))
+
 # Export combined q_metrics ####
 q_data_out <- q_metrics_siteyear %>%
     full_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%
-    mutate(runoff_ratio = m1_meanq/precip_mean_ann)
+    mutate(runoff_ratio = m1_meanq/precip_mean_ann) %>%
+    full_join(., t_out, by = c('site_code', 'water_year'))
 
 saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear.rds'))
 
