@@ -25,6 +25,13 @@ t_data <- ms_load_product(
            water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                   TRUE ~ year))
 
+p_data <- read_feather(here('data_raw', 'spatial_timeseries_vegetation.feather')) %>%
+    mutate(month = month(date),
+           year = year(date),
+           water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+                                  TRUE ~ year))
+
+
 # PREP ####
 ## Tidy ####
 
@@ -246,10 +253,6 @@ clim_metrics_siteyear <- clim %>%
     left_join(.,clim_Smean) %>%
     left_join(., clim_50_doy)
 
-## Export climate ####
-saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds'))
-
-
 # STREAM TEMP ####
 # want at least weekly sampling for most of the year for now
 # 51/52 weeks of the year
@@ -298,7 +301,13 @@ t_out <- t_ann %>%
     full_join(., t_wmin, by = c('site_code', 'water_year')) %>%
     full_join(., t_smean, by = c('site_code', 'water_year'))
 
+# PRODUCTIVITY ####
+
+
 # EXPORT ####
+## climate ####
+saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds'))
+
 ## site_year level ####
 q_data_out <- q_metrics_siteyear %>%
     full_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%

@@ -3,7 +3,7 @@ rm(list = ls())
 # Load packages.
 library(here)
 source(here('src', 'setup.R'))
-#source(here('src', 'q_mega_zipper_data.R'))
+#source(here('src', 'mega_zipper_data.R'))
 
 # read in data####
 full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climate.csv')) %>%
