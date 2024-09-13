@@ -1,4 +1,4 @@
-#### READ ME ####
+# READ ME ####
 # The following script will calculate the "magnificent 7"
 # discharge metrics (Archfield et al., 2014) as well as
 # the Richards-Baker Flashiness Index (Baker et al., 2004)
@@ -25,7 +25,7 @@ t_data <- ms_load_product(
            water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                   TRUE ~ year))
 
-# Prep data ####
+# PREP ####
 ## Tidy ####
 
 # Filter out repeat measures detected (n = 3,741 or ~ 0.1%).
@@ -67,7 +67,7 @@ write_csv(freq_check, here('data_working', 'all_possible_good_siteyears.csv'))
 q_data_good <- q_data_nodup %>%
     right_join(., freq_check, by = c('site_code', 'water_year'))
 
-# Q Metrics #####
+# Q #####
 
 ## AR(1) ####
 
@@ -182,7 +182,7 @@ q_metrics_siteyear <- q_data_good %>%
 # Join with days on which 50% of cumulative flow is exceeded.
 q_metrics_siteyear <- full_join(q_metrics_siteyear, q_data_50_doy)
 
-# Climate Metrics #####
+# CLIMATE #####
 # read in climate data
 clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
   mutate(year = year(date),
@@ -246,11 +246,11 @@ clim_metrics_siteyear <- clim %>%
     left_join(.,clim_Smean) %>%
     left_join(., clim_50_doy)
 
-# Export climate ####
+## Export climate ####
 saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds'))
 
 
-# stream temperature ####
+# STREAM TEMP ####
 # want at least weekly sampling for most of the year for now
 # 51/52 weeks of the year
 freq_check <- t_data %>%
@@ -298,7 +298,8 @@ t_out <- t_ann %>%
     full_join(., t_wmin, by = c('site_code', 'water_year')) %>%
     full_join(., t_smean, by = c('site_code', 'water_year'))
 
-# Export combined q_metrics ####
+# EXPORT ####
+## site_year level ####
 q_data_out <- q_metrics_siteyear %>%
     full_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%
     mutate(runoff_ratio = m1_meanq/precip_mean_ann) %>%
@@ -336,6 +337,6 @@ q_metrics_site <- q_data_good %>%
   mutate(m6_ampq = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
          m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
-## Export data ####
+## site level ####
 saveRDS(q_metrics_site, here("data_working", "discharge_metrics_site.rds"))
 # End of script.
