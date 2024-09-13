@@ -113,7 +113,9 @@ reduce_to_longest_site_runs <- function(data_in){
     return(out_frame)
 }
 
+
 ## TRENDS #####
+
 # df_in needs to be a long dataframe with site, water_year, var, and val
 # outputs a
 detect_trends <- function(df_in, diag_string){
