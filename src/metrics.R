@@ -302,7 +302,18 @@ t_out <- t_ann %>%
     full_join(., t_smean, by = c('site_code', 'water_year'))
 
 # PRODUCTIVITY ####
-
+p_out <- p_data %>%
+    distinct() %>%
+    mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
+                              month %in% c(12,1,2) ~ "Winter",
+                              month %in% c(3,4,5) ~ "Spring",
+                              month %in% c(9,10,11) ~ "Fall",
+                              TRUE ~ NA)) %>%
+    pivot_wider(id_cols = c('site_code', 'date', 'water_year'), names_from = 'var', values_from = 'val') %>%
+    select(site_code, water_year, lai = vb_lai_median,
+           ndvi = vb_ndvi_median, tree_cover = vb_tree_cover_median, veg_cover = vb_veg_cover_median,
+           evi = vb_evi_median, lai = vb_lai_median, gpp_conus = vb_gpp_global_500m_sd,
+           gpp_global = vb_gpp_global_500m_median)
 
 # EXPORT ####
 ## climate ####
@@ -312,7 +323,8 @@ saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds')
 q_data_out <- q_metrics_siteyear %>%
     full_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%
     mutate(runoff_ratio = m1_meanq/precip_mean_ann) %>%
-    full_join(., t_out, by = c('site_code', 'water_year'))
+    full_join(., t_out, by = c('site_code', 'water_year')) %>%
+    full_join(., p_out, by = c('site_code', 'water_year'))
 
 saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear.rds'))
 
