@@ -9,7 +9,7 @@ metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS'))
 # trend under diff sat coverage ####
 # test where we have at least 10 years of data post landsat
 q_landsat_good <- metrics %>%
-    select(site_code, water_year, m1_meanq) %>%
+    select(site_code, water_year, q_mean) %>%
     filter(water_year >= landsat_year) %>%
     reduce_to_longest_site_runs() %>%
     group_by(site_code) %>%
@@ -41,14 +41,14 @@ bin_old <- 1950:1974
 bin_new <- 2000:2024
 
 old_good <- metrics %>%
-    select(site_code, water_year, m1_meanq) %>%
+    select(site_code, water_year, q_mean) %>%
     filter(water_year %in% bin_old) %>%
     group_by(site_code) %>%
     summarize(n_old = n())%>%
     filter(n_old > 9)
 
 new_good <- metrics %>%
-    select(site_code, water_year, m1_meanq) %>%
+    select(site_code, water_year, q_mean) %>%
     filter(water_year %in% bin_new) %>%
     group_by(site_code) %>%
     summarize(n_new = n()) %>%
@@ -67,14 +67,14 @@ bin_old <- 1980:2000
 bin_new <- 2001:2024
 
 old_good <- metrics %>%
-    select(site_code, water_year, m1_meanq) %>%
+    select(site_code, water_year, q_mean) %>%
     filter(water_year %in% bin_old) %>%
     group_by(site_code) %>%
     summarize(n_old = n())%>%
     filter(n_old > 9)
 
 new_good <- metrics %>%
-    select(site_code, water_year, m1_meanq) %>%
+    select(site_code, water_year, q_mean) %>%
     filter(water_year %in% bin_new) %>%
     group_by(site_code) %>%
     summarize(n_new = n()) %>%
@@ -97,14 +97,14 @@ bin_old <- 1980:1994
 bin_new <- 2010:2024
 
 old_good <- metrics %>%
-    select(site_code, water_year, m1_meanq) %>%
+    select(site_code, water_year, q_mean) %>%
     filter(water_year %in% bin_old) %>%
     group_by(site_code) %>%
     summarize(n_old = n())%>%
     filter(n_old > 9)
 
 new_good <- metrics %>%
-    select(site_code, water_year, m1_meanq) %>%
+    select(site_code, water_year, q_mean) %>%
     filter(water_year %in% bin_new) %>%
     group_by(site_code) %>%
     summarize(n_new = n()) %>%

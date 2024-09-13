@@ -162,20 +162,20 @@ q_metrics_siteyear <- q_data_good %>%
   #full_join(q_wy_counts) %>%
   # finally, calculate the discharge metrics
   group_by(site_code, water_year) %>%
-  summarize(m1_meanq = mean(val_mmd, na.rm = TRUE), # mean
-            q1 = quantile(val_mmd, probs = 0.01, na.rm = TRUE), # 1st percentile Q
-            q5 = quantile(val_mmd, probs = 0.05, na.rm = TRUE), # 5th percentile Q
-            q25 = quantile(val_mmd, probs = 0.25, na.rm = TRUE), # 25th percentile Q
-            q50 = quantile(val_mmd, probs = 0.50, na.rm = TRUE), # median Q
-            q75 = quantile(val_mmd, probs = 0.75, na.rm = TRUE), # 75th percentile Q
-            q95 = quantile(val_mmd, probs = 0.95, na.rm = TRUE), # 95th percentile Q
-            q99 = quantile(val_mmd, probs = 0.99, na.rm = TRUE), # 99th percentile Q
-            m2_cvq = (sd(val_mmd, na.rm = TRUE)/
+  summarize(q_mean = mean(val_mmd, na.rm = TRUE), # mean
+            q_q1 = quantile(val_mmd, probs = 0.01, na.rm = TRUE), # 1st percentile Q
+            q_q5 = quantile(val_mmd, probs = 0.05, na.rm = TRUE), # 5th percentile Q
+            q_q25 = quantile(val_mmd, probs = 0.25, na.rm = TRUE), # 25th percentile Q
+            q_q50 = quantile(val_mmd, probs = 0.50, na.rm = TRUE), # median Q
+            q_q75 = quantile(val_mmd, probs = 0.75, na.rm = TRUE), # 75th percentile Q
+            q_q95 = quantile(val_mmd, probs = 0.95, na.rm = TRUE), # 95th percentile Q
+            q_q99 = quantile(val_mmd, probs = 0.99, na.rm = TRUE), # 99th percentile Q
+            q_cv = (sd(val_mmd, na.rm = TRUE)/
                         mean(val_mmd, na.rm = TRUE)), # coefficient of variation
-            m3_skewq = skewness(val_mmd, na.rm = TRUE), # skewness
-            m4_kurtq = kurtosis(val_mmd, na.rm = TRUE), # kurtosis
-            m5_ar1q = ar1_print(scaleQds), # AR(1) coefficient
-            rbiq = rbi_print(val_mmd), # Richards-Baker flashiness index
+            q_skew = skewness(val_mmd, na.rm = TRUE), # skewness
+            q_kurt = kurtosis(val_mmd, na.rm = TRUE), # kurtosis
+            q_ar1 = ar1_print(scaleQds), # AR(1) coefficient
+            q_rbi = rbi_print(val_mmd), # Richards-Baker flashiness index
             # seasonal flow signal metrics a + b
             # per p. 1169 in Archfield et al., 2014
             a_flow_sig = lm(scaleQ ~ sin_2pi_year + cos_2pi_year,
@@ -183,8 +183,8 @@ q_metrics_siteyear <- q_data_good %>%
             b_flow_sig = lm(scaleQ ~ sin_2pi_year + cos_2pi_year,
                             na.action = na.omit)$coefficients["cos_2pi_year"]) %>%
   ungroup() %>%
-  mutate(m6_ampq = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
-         m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
+  mutate(q_amp = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
+         q_phi = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 # Join with days on which 50% of cumulative flow is exceeded.
 q_metrics_siteyear <- full_join(q_metrics_siteyear, q_data_50_doy)
@@ -336,27 +336,27 @@ q_metrics_site <- q_data_good %>%
   drop_na(val_mmd) %>%
   # also dropping site-water years that broke the regressions' code previously
   mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
-  summarize(m1_meanq = mean(val_mmd, na.rm = TRUE), # mean
-            q1 = quantile(val_mmd, probs = 0.01, na.rm = TRUE), # 1st percentile Q
-            q5 = quantile(val_mmd, probs = 0.05, na.rm = TRUE), # 5th percentile Q
-            q25 = quantile(val_mmd, probs = 0.25, na.rm = TRUE), # 25th percentile Q
-            q50 = quantile(val_mmd, probs = 0.50, na.rm = TRUE), # median Q
-            q75 = quantile(val_mmd, probs = 0.75, na.rm = TRUE), # 75th percentile Q
-            q95 = quantile(val_mmd, probs = 0.95, na.rm = TRUE), # 95th percentile Q
-            q99 = quantile(val_mmd, probs = 0.99, na.rm = TRUE), # 99th percentile Q
-            m2_cvq = (sd(val_mmd, na.rm = TRUE)/
+  summarize(q_mean = mean(val_mmd, na.rm = TRUE), # mean
+            q_q1 = quantile(val_mmd, probs = 0.01, na.rm = TRUE), # 1st percentile Q
+            q_q5 = quantile(val_mmd, probs = 0.05, na.rm = TRUE), # 5th percentile Q
+            q_q25 = quantile(val_mmd, probs = 0.25, na.rm = TRUE), # 25th percentile Q
+            q_q50 = quantile(val_mmd, probs = 0.50, na.rm = TRUE), # median Q
+            q_q75 = quantile(val_mmd, probs = 0.75, na.rm = TRUE), # 75th percentile Q
+            q_q95 = quantile(val_mmd, probs = 0.95, na.rm = TRUE), # 95th percentile Q
+            q_q99 = quantile(val_mmd, probs = 0.99, na.rm = TRUE), # 99th percentile Q
+            q_cv = (sd(val_mmd, na.rm = TRUE)/
                         mean(val_mmd, na.rm = TRUE)), # coefficient of variation
-            m3_skewq = skewness(val_mmd, na.rm = TRUE), # skewness
-            m4_kurtq = kurtosis(val_mmd, na.rm = TRUE), # kurtosis
-            m5_ar1q = ar1_print(scaleQds), # AR(1) coefficient
-            rbiq = rbi_print(val_mmd), # Richards-Baker flashiness index
+            q_skew = skewness(val_mmd, na.rm = TRUE), # skewness
+            q_kurt = kurtosis(val_mmd, na.rm = TRUE), # kurtosis
+            q_ar1 = ar1_print(scaleQds), # AR(1) coefficient
+            q_rbi = rbi_print(val_mmd), # Richards-Baker flashiness index
             a_flow_sig = lm(scaleQ ~ sin_2pi_year + cos_2pi_year,
                             na.action = na.omit)$coefficients["sin_2pi_year"],
             b_flow_sig = lm(scaleQ ~ sin_2pi_year + cos_2pi_year,
                             na.action = na.omit)$coefficients["cos_2pi_year"]) %>% # flow signal metrics
   ungroup() %>%
-  mutate(m6_ampq = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
-         m7_phiq = atan(-a_flow_sig/b_flow_sig)) # phase shift
+  mutate(q_amp = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
+         q_phi = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 ## site level ####
 saveRDS(q_metrics_site, here("data_working", "discharge_metrics_site.rds"))

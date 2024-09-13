@@ -22,7 +22,7 @@ sort_order <- read_csv(here('data_working', 'all_possible_good_siteyears.csv')) 
 # make q plot data from the full site_year dataset
 full_data <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS'))
 q_plot_data <-  full_data %>%
-    select(site_code, water_year, m1_meanq) %>%
+    select(site_code, water_year, q_mean) %>%
     drop_na() %>%
     full_join(sort_order, ., by = 'site_code')
 
@@ -113,9 +113,9 @@ zipper_plot <- make_trend_panel(full_prisim, 'temp_mean_ann', 'Ta') +
     make_trend_panel(longest_run_prisim, 'temp_mean_ann', 'Ta') +
     make_trend_panel(longest_run_prisim, 'precip_mean_ann', 'P') +
     make_trend_panel(longest_run_prisim, 'stream_temp_mean_ann', 'Ts') +
-    make_trend_panel(longest_run_prisim, 'm1_meanq', 'Q') +
-    make_trend_panel(longest_run_prisim, 'rbiq', 'RBI') +
-    add_legend(make_trend_panel(longest_run_prisim, 'm5_ar1q', 'AR1')) +
+    make_trend_panel(longest_run_prisim, 'q_mean', 'Q') +
+    make_trend_panel(longest_run_prisim, 'q_rbi', 'RBI') +
+    add_legend(make_trend_panel(longest_run_prisim, 'q_ar1', 'AR1')) +
     plot_layout(ncol = 9, widths = c(.25, .25, 5, .25, .25, .25, .25, .25, .25))
 zipper_plot
 
