@@ -1,4 +1,4 @@
 Run order of this repo:
 1) make sure macrosheds v2 dataset is dumped into data_working, along with rds metadata files/remap
-2) run hydro_climate_trends.rmd (sources q_metrics and q_good_data) to calculate trends
-3) run q_pca.R for pca analysis of metrics and trends
+2) run src/metrics.R to generate annual metrics
+3) run src/trends.R to generate trends
