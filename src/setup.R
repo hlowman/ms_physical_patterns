@@ -7,6 +7,7 @@
 ## core
 library(here)
 library(macrosheds)
+library(foreach)
 ## data vis
 library(ggplot2)
 library(ggrepel)
@@ -89,7 +90,7 @@ frequency_check <- function(data_in){
 }
 
 # reduces long data frame to years of longest run within that dataframe per site
-reduce_to_longest_site_runs <- function(data_in){
+reduce_to_longest_site_runs <- function(data_in, metric){
     # initialize output
     out_frame <- tibble(site_code = as.character(), water_year = as.integer(), n = as.integer())
 
@@ -100,7 +101,10 @@ reduce_to_longest_site_runs <- function(data_in){
         site_data <- data_in %>%
             filter(site_code == target_site)
 
-        years <- unique(site_data$water_year)
+        interest <- site_data %>%
+            filter(var == metric)
+
+        years <- sort(unique(interest$water_year))
         # https://stackoverflow.com/questions/26639110/find-longest-consecutive-number-in-r
         s <- split(years, cumsum(c(TRUE, diff(years) != 1)))
         out_years <- s[[which.max(lengths(s))]]
@@ -108,7 +112,8 @@ reduce_to_longest_site_runs <- function(data_in){
         out_data <- site_data %>%
             filter(water_year %in% out_years)
 
-        out_frame <- rbind(out_frame, out_data)
+        out_frame <- rbind(out_frame, out_data) %>%
+            distinct()
     }
     return(out_frame)
 }

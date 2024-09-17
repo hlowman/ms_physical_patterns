@@ -254,18 +254,18 @@ clim_metrics_siteyear <- clim %>%
     left_join(., clim_50_doy)
 
 # STREAM TEMP ####
-# want at least weekly sampling for most of the year for now
+# want at least monthly sampling for most of the year for now
 # 51/52 weeks of the year
 freq_check <- t_data %>%
             filter(ms_interp == 0) %>%
-            mutate(week_year = paste0(week(datetime), '_', water_year)) %>%
-    group_by(site_code, week_year) %>%
+            mutate(month_year = paste0(month(datetime), '_', water_year)) %>%
+    group_by(site_code, ,month_year) %>%
     summarize(water_year = max(water_year),
               n = n()) %>%
     filter(n >= 1) %>%
     group_by(site_code, water_year) %>%
     summarize(n = n()) %>%
-    filter(n >= good_weeks_to_year_master)
+    filter(n >= 10)
 
 t_good <- t_data %>%
     filter(ms_interp == 0) %>%
@@ -280,21 +280,21 @@ t_good <- t_data %>%
 
 
 t_ann <- t_good %>%
-    group_by(site_code, water_year, season) %>%
-    summarize(stream_temp_mean_ann = mean(val))
+    group_by(site_code, water_year) %>%
+    summarize(stream_temp_mean_ann = mean(val, na.rm = T))
 
 ## Winter Min #####
 t_wmin <- t_good %>%
     filter(season == "Winter") %>%
     group_by(site_code, water_year) %>%
-    summarize(min_stream_temp_winter = min(val)) %>%
+    summarize(stream_temp_min_winter = min(val, na.rm = T)) %>%
     ungroup()
 
 ## Summer Mean #####
 t_smean <- t_good %>%
     filter(season == "Summer") %>%
     group_by(site_code, water_year) %>%
-    summarize(mean_stream_temp_summer = mean(val)) %>%
+    summarize(stream_temp_mean_summer = mean(val, na.rm = T)) %>%
     ungroup()
 
 t_out <- t_ann %>%
@@ -309,7 +309,9 @@ p_out <- p_data %>%
                               month %in% c(3,4,5) ~ "Spring",
                               month %in% c(9,10,11) ~ "Fall",
                               TRUE ~ NA)) %>%
-    pivot_wider(id_cols = c('site_code', 'date', 'water_year'), names_from = 'var', values_from = 'val') %>%
+    group_by(site_code, water_year, var) %>%
+    summarize(val = mean(val, na.rm = T)) %>%
+    pivot_wider(id_cols = c('site_code', 'water_year'), names_from = 'var', values_from = 'val') %>%
     select(site_code, water_year, lai = vb_lai_median,
            ndvi = vb_ndvi_median, tree_cover = vb_tree_cover_median, veg_cover = vb_veg_cover_median,
            evi = vb_evi_median, lai = vb_lai_median, gpp_conus = vb_gpp_global_500m_sd,
@@ -321,10 +323,11 @@ saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds')
 
 ## site_year level ####
 q_data_out <- q_metrics_siteyear %>%
-    full_join(., clim_metrics_siteyear, by = c('site_code', 'water_year')) %>%
-    mutate(runoff_ratio = m1_meanq/precip_mean_ann) %>%
+    full_join(., readRDS(here('data_working', 'clim_summaries.rds')), by = c('site_code', 'water_year')) %>%
+    mutate(runoff_ratio = q_mean/precip_mean_ann) %>%
     full_join(., t_out, by = c('site_code', 'water_year')) %>%
-    full_join(., p_out, by = c('site_code', 'water_year'))
+    full_join(., p_out, by = c('site_code', 'water_year')) %>%
+    distinct()
 
 saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear.rds'))
 

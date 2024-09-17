@@ -1,9 +1,10 @@
 # clear environment
-rm(list = ls())
+#rm(list = ls())
 # Load packages.
 library(here)
 source(here('src', 'setup.R'))
 #source(here('src', 'mega_zipper_data.R'))
+flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "grey")
 
 # read in data####
 full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climate.csv')) %>%
@@ -32,14 +33,13 @@ full_prisim <- q_plot_data %>%
     distinct() %>%
     left_join(., full_prism_trends, by = 'site_code') %>%
     select(site_code, n = n.x, var, trend, p, flag)%>%
-    full_join(., sort_order, by = 'site_code') %>%
+    full_join(sort_order, ., by = 'site_code') %>%
     rename(n = n.x)
 
 full_prisim %>%
     filter(is.na(flag)) %>%
     left_join(., ms_site_data, by = 'site_code') %>%
-    select(site_code, domain) %>%
-    distinct()
+    select(site_code, domain)
 
 # make longest run of site data during prisim data record
 longest_run_prisim <- q_plot_data %>%
@@ -48,8 +48,9 @@ longest_run_prisim <- q_plot_data %>%
     right_join(., longest_run_trends, by = 'site_code') %>%
     select(site_code, n = n.x, var, trend, p, flag)%>%
     filter(n >= 10) %>%
-    full_join(sort_order,. , by = 'site_code')%>%
+    full_join(sort_order,. , by = 'site_code') %>%
     rename(n = n.x)
+
 
 longest_run_prisim %>%
     filter(is.na(flag)) %>%
@@ -68,8 +69,8 @@ make_trend_panel <- function(data_in, target_trend, title_string){
     ggplot(aes(y = reorder(site_code, n), fill = flag))+
         geom_bar(width = 1)+
         coord_cartesian(xlim = c(0.4, .6))+
-        scale_fill_manual(values = flag_colors, na.value = 'black',
-                          labels = c('Decreasing', 'Increasing', 'Non-significant', 'Insufficient Data'))+
+        scale_fill_manual(values = flag_colors, na.value = 'black')+#,
+                          #labels = c('Decreasing', 'Increasing', 'Non-significant', 'Insufficient Data'))+
         theme_few()+
         theme(axis.text = element_blank(),
           axis.title = element_blank(),
@@ -132,4 +133,4 @@ test_tbl %>%
 
 # # add domain to this tomorrow
 # ggplotly(c_master, tooltip = 'all')
-ggplotly(make_trend_panel(full_prisim, 'temp_mean_ann', 'Ta'))
+ggplotly(c_master)
