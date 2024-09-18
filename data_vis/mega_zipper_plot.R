@@ -74,12 +74,18 @@ side_data <- full_join(fp_wide, lrp_wide) %>%
     full_join(distinct(select(q_plot_data, site_code, n)), .) %>%
     drop_na(n)
 
+# data checks
 side_data%>%
     filter(is.na(temp_mean_ann_full),
            !is.na(temp_mean_ann_longest_run))
 
 side_data %>%
-    filter(is.na(n))
+    filter(n > 9,
+           is.na(q_mean_longest_run))
+
+side_data%>%
+    filter(is.na(temp_mean_ann_f),
+           !is.na(temp_mean_ann_longest_run))
 
 # plots #####
 make_trend_panel <- function(target_trend, title_string){
@@ -110,7 +116,7 @@ contrast_color <- 'darkorange'
 
 c_master <- q_plot_data %>%
     ggplot(., aes(x = water_year, y = reorder(site_code, n)))+
-    geom_text(aes(label = "-"), size = 15, family = "mono")+
+    geom_text(aes(label = "-"), size = 7, family = "mono")+
     theme_few()+
     theme(legend.position = 'none',
           axis.text.y = element_blank(),
