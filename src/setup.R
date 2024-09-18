@@ -31,6 +31,7 @@ library(sf)
 ## util
 library(feather)
 library(logger)
+library(foreach)
 
 # Using revised code from Mike to point to new data.
 rdata_path <- "data_raw" # updated path
@@ -143,9 +144,10 @@ detect_trends <- function(df_in, diag_string){
                         start = as.integer(),
                         end = as.integer(),
                         trend = as.integer(),
-                        p = as.integer())
+                        p = as.integer(),
+                        code = as.character())
 
-    for(i in unique(com_long$site_code)) {
+    foreach(i = unique(com_long$site_code)) %do%{
 
         target_site <- filter(com_long, site_code == i)
 
@@ -153,16 +155,21 @@ detect_trends <- function(df_in, diag_string){
 
         if(nrow(dat_check) > 1){
             #loop  through metrics
-            for(j in unique(target_site$var)){
+            foreach(j = unique(target_site$var)) %do%{
 
                 target_solute <- filter(target_site, var == j)  %>%
                     arrange(water_year) %>%
                     na.omit()
 
-                if(nrow(target_solute) > 9){
+                if(nrow(target_solute) > 9 ){
+
                     start <- min(target_solute$water_year)
                     end <- max(target_solute$water_year)
                     n <- nrow(target_solute)
+
+                    check_vec <- (target_solute$water_year-lag(target_solute$water_year))[-1]
+
+                    if(all(check_vec == 1)){
                     test <- sens.slope(target_solute$val)
                     trend <- test[[1]]
                     p <- test[[3]]
@@ -174,7 +181,8 @@ detect_trends <- function(df_in, diag_string){
                                     end = end,
                                     n = n,
                                     trend = trend,
-                                    p = p
+                                    p = p,
+                                    code = 'good'
                     )
                     out_frame <- rbind(out_frame, inner)
 
@@ -185,7 +193,19 @@ detect_trends <- function(df_in, diag_string){
                         theme_few()
 
                     quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', diag_string, i, paste0(i,'_',j,'.png')),
-                                   create.dir = T))
+                                   create.dir = T, width = 7, height = 7))
+                    }else{
+
+                        gap_starts <- paste0((target_solute$water_year[which(check_vec != 1)]), collapse = ',')
+
+                        inner <- tibble(site_code = i,
+                                          var = j,
+                                          start = start,
+                                          end = end,
+                                          n = n,
+                                          trend = NA,
+                                          p = NA,
+                                          code = paste0('gaps_at_', gap_starts))}
 
 
                 }else{inner <- tibble(site_code = i,
@@ -194,7 +214,8 @@ detect_trends <- function(df_in, diag_string){
                                       end = NA,
                                       n = NA,
                                       trend = NA,
-                                      p = NA)
+                                      p = NA,
+                                      code = 'under_10')
                 out_frame <- rbind(out_frame, inner)} #solute level data avail check
             }# end solute loop
         }else{next} # site level data avail check
