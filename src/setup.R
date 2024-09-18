@@ -115,7 +115,9 @@ reduce_to_longest_site_runs <- function(data_in, metric){
             filter(site_code == target_site)
 
         interest <- site_data %>%
-            filter(var == metric)
+            filter(var == metric) %>%
+            select(water_year, val) %>%
+            drop_na(val)
 
         years <- sort(unique(interest$water_year))
         # https://stackoverflow.com/questions/26639110/find-longest-consecutive-number-in-r
@@ -147,16 +149,16 @@ detect_trends <- function(df_in, diag_string){
                         p = as.integer(),
                         code = as.character())
 
-    foreach(i = unique(com_long$site_code)) %do%{
-
+    #foreach(i = unique(com_long$site_code)) %do%{
+    for(i in unique(com_long$site_code)){
         target_site <- filter(com_long, site_code == i)
 
         dat_check <- na.omit(target_site)
 
         if(nrow(dat_check) > 1){
             #loop  through metrics
-            foreach(j = unique(target_site$var)) %do%{
-
+            #foreach(j = unique(target_site$var)) %do%{
+            for(j in unique(target_site$var)){
                 target_solute <- filter(target_site, var == j)  %>%
                     arrange(water_year) %>%
                     na.omit()
@@ -184,16 +186,17 @@ detect_trends <- function(df_in, diag_string){
                                     p = p,
                                     code = 'good'
                     )
+                    # bind out
                     out_frame <- rbind(out_frame, inner)
 
-                    diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
-                        labs(title = paste0(i, ' ', j),
-                             caption = paste0('n = ', n))+
-                        geom_point()+
-                        theme_few()
-
-                    quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', diag_string, i, paste0(i,'_',j,'.png')),
-                                   create.dir = T, width = 7, height = 7))
+                    # diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
+                    #     labs(title = paste0(i, ' ', j),
+                    #          caption = paste0('n = ', n))+
+                    #     geom_point()+
+                    #     theme_few()
+                    #
+                    # quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', diag_string, i, paste0(i,'_',j,'.png')),
+                    #                create.dir = T, width = 7, height = 7))
                     }else{
 
                         gap_starts <- paste0((target_solute$water_year[which(check_vec != 1)]), collapse = ',')
@@ -205,7 +208,10 @@ detect_trends <- function(df_in, diag_string){
                                           n = n,
                                           trend = NA,
                                           p = NA,
-                                          code = paste0('gaps_at_', gap_starts))}
+                                          code = paste0('gaps_at_', gap_starts))
+                        # bind out
+                        out_frame <- rbind(out_frame, inner)
+                        }
 
 
                 }else{inner <- tibble(site_code = i,
@@ -216,11 +222,13 @@ detect_trends <- function(df_in, diag_string){
                                       trend = NA,
                                       p = NA,
                                       code = 'under_10')
-                out_frame <- rbind(out_frame, inner)} #solute level data avail check
+                # bind out
+                out_frame <- rbind(out_frame, inner)
+                } #solute level data avail check
             }# end solute loop
-        }else{next} # site level data avail check
+            }else{next} # site level data avail check
     } #end site loop
-out_frame
+return(out_frame)
 } #end function
 
 # make function to add flags to trend data

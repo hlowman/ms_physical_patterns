@@ -12,6 +12,21 @@ full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climat
 longest_run_trends <- read_csv(here('data_working', 'trends', 'longest_site_run_prisim.csv')) %>%
     add_flags()
 
+# check for weirdness
+check1 <- full_prism_trends %>%
+    filter(var == 'temp_mean_ann') %>%
+    select(site_code, full_flag = flag)
+unique(check1$full_flag)
+
+check2 <- longest_run_trends %>%
+    filter(var == 'temp_mean_ann') %>%
+    select(site_code, lr_flag = flag)
+unique(check2$lr_flag)
+
+# check for sites that have a don't have a full prism trend, but do have a shorter one (impossible)
+full_join(check1, check2) %>%
+    filter(is.na(full_flag),
+           !is.na(lr_flag))
 
 # make sort order for coverage plot
 sort_order <- read_csv(here('data_working', 'all_possible_good_siteyears.csv')) %>%
@@ -24,17 +39,12 @@ sort_order <- read_csv(here('data_working', 'all_possible_good_siteyears.csv')) 
 full_data <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS'))
 q_plot_data <-  full_data %>%
     select(site_code, water_year, q_mean) %>%
-    drop_na() %>%
+    drop_na(q_mean) %>%
     full_join(sort_order, ., by = 'site_code')
 
 # make full, non-site climate data record ####
-full_prisim <- q_plot_data %>%
-    select(site_code, n) %>%
-    distinct() %>%
-    left_join(., full_prism_trends, by = 'site_code') %>%
-    select(site_code, n = n.x, var, trend, p, flag)%>%
-    full_join(sort_order, ., by = 'site_code') %>%
-    rename(n = n.x)
+full_prisim <- full_prism_trends %>%
+    select(site_code, n , var, trend, p, flag)
 
 full_prisim %>%
     filter(is.na(flag)) %>%
@@ -42,31 +52,41 @@ full_prisim %>%
     select(site_code, domain)
 
 # make longest run of site data during prisim data record
-longest_run_prisim <- q_plot_data %>%
-    select(site_code, n) %>%
-    distinct() %>%
-    right_join(., longest_run_trends, by = 'site_code') %>%
-    select(site_code, n = n.x, var, trend, p, flag)%>%
-    filter(n >= 10) %>%
-    full_join(sort_order,. , by = 'site_code') %>%
-    rename(n = n.x)
-
+longest_run_prisim <- longest_run_trends %>%
+    select(site_code, n, var, trend, p, flag)
 
 longest_run_prisim %>%
     filter(is.na(flag)) %>%
     left_join(., ms_site_data, by = 'site_code') %>%
-    select(site_code, domain) %>%
-    distinct()
+    distinct()%>%
+    select(site_code, domain)
 
+# make side panel table
+fp_wide <- full_prisim %>%
+    mutate(var = paste0(var,'_full')) %>%
+    pivot_wider(id_cols = 'site_code', names_from = 'var', values_from = 'flag')
+
+lrp_wide <- longest_run_prisim %>%
+    mutate(var = paste0(var,'_longest_run')) %>%
+    pivot_wider(id_cols = 'site_code', names_from = 'var', values_from = 'flag')
+
+side_data <- full_join(fp_wide, lrp_wide) %>%
+    full_join(distinct(select(q_plot_data, site_code, n)), .) %>%
+    drop_na(n)
+
+side_data%>%
+    filter(is.na(temp_mean_ann_full),
+           !is.na(temp_mean_ann_longest_run))
+
+side_data %>%
+    filter(is.na(n))
 
 # plots #####
-make_trend_panel <- function(data_in, target_trend, title_string){
-    plot_data <- data_in
+make_trend_panel <- function(target_trend, title_string){
 
-    plot_data %>%
-        filter(var %in% c(target_trend, NA)) %>%
-        distinct()%>%
-    ggplot(aes(y = reorder(site_code, n), fill = flag))+
+    side_data %>%
+        select(site_code, matches(target_trend)) %>%
+    ggplot(aes(y = site_code, fill = .[[2]]))+
         geom_bar(width = 1)+
         coord_cartesian(xlim = c(0.4, .6))+
         scale_fill_manual(values = flag_colors, na.value = 'black')+#,
@@ -108,15 +128,15 @@ c_master
 
 
 ## assemble plot #####
-zipper_plot <- make_trend_panel(full_prisim, 'temp_mean_ann', 'Ta') +
-    make_trend_panel(full_prisim, 'precip_mean_ann', 'P')+
+zipper_plot <- make_trend_panel('temp_mean_ann_full', 'Ta') +
+    make_trend_panel('precip_mean_ann_full', 'P')+
     c_master +
-    make_trend_panel(longest_run_prisim, 'temp_mean_ann', 'Ta') +
-    make_trend_panel(longest_run_prisim, 'precip_mean_ann', 'P') +
-    make_trend_panel(longest_run_prisim, 'stream_temp_mean_ann', 'Ts') +
-    make_trend_panel(longest_run_prisim, 'q_mean', 'Q') +
-    make_trend_panel(longest_run_prisim, 'q_rbi', 'RBI') +
-    add_legend(make_trend_panel(longest_run_prisim, 'q_ar1', 'AR1')) +
+    make_trend_panel('temp_mean_ann_longest_run', 'Ta') +
+    make_trend_panel('precip_mean_ann_longest_run', 'P') +
+    make_trend_panel('stream_temp_mean_ann_longest_run', 'Ts') +
+    make_trend_panel('q_mean_longest_run', 'Q') +
+    make_trend_panel('q_rbi_longest_run', 'RBI') +
+    add_legend(make_trend_panel('q_ar1_longest_run', 'AR1')) +
     plot_layout(ncol = 9, widths = c(.25, .25, 5, .25, .25, .25, .25, .25, .25))
 zipper_plot
 
