@@ -30,6 +30,7 @@ library(tidyverse)
 library(sf)
 ## util
 library(feather)
+library(logger)
 
 # Using revised code from Mike to point to new data.
 rdata_path <- "data_raw" # updated path
@@ -68,6 +69,17 @@ modis_year <- 2000
 
 
 # helper functions ####
+# set logger for script
+set_logger <- function(){
+    log_file_name <- paste0(tools::file_path_sans_ext(basename(rstudioapi::getSourceEditorContext()$path)),
+                            '_', format(Sys.time(), '%D_%H_%M_%S'), '.txt') %>%
+        gsub('/','',.)
+    log_file_path <- file.path('log', log_file_name)
+    file.create(log_file_path)
+
+    log_appender(appender_file(log_file_path))
+}
+
 
 ## CARPENTRY ####
 

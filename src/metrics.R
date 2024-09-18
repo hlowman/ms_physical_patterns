@@ -7,44 +7,47 @@
 library(here)
 source(here('src', 'setup.R'))
 
-# Load dataset - be patient, takes just a moment.
+# set logging
+set_logger()
+# Q ####
+## read data ####
+log_info('load data')
+
 q_data <- ms_load_product(
-  macrosheds_root = here(my_ms_dir),
-  prodname = "discharge",
-  warn = F
-  )
-
-t_data <- ms_load_product(
     macrosheds_root = here(my_ms_dir),
-    prodname = "stream_chemistry",
-    filter_vars = 'temp',
+    prodname = "discharge",
     warn = F
-) %>%
-    mutate(month = month(datetime),
-           year = year(datetime),
-           water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
-                                  TRUE ~ year))
+)
 
-p_data <- read_feather(here('data_raw', 'spatial_timeseries_vegetation.feather')) %>%
-    mutate(month = month(date),
-           year = year(date),
-           water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
-                                  TRUE ~ year))
+log_info({nrow(q_data)}, ' rows of discharge data')
 
-
-# PREP ####
 ## Tidy ####
 
 # Filter out repeat measures detected (n = 3,741 or ~ 0.1%).
 q_data_nodup <- dplyr::distinct(q_data, site_code, datetime, .keep_all = TRUE)
 
+log_info({nrow(q_data) - nrow(q_data_nodup)}, ' rows of discharge data removed during duplicate check')
+
 # And filter out sites that were interpolated (n = 490,424 or ~ 25%).
-q_data_nodup <- q_data_nodup %>%
+q_data_nointerp <- q_data_nodup %>%
   filter(ms_interp == 0)
+
+log_info({nrow(q_data_nodup) - nrow(q_data_nointerp)},
+         ' rows of discharge data removed during interp check')
+
+sites_lost <- q_data_nodup %>%
+    select(site_code) %>%
+    distinct() %>%
+    dplyr::filter(!site_code %in% unique(q_data_nointerp$site_code))
+
+if(length(sites_lost > 0)){
+log_warn({nrow(sites_lost)}, ' sites lost')
+}
+
 
 # Only ~ 2% of records were marked as "1" or "questionable"
 # in the ms_status column, so we've left that as is.
-
+log_info('normalize q to watershed area')
 # Normalize by watershed area.
 area <- ms_site_data %>%
   select(site_code, ws_area_ha)
@@ -52,7 +55,7 @@ area <- ms_site_data %>%
 # And convert to mm/d.
 # --- Conversion equation ---
 # (L/s*ha) (1,000 m3s/Lps) * (86,400 s/d) * (1/10,000 ha/m2) * (1/1,000 mm/m) = 8.64 mm/d*ha
-q_data_nodup <- left_join(q_data_nodup, area, by = c("site_code")) %>%
+q_data_nointerp_scaled <- left_join(q_data_nointerp, area, by = c("site_code")) %>%
   mutate(val_mmd = (val*86400*10000)/(ws_area_ha*100000000))
 
 ## Water Years ####
@@ -60,27 +63,42 @@ q_data_nodup <- left_join(q_data_nodup, area, by = c("site_code")) %>%
 # Assign a consistent water year designation to all data,
 # from October 1 of the previous year to September 30 of
 # the following (i.e., WY2022 is 10/01/2021 - 09/30/2022).
-q_data_nodup <- q_data_nodup %>%
+log_info('assigning water years')
+
+q_data_scaled <- q_data_nointerp_scaled %>%
   mutate(month = month(datetime),
          year = year(datetime)) %>%
   mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                 TRUE ~ year))
 
-## Filter to complete years ####
-freq_check <- frequency_check(q_data_nodup)
+## q freq check ####
+log_info('performing freq check')
+freq_check <- frequency_check(q_data_scaled)
 
 write_csv(freq_check, here('data_working', 'all_possible_good_siteyears.csv'))
+log_info('all_possible_good_siteyears.csv has been created')
 
-q_data_good <- q_data_nodup %>%
+q_data_good <- q_data_scaled %>%
     right_join(., freq_check, by = c('site_code', 'water_year'))
 
-# Q #####
+
+log_info({nrow(q_data_scaled) - nrow(q_data_good)},
+         ' rows of discharge data removed during freq check')
+
+sites_lost <- q_data_scaled %>%
+    select(site_code) %>%
+    distinct() %>%
+    dplyr::filter(!site_code %in% unique(q_data_good$site_code))
+
+if(length(sites_lost > 0)){
+    log_warn({nrow(sites_lost)}, ' sites lost in q freq check')
+}
 
 ## AR(1) ####
 
 # A few additional calculations are required for the
 # auto-regressive (AR(1)) correlation calculation.
-
+log_info('seasonal extraction')
 # Calculate long-term monthly means.
 q_data_monthly <- q_data_good %>%
   group_by(site_code, month) %>%
@@ -104,7 +122,7 @@ ar1_print <- function(x) {
 }
 
 ## Amplitude/Phase #####
-
+log_info('amplitude and phase extraction')
 # Also, need to solve for streamflow signal at each site
 # using scaled (but not deseasonalized) discharge data
 # as well as decimal year.
@@ -129,7 +147,7 @@ rbi_print <- function(x) {
 }
 
 ## Median Cumulative Q #####
-
+log_info('median cumlative q')
 # Calculate the day of year when the median
 # cumulative discharge is reached.
 q_data_50_doy <- q_data_good %>%
@@ -154,19 +172,21 @@ q_data_50_doy <- q_data_good %>%
 # Calculate number of records for each site-water year,
 # since those with too few records will break the
 # regressions below.
-q_wy_counts <- q_data_nodup %>%
+log_info('generating watershed site_year counts')
+q_wy_counts <- q_data_good %>%
     drop_na(val_mmd) %>%
     mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
     count(site_wy) %>%
     ungroup() %>%
     mutate(use = case_when(n > 3 ~ 1,
                            n <= 3 ~ 0,
-                           TRUE ~ NA))
+                           TRUE ~ NA)) %>%
+    select(site_wy, use)
 
 # Also notate sites for which the site-water year mean
 # discharge is zero, which will also not work with the
 # summary calculations below.
-q_wy_mean <- q_data_nodup %>%
+q_wy_mean <- q_data_good %>%
     drop_na(val_mmd) %>%
     mutate(site_wy = paste(site_code,water_year, sep = "_")) %>%
     group_by(site_wy) %>%
@@ -174,8 +194,10 @@ q_wy_mean <- q_data_nodup %>%
     ungroup() %>%
     mutate(use2 = case_when(mean > 0 ~ 1,
                             mean <= 0 ~ 0,
-                            TRUE ~ NA))
+                            TRUE ~ NA)) %>%
+    select(site_wy, use2)
 
+log_info('make q metrics output frame')
 # Create summarized dataset with all 8 metrics by site-water year.
 q_metrics_siteyear <- q_data_good %>%
   # drop all NA discharge values
@@ -214,11 +236,21 @@ q_metrics_siteyear <- q_data_good %>%
   mutate(q_amp = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
          q_phi = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
+sites_lost <- q_data_good%>%
+    select(site_code) %>%
+    distinct() %>%
+    dplyr::filter(!site_code %in% unique(q_metrics_siteyear$site_code))
+
+if(length(sites_lost > 0)){
+    log_warn({nrow(sites_lost)}, ' sites lost in metric computation')
+}else{log_info('no sites lost in q metric computation')}
+
 # Join with days on which 50% of cumulative flow is exceeded.
 q_metrics_siteyear <- full_join(q_metrics_siteyear, q_data_50_doy)
 
 # CLIMATE #####
 # read in climate data
+log_info('read climate data')
 clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
   mutate(year = year(date),
          month = month(date),
@@ -233,7 +265,7 @@ clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
                               TRUE ~ NA))
 
 ## Winter Min #####
-
+log_info('calculate winter min')
 clim_Wmin <- clim %>%
     filter(season == "Winter") %>%
     group_by(site_code, water_year) %>%
@@ -242,6 +274,7 @@ clim_Wmin <- clim %>%
     ungroup()
 
 ## Summer Mean #####
+log_info('calculate summer mean')
 clim_Smean <- clim %>%
     filter(season == "Summer") %>%
     group_by(site_code, water_year) %>%
@@ -252,6 +285,7 @@ clim_Smean <- clim %>%
 ## Median Cumulative P #####
 # Calculate the day of year when the median
 # precip is reached.
+log_info('calculate median cum p')
 clim_50_doy <- clim %>%
     group_by(site_code, water_year) %>%
     mutate(p50_sum = 0.5*sum(cc_precip_median, na.rm = T),
@@ -282,8 +316,23 @@ clim_metrics_siteyear <- clim %>%
     left_join(., clim_50_doy)
 
 # STREAM TEMP ####
+# read data ####
+t_data <- ms_load_product(
+    macrosheds_root = here(my_ms_dir),
+    prodname = "stream_chemistry",
+    filter_vars = 'temp',
+    warn = F
+) %>%
+    mutate(month = month(datetime),
+           year = year(datetime),
+           water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+                                  TRUE ~ year))
+
+log_info({nrow(t_data)}, ' rows of stream temp data')
 # want at least monthly sampling for most of the year for now
 # 51/52 weeks of the year
+log_info('performing freq check on stream temp')
+
 freq_check <- t_data %>%
             filter(ms_interp == 0) %>%
             mutate(month_year = paste0(month(datetime), '_', water_year)) %>%
@@ -311,7 +360,19 @@ t_ann <- t_good %>%
     group_by(site_code, water_year) %>%
     summarize(stream_temp_mean_ann = mean(val, na.rm = T))
 
+log_info({nrow(t_data) - nrow(t_good)}, ' rows of stream temp data removed during freq/interp check')
+
+sites_lost <- t_data %>%
+    select(site_code) %>%
+    distinct() %>%
+    dplyr::filter(!site_code %in% unique(t_good$site_code))
+
+if(length(sites_lost > 0)){
+    log_warn({nrow(sites_lost)}, ' sites lost in stream temp freq/interp check')
+}
+
 ## Winter Min #####
+log_info('calculate winter min stream temp')
 t_wmin <- t_good %>%
     filter(season == "Winter") %>%
     group_by(site_code, water_year) %>%
@@ -319,6 +380,7 @@ t_wmin <- t_good %>%
     ungroup()
 
 ## Summer Mean #####
+log_info('calculate summer mean stream temp')
 t_smean <- t_good %>%
     filter(season == "Summer") %>%
     group_by(site_code, water_year) %>%
@@ -330,6 +392,16 @@ t_out <- t_ann %>%
     full_join(., t_smean, by = c('site_code', 'water_year'))
 
 # PRODUCTIVITY ####
+## read data ####
+p_data <- read_feather(here('data_raw', 'spatial_timeseries_vegetation.feather')) %>%
+    mutate(month = month(date),
+           year = year(date),
+           water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+                                  TRUE ~ year))
+
+log_info({nrow(p_data)}, ' rows of productivity data')
+
+
 p_out <- p_data %>%
     distinct() %>%
     mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
@@ -347,9 +419,11 @@ p_out <- p_data %>%
 
 # EXPORT ####
 ## climate ####
-saveRDS(clim_metrics_siteyear, file = here('data_working', 'clim_summaries.rds'))
-
+out_path <- here('data_working', 'clim_summaries.rds')
+saveRDS(clim_metrics_siteyear, file = out_path)
+log_info('file saved to ', out_path)
 ## site_year level ####
+log_info('saving out')
 q_data_out <- q_metrics_siteyear %>%
     full_join(., readRDS(here('data_working', 'clim_summaries.rds')), by = c('site_code', 'water_year')) %>%
     mutate(runoff_ratio = q_mean/precip_mean_ann) %>%
@@ -357,9 +431,11 @@ q_data_out <- q_metrics_siteyear %>%
     full_join(., p_out, by = c('site_code', 'water_year')) %>%
     distinct()
 
-saveRDS(q_data_out, here('data_working', 'discharge_metrics_siteyear.rds'))
-
+out_path <- here('data_working', 'discharge_metrics_siteyear.rds')
+saveRDS(q_data_out, out_path)
+log_info('file saved to ', out_path)
 # Create summarized dataset with all 8 metrics for full time series at each site.
+log_info('calculate site level metrics')
 q_metrics_site <- q_data_good %>%
   group_by(site_code) %>%
   # drop all NA discharge values
@@ -390,6 +466,7 @@ q_metrics_site <- q_data_good %>%
          q_phi = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
 ## site level ####
-saveRDS(q_metrics_site, here("data_working", "discharge_metrics_site.rds"))
-
+out_path <- here("data_working", "discharge_metrics_site.rds")
+saveRDS(q_metrics_site, out_path)
+log_info('file saved to ', out_path)
 # End of script.
