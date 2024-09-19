@@ -14,7 +14,8 @@ clim_trends <- metrics %>%
                  names_to = 'var',
                  values_to = 'val') %>%
     filter(var %in% c('temp_mean_ann', 'precip_mean_ann')) %>%
-    drop_na() %>%
+    distinct() %>%
+    reduce_to_longest_site_runs(., metric = 'temp_mean_ann') %>%
     detect_trends(.,'full_prisim')
 
 write_csv(clim_trends, here('data_working', 'trends', 'full_prisim_climate.csv'))
