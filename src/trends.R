@@ -18,8 +18,9 @@ foreach(i = 1:nrow(cut_dates)) %do% {
     long_name <- paste0('longest_site_run_', prod)
 
     inner <- metrics %>%
-        select(-contains('date'), -season) %>%
-        pivot_longer(cols = -c('site_code', 'water_year'), names_to = 'var', values_to = 'val')   %>%
+        select(-contains('date')) %>%
+        pivot_longer(cols = -c('site_code', 'water_year'),
+                     names_to = 'var', values_to = 'val')   %>%
         filter(water_year >= start_year) %>%
         reduce_to_longest_site_runs(., 'q_mean') %>%
         detect_trends(., diag_string = long_name) %>%
