@@ -24,7 +24,8 @@ log_info({nrow(q_data)}, ' rows of discharge data')
 ## Tidy ####
 
 # Filter out repeat measures detected (n = 3,741 or ~ 0.1%).
-q_data_nodup <- dplyr::distinct(q_data, site_code, datetime, .keep_all = TRUE)
+q_data_nodup <- dplyr::distinct(q_data, site_code,
+                                date, .keep_all = TRUE)
 
 log_info({nrow(q_data) - nrow(q_data_nodup)}, ' rows of discharge data removed during duplicate check')
 
@@ -67,8 +68,8 @@ q_data_nointerp_scaled <- left_join(q_data_nointerp, area,
 log_info('assigning water years')
 
 q_data_scaled <- q_data_nointerp_scaled %>%
-  mutate(month = month(datetime),
-         year = year(datetime)) %>%
+  mutate(month = month(date),
+         year = year(date)) %>%
   mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                 TRUE ~ year))
 
@@ -414,7 +415,7 @@ chem_data <- ms_load_product(
 q_data_scaled$q_Lsecha <- q_data_scaled$val/q_data_scaled$ws_area_ha
 
 q_trim <- q_data_scaled %>%
-    select(datetime, site_code, ws_area_ha, q_Lsecha)
+    select(date, site_code, ws_area_ha, q_Lsecha)
 
 chem_q_data <- left_join(chem_data, q_trim)
 
@@ -422,9 +423,9 @@ chem_q_data <- left_join(chem_data, q_trim)
 # on a monthly basis.
 chem_q_vwm <- chem_q_data %>%
     # Create temporal columns for later grouping.
-    mutate(year = year(datetime),
-           month = month(datetime),
-           day = day(datetime)) %>%
+    mutate(year = year(date),
+           month = month(date),
+           day = day(date)) %>%
     # Calculate instantaneous C*Q.
     mutate(c_q_instant = val*q_Lsecha) %>%
     # Now impose groupings.
@@ -501,7 +502,7 @@ n_wmax <- chem_q_good %>%
     ungroup()
 
 ## Summer max #####
-# log_info('calculate max spring stream flux')
+# log_info('calculate max summer stream flux')
 # summer will be season of highest potential N demand
 # with combined influence of Q and GPP
 n_smax <- chem_q_good %>%
@@ -511,23 +512,23 @@ n_smax <- chem_q_good %>%
     ungroup()
 
 # Quick plots to see how these look
-# ggplot(full_join(n_wmax, n_smax) %>% filter(site_code == "w6"),
-#        aes(x = water_year, y = stream_Nflux_max_winter)) +
-#     scale_color_viridis() +
-#     geom_point() +
-#     geom_line() +
-#     theme_bw() +
-#     theme(legend.position = "none") +
-#     facet_wrap(.~var, scales = "free")
+ggplot(full_join(n_wmax, n_smax) %>% filter(site_code == "ALBION"),
+       aes(x = water_year, y = stream_Nflux_max_winter)) +
+    scale_color_viridis() +
+    geom_point() +
+    geom_line() +
+    theme_bw() +
+    theme(legend.position = "none") +
+    facet_wrap(.~var, scales = "free")
 
-# ggplot(full_join(n_wmax, n_smax) %>% filter(site_code == "w6"),
-#        aes(x = water_year, y = stream_Nflux_max_summer)) +
-#     scale_color_viridis() +
-#     geom_point() +
-#     geom_line() +
-#     theme_bw() +
-#     theme(legend.position = "none") +
-#     facet_wrap(.~var, scales = "free")
+ggplot(full_join(n_wmax, n_smax) %>% filter(site_code == "ALBION"),
+       aes(x = water_year, y = stream_Nflux_max_summer)) +
+    scale_color_viridis() +
+    geom_point() +
+    geom_line() +
+    theme_bw() +
+    theme(legend.position = "none") +
+    facet_wrap(.~var, scales = "free")
 
 # PRODUCTIVITY ####
 ## read data ####
