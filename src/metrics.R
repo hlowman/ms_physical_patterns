@@ -443,16 +443,16 @@ chem_q_vwm <- chem_q_data %>%
 
 log_info({nrow(chem_q_vwm)}, ' rows of stream vwm chemistry data')
 # want at least monthly sampling for most of the year for now
-# 51/52 weeks of the year
+# 10 months of the year
 log_info('performing freq check on stream vwm chemistry')
 
 freq_check_chem <- chem_q_vwm %>%
     mutate(month_year = paste0(month, '_', water_year)) %>%
-    group_by(site_code, month_year) %>%
+    group_by(site_code, month_year, var) %>%
     summarize(water_year = max(water_year),
               n = n()) %>%
     filter(n >= 1) %>%
-    group_by(site_code, water_year) %>%
+    group_by(site_code, water_year, var) %>%
     summarize(n = n()) %>%
     filter(n >= 10)
 
@@ -463,7 +463,9 @@ chem_q_good <- chem_q_vwm %>%
                               month %in% c(9,10,11) ~ "Fall",
                               TRUE ~ NA)) %>%
     right_join(., freq_check_chem,
-               by = c('site_code', 'water_year')) %>%
+               by = c('site_code',
+                      'var',
+                      'water_year')) %>%
     na.omit()
 
 log_info({nrow(chem_q_vwm) - nrow(chem_q_good)}, ' rows of stream vwm chem data removed during freq/interp check')
@@ -491,44 +493,23 @@ chem_q_good <- left_join(chem_q_good, q_monthly) %>%
     mutate(monthly_mean_flux_kgdh = (monthly_vwm_mgL*monthly_mean_q_Ldh)/1000,
            monthly_sum_flux_kgh = (monthly_vwm_mgL*monthly_sum_q_Lh)/1000)
 
-## Winter max #####
-# log_info('calculate max winter stream flux')
-# winter will be season of lowest potential N demand
-# and clearest influence of Q alone
-n_wmax <- chem_q_good %>%
-    filter(season == "Winter") %>%
-    group_by(site_code, water_year, var) %>%
-    summarize(stream_Nflux_max_winter = max(monthly_mean_flux_kgdh)) %>%
-    ungroup()
-
-## Summer max #####
-# log_info('calculate max summer stream flux')
-# summer will be season of highest potential N demand
-# with combined influence of Q and GPP
-n_smax <- chem_q_good %>%
-    filter(season == "Summer") %>%
-    group_by(site_code, water_year, var) %>%
-    summarize(stream_Nflux_max_summer = max(monthly_mean_flux_kgdh)) %>%
+## Seasonal means #####
+log_info('calculate seasonal stream flux')
+n_means <- chem_q_good %>%
+    group_by(site_code, var, season, water_year) %>%
+    summarize(stream_Nflux_kgdh = mean(monthly_mean_flux_kgdh)) %>%
     ungroup()
 
 # Quick plots to see how these look
-ggplot(full_join(n_wmax, n_smax) %>% filter(site_code == "ALBION"),
-       aes(x = water_year, y = stream_Nflux_max_winter)) +
-    scale_color_viridis() +
-    geom_point() +
-    geom_line() +
-    theme_bw() +
-    theme(legend.position = "none") +
-    facet_wrap(.~var, scales = "free")
-
-ggplot(full_join(n_wmax, n_smax) %>% filter(site_code == "ALBION"),
-       aes(x = water_year, y = stream_Nflux_max_summer)) +
-    scale_color_viridis() +
-    geom_point() +
-    geom_line() +
-    theme_bw() +
-    theme(legend.position = "none") +
-    facet_wrap(.~var, scales = "free")
+# ggplot(n_means %>%
+#            filter(site_code == "MPR") %>%
+#            filter(season == "Summer"),
+#        aes(x = water_year, y = stream_Nflux_kgdh)) +
+#     geom_point() +
+#     geom_line() +
+#     theme_bw() +
+#     theme(legend.position = "none") +
+#     facet_wrap(.~var, scales = "free")
 
 # PRODUCTIVITY ####
 ## read data ####
@@ -568,6 +549,7 @@ q_data_out <- q_metrics_siteyear %>%
     mutate(runoff_ratio = q_mean/precip_mean_ann) %>%
     full_join(., t_out, by = c('site_code', 'water_year')) %>%
     full_join(., p_out, by = c('site_code', 'water_year')) %>%
+    full_join(., n_means, by = c('site_code', 'water_year')) %>%
     distinct()
 
 out_path <- here('data_working', 'discharge_metrics_siteyear.rds')
