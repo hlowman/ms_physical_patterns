@@ -84,15 +84,15 @@ side_data %>%
            is.na(q_mean_longest_run))
 
 side_data%>%
-    filter(is.na(temp_mean_ann_f),
+    filter(is.na(temp_mean_ann_full),
            !is.na(temp_mean_ann_longest_run))
 
 # plots #####
 make_trend_panel <- function(target_trend, title_string){
 
     side_data %>%
-        select(site_code, matches(target_trend)) %>%
-    ggplot(aes(y = site_code, fill = .[[2]]))+
+        select(site_code, n, matches(target_trend)) %>%
+    ggplot(aes(y = reorder(site_code, n), fill = .[[3]]))+
         geom_bar(width = 1)+
         coord_cartesian(xlim = c(0.4, .6))+
         scale_fill_manual(values = flag_colors, na.value = 'black')+#,
@@ -116,7 +116,7 @@ contrast_color <- 'darkorange'
 
 c_master <- q_plot_data %>%
     ggplot(., aes(x = water_year, y = reorder(site_code, n)))+
-    geom_text(aes(label = "-"), size = 7, family = "mono")+
+    geom_text(aes(label = "-"), size = 8, family = "mono")+
     theme_few()+
     theme(legend.position = 'none',
           axis.text.y = element_blank(),
@@ -136,14 +136,16 @@ c_master
 ## assemble plot #####
 zipper_plot <- make_trend_panel('temp_mean_ann_full', 'Ta') +
     make_trend_panel('precip_mean_ann_full', 'P')+
+    make_trend_panel('gpp_global_full', 'GPP')+
     c_master +
     make_trend_panel('temp_mean_ann_longest_run', 'Ta') +
     make_trend_panel('precip_mean_ann_longest_run', 'P') +
+    make_trend_panel('gpp_global_longest_run', 'GPP')+
     make_trend_panel('stream_temp_mean_ann_longest_run', 'Ts') +
     make_trend_panel('q_mean_longest_run', 'Q') +
     make_trend_panel('q_rbi_longest_run', 'RBI') +
     add_legend(make_trend_panel('q_ar1_longest_run', 'AR1')) +
-    plot_layout(ncol = 9, widths = c(.25, .25, 5, .25, .25, .25, .25, .25, .25))
+    plot_layout(ncol = 11, widths = c(.25, .25, .25, 5, .25, .25, .25, .25, .25, .25, .25))
 zipper_plot
 
 # why are there black bands in our data?
@@ -160,3 +162,18 @@ test_tbl %>%
 # # add domain to this tomorrow
 # ggplotly(c_master, tooltip = 'all')
 ggplotly(c_master)
+
+
+side_data %>%
+    select(site_code, temp_mean_ann_longest_run) %>%
+    drop_na(temp_mean_ann_longest_run) %>%
+    left_join(., ms_site_data, by ='site_code') %>%
+    st_as_sf(coords = c("longitude","latitude"), crs = 4326) %>%
+    mapview()
+
+test <- side_data %>%
+    select(site_code, temp_mean_ann_longest_run) %>%
+    drop_na(temp_mean_ann_longest_run) %>%
+    left_join(., ms_site_data, by ='site_code')
+
+length(unique(test$site_code))
