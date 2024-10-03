@@ -156,6 +156,22 @@ test_tbl %>%
     st_as_sf(coords = c("longitude","latitude"), crs = 4326) %>%
     mapview()
 
+# Let's check to see which sites display NAs in air temp
+# and precip trends in total, first, since this shouldn't occur
+# at most sites.
+na_full_precip_sites <- side_data %>%
+    filter(is.na(precip_mean_ann_full)) %>%
+    left_join(ms_site_data)
+# Ok, so all these sites are in Puerto Rico, Alaska, & Sweden
+
+na_full_temp_sites <- side_data %>%
+    filter(is.na(temp_mean_ann_full)) %>%
+    left_join(ms_site_data)
+# Same domains here.
+
+na_longest_q_sites <- side_data %>%
+    filter(is.na(q_mean_longest_run)) %>%
+    left_join(ms_site_data)
 
 # # add domain to this tomorrow
 # ggplotly(c_master, tooltip = 'all')

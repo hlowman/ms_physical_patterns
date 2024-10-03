@@ -24,7 +24,8 @@ log_info({nrow(q_data)}, ' rows of discharge data')
 ## Tidy ####
 
 # Filter out repeat measures detected (n = 3,741 or ~ 0.1%).
-q_data_nodup <- dplyr::distinct(q_data, site_code, datetime, .keep_all = TRUE)
+q_data_nodup <- dplyr::distinct(q_data, site_code,
+                                date, .keep_all = TRUE)
 
 log_info({nrow(q_data) - nrow(q_data_nodup)}, ' rows of discharge data removed during duplicate check')
 
@@ -55,7 +56,8 @@ area <- ms_site_data %>%
 # And convert to mm/d.
 # --- Conversion equation ---
 # (L/s*ha) (1,000 m3s/Lps) * (86,400 s/d) * (1/10,000 ha/m2) * (1/1,000 mm/m) = 8.64 mm/d*ha
-q_data_nointerp_scaled <- left_join(q_data_nointerp, area, by = c("site_code")) %>%
+q_data_nointerp_scaled <- left_join(q_data_nointerp, area,
+                                    by = c("site_code")) %>%
   mutate(val_mmd = (val*86400*10000)/(ws_area_ha*100000000))
 
 ## Water Years ####
@@ -66,8 +68,8 @@ q_data_nointerp_scaled <- left_join(q_data_nointerp, area, by = c("site_code")) 
 log_info('assigning water years')
 
 q_data_scaled <- q_data_nointerp_scaled %>%
-  mutate(month = month(datetime),
-         year = year(datetime)) %>%
+  mutate(month = month(date),
+         year = year(date)) %>%
   mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                 TRUE ~ year))
 
@@ -391,6 +393,124 @@ t_out <- t_ann %>%
     full_join(., t_wmin, by = c('site_code', 'water_year')) %>%
     full_join(., t_smean, by = c('site_code', 'water_year'))
 
+# STREAM CHEMISTRY ####
+# read data ####
+chem_data <- ms_load_product(
+    macrosheds_root = here(my_ms_dir),
+    prodname = "stream_chemistry",
+    filter_vars = c("NH4_N", "NO3_NO2_N", "TDN",
+                    "TPN", "NO3_N", "TN",
+                    "TIN", "NO2_N", "NH3_N",
+                    "TDKN", "TKN", "N2O",
+                    "NO3_NO2_N", "NH3_NH4_N"), warn = F) %>%
+    # remove interpolated values
+    filter(ms_interp == 0)
+
+# note - ms_calc_vwc has been deprecated from the most recent
+# version of the macrosheds package
+# so, hard-coding the calculation of volume-weighted mean
+# monthly concentrations & then fluxes below
+
+# Now, join with q data.
+q_data_scaled$q_Lsecha <- q_data_scaled$val/q_data_scaled$ws_area_ha
+
+q_trim <- q_data_scaled %>%
+    select(date, site_code, ws_area_ha, q_Lsecha)
+
+chem_q_data <- left_join(chem_data, q_trim)
+
+# And convert to volume-weight mean concentrations,
+# on a monthly basis.
+chem_q_vwm <- chem_q_data %>%
+    # Create temporal columns for later grouping.
+    mutate(year = year(date),
+           month = month(date),
+           day = day(date)) %>%
+    # Calculate instantaneous C*Q.
+    mutate(c_q_instant = val*q_Lsecha) %>%
+    # Now impose groupings.
+    group_by(site_code, var, year, month) %>%
+    # Calculate mean monthly volume weighted concentrations
+    # as well as mean monthly discharge.
+    summarize(monthly_vwm_mgL = (sum(c_q_instant))/(sum(q_Lsecha)),
+              n_days_of_obs_chem = n()) %>%
+    ungroup() %>%
+    # Add water year
+    mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+                                               TRUE ~ year)) %>%
+    # and remove remaining NAs
+    na.omit()
+
+log_info({nrow(chem_q_vwm)}, ' rows of stream vwm chemistry data')
+# want at least monthly sampling for most of the year for now
+# 10 months of the year
+log_info('performing freq check on stream vwm chemistry')
+
+freq_check_chem <- chem_q_vwm %>%
+    mutate(month_year = paste0(month, '_', water_year)) %>%
+    group_by(site_code, month_year, var) %>%
+    summarize(water_year = max(water_year),
+              n = n()) %>%
+    filter(n >= 1) %>%
+    group_by(site_code, water_year, var) %>%
+    summarize(n = n()) %>%
+    filter(n >= 10)
+
+chem_q_good <- chem_q_vwm %>%
+    mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
+                              month %in% c(12,1,2) ~ "Winter",
+                              month %in% c(3,4,5) ~ "Spring",
+                              month %in% c(9,10,11) ~ "Fall",
+                              TRUE ~ NA)) %>%
+    right_join(., freq_check_chem,
+               by = c('site_code',
+                      'var',
+                      'water_year')) %>%
+    na.omit()
+
+log_info({nrow(chem_q_vwm) - nrow(chem_q_good)}, ' rows of stream vwm chem data removed during freq/interp check')
+
+sites_lost <- chem_q_vwm %>%
+    select(site_code) %>%
+    distinct() %>%
+    dplyr::filter(!site_code %in% unique(chem_q_good$site_code))
+
+if(length(sites_lost > 0)){
+    log_warn({nrow(sites_lost)}, ' sites lost in stream vwm chem freq/interp check')
+}
+
+# Finally, add in discharge to convert vwm to flux.
+q_monthly <- q_data_scaled %>%
+     # Now impose groupings.
+    group_by(site_code, year, month) %>%
+    # Calculate monthly discharge.
+    summarize(monthly_mean_q_Ldh = mean(q_Lsecha)*60*60*24, # daily mean discharge
+              monthly_sum_q_Lh = sum(q_Lsecha)*60*60*24, # monthly cumulative discharge
+              n_days_of_obs_q = n()) %>%
+    ungroup()
+
+chem_q_good <- left_join(chem_q_good, q_monthly) %>%
+    mutate(monthly_mean_flux_kgdh = (monthly_vwm_mgL*monthly_mean_q_Ldh)/1000,
+           monthly_sum_flux_kgh = (monthly_vwm_mgL*monthly_sum_q_Lh)/1000)
+
+## Seasonal means #####
+log_info('calculate seasonal stream flux')
+n_means <- chem_q_good %>%
+    group_by(site_code, var, season, water_year) %>%
+    summarize(stream_Nflux_kgdh = mean(monthly_mean_flux_kgdh)) %>%
+    ungroup()
+
+# Quick plots to see how these look
+# ggplot(n_means %>%
+#            filter(site_code == "MPR") %>%
+#            filter(season == "Summer"),
+#        aes(x = water_year, y = stream_Nflux_kgdh)) +
+#     geom_point() +
+#     geom_line() +
+#     theme_bw() +
+#     theme(legend.position = "none") +
+#     facet_wrap(.~var, scales = "free")
+
 # PRODUCTIVITY ####
 ## read data ####
 p_data <- read_feather(here('data_raw', 'spatial_timeseries_vegetation.feather')) %>%
@@ -429,6 +549,7 @@ q_data_out <- q_metrics_siteyear %>%
     mutate(runoff_ratio = q_mean/precip_mean_ann) %>%
     full_join(., t_out, by = c('site_code', 'water_year')) %>%
     full_join(., p_out, by = c('site_code', 'water_year')) %>%
+    full_join(., n_means, by = c('site_code', 'water_year')) %>%
     distinct()
 
 out_path <- here('data_working', 'discharge_metrics_siteyear.rds')
