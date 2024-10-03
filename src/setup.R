@@ -133,7 +133,62 @@ reduce_to_longest_site_runs <- function(data_in, metric){
     return(out_frame)
 }
 
+# reduces long data frame to years of data with at least 60% coverage
+reduce_to_best_range <- function(data_in, metric, max_missing = 0.4) {
 
+    output <- head(data, n =0)
+
+    max_missing = max_missing
+    target_metric = metric
+
+for (i in unique(data_in$site_code)){
+    target_site = i
+    data <- data_in %>%
+        filter(site_code == target_site,
+               var == target_metric) %>%
+        na.omit()
+
+    if(nrow(data) > 9){
+
+    year_seq <- seq(min(data$water_year), max(data$water_year))
+    df <- tibble(water_year = year_seq, is_present = year_seq %in% data$water_year)%>%
+        mutate(group = cumsum(lag(is_present == FALSE, default = FALSE)))
+
+
+    # Initialize variables to track the best range
+    best_start <- NA
+    best_end <- NA
+    longest_length <- 0
+
+    # Loop through all possible starting and ending points
+    for (start_idx in seq_along(df$water_year)) {
+        for (end_idx in start_idx:length(df$water_year)) {
+
+            # Extract the subrange of years
+            subrange <- df[start_idx:end_idx, ]
+
+            # Calculate the percentage of missing years
+            total_years <- nrow(subrange)
+            missing_years <- sum(!subrange$is_present)
+            missing_pct <- missing_years / total_years
+
+            # If the missing percentage is below the threshold and the range is longer, update
+            if (missing_pct <= max_missing && total_years > longest_length) {
+                longest_length <- total_years
+                best_start <- subrange$water_year[1]
+                best_end <- subrange$water_year[nrow(subrange)]
+            } # end if
+        } # end start index
+    } # end end index
+}else{next} # end 10 year data check
+inner <- data_in %>%
+    filter(site_code == target_site,
+           water_year %in% best_start:best_end)
+
+output <- rbind(output, inner)
+} # end for loop for sites
+return(output)
+}   # end function
 ## TRENDS #####
 
 # df_in needs to be a long dataframe with site, water_year, var, and val
@@ -169,9 +224,9 @@ detect_trends <- function(df_in, diag_string){
                     end <- max(target_solute$water_year)
                     n <- nrow(target_solute)
 
-                    check_vec <- (target_solute$water_year-lag(target_solute$water_year))[-1]
-
-                    if(all(check_vec == 1)){
+                    # check_vec <- (target_solute$water_year-lag(target_solute$water_year))[-1]
+                    #
+                    # if(all(check_vec == 1)){
                     test <- sens.slope(target_solute$val)
                     trend <- test[[1]]
                     p <- test[[3]]
@@ -197,21 +252,21 @@ detect_trends <- function(df_in, diag_string){
                     #
                     # quietly(ggsave(plot = diag, filename = here('data_working', 'diag_plots', diag_string, i, paste0(i,'_',j,'.png')),
                     #                create.dir = T, width = 7, height = 7))
-                    }else{
-
-                        gap_starts <- paste0((target_solute$water_year[which(check_vec != 1)]), collapse = ',')
-
-                        inner <- tibble(site_code = i,
-                                          var = j,
-                                          start = start,
-                                          end = end,
-                                          n = n,
-                                          trend = NA,
-                                          p = NA,
-                                          code = paste0('gaps_at_', gap_starts))
-                        # bind out
-                        out_frame <- rbind(out_frame, inner)
-                        }
+                    # }else{
+                    #
+                    #     gap_starts <- paste0((target_solute$water_year[which(check_vec != 1)]), collapse = ',')
+                    #
+                    #     inner <- tibble(site_code = i,
+                    #                       var = j,
+                    #                       start = start,
+                    #                       end = end,
+                    #                       n = n,
+                    #                       trend = NA,
+                    #                       p = NA,
+                    #                       code = paste0('gaps_at_', gap_starts))
+                    #     # bind out
+                    #     out_frame <- rbind(out_frame, inner)
+                    #     }
 
 
                 }else{inner <- tibble(site_code = i,

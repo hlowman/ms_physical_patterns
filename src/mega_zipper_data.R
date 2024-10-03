@@ -37,11 +37,11 @@ prism_site_run_trends_data <- metrics %>%
                  names_to = 'var',
                  values_to = 'val') %>%
            filter(water_year >= prisim_year) %>%
-    reduce_to_longest_site_runs(., metric = 'q_mean')
+    reduce_to_best_range(., metric = 'q_mean')
 
 # trend detection ####
 prism_site_run_trends <- detect_trends(prism_site_run_trends_data, 'site_run_prism')
 
 # export
-write_csv(prism_site_run_trends , here('data_working', 'trends', 'longest_site_run_prisim.csv'))
-
+#write_csv(prism_site_run_trends , here('data_working', 'trends', 'longest_site_run_prisim.csv'))
+write_csv(prism_site_run_trends , here('data_working', 'trends', 'best_run_prisim.csv'))

@@ -9,7 +9,7 @@ flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 
 # read in data####
 full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climate.csv')) %>%
     add_flags()
-longest_run_trends <- read_csv(here('data_working', 'trends', 'longest_site_run_prisim.csv')) %>%
+longest_run_trends <- read_csv(here('data_working', 'trends', 'best_run_prisim.csv')) %>%
     add_flags()
 
 # check for weirdness
