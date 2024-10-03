@@ -25,7 +25,7 @@ log_info({nrow(q_data)}, ' rows of discharge data')
 
 # Filter out repeat measures detected (n = 3,741 or ~ 0.1%).
 q_data_nodup <- dplyr::distinct(q_data, site_code,
-                                date, .keep_all = TRUE)
+                                datetime, .keep_all = TRUE)
 
 log_info({nrow(q_data) - nrow(q_data_nodup)}, ' rows of discharge data removed during duplicate check')
 
@@ -68,8 +68,8 @@ q_data_nointerp_scaled <- left_join(q_data_nointerp, area,
 log_info('assigning water years')
 
 q_data_scaled <- q_data_nointerp_scaled %>%
-  mutate(month = month(date),
-         year = year(date)) %>%
+  mutate(month = month(datetime),
+         year = year(datetime)) %>%
   mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                 TRUE ~ year))
 
@@ -325,7 +325,7 @@ t_data <- ms_load_product(
     filter_vars = 'temp',
     warn = F
 ) %>%
-    mutate(month = month(datetime),
+    mutate(month = month(date),
            year = year(datetime),
            water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                   TRUE ~ year))
@@ -415,7 +415,7 @@ chem_data <- ms_load_product(
 q_data_scaled$q_Lsecha <- q_data_scaled$val/q_data_scaled$ws_area_ha
 
 q_trim <- q_data_scaled %>%
-    select(date, site_code, ws_area_ha, q_Lsecha)
+    select(datetime, site_code, ws_area_ha, q_Lsecha)
 
 chem_q_data <- left_join(chem_data, q_trim)
 
@@ -423,9 +423,9 @@ chem_q_data <- left_join(chem_data, q_trim)
 # on a monthly basis.
 chem_q_vwm <- chem_q_data %>%
     # Create temporal columns for later grouping.
-    mutate(year = year(date),
-           month = month(date),
-           day = day(date)) %>%
+    mutate(year = year(datetime),
+           month = month(datetime),
+           day = day(datetime)) %>%
     # Calculate instantaneous C*Q.
     mutate(c_q_instant = val*q_Lsecha) %>%
     # Now impose groupings.

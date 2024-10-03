@@ -216,6 +216,7 @@ detect_trends <- function(df_in, diag_string){
             for(j in unique(target_site$var)){
                 target_solute <- filter(target_site, var == j)  %>%
                     arrange(water_year) %>%
+                    distinct() %>%
                     na.omit()
 
                 if(nrow(target_solute) > 9 ){
@@ -227,7 +228,12 @@ detect_trends <- function(df_in, diag_string){
                     # check_vec <- (target_solute$water_year-lag(target_solute$water_year))[-1]
                     #
                     # if(all(check_vec == 1)){
-                    test <- sens.slope(target_solute$val)
+                    slope_data <- target_solute %>%
+                        #full_join(., tibble(water_year = start:end)) %>%
+                        select(val) %>%
+                        as.ts()
+                    rownames(slope_data) <- target_solute$water_year
+                    test <- sens.slope(slope_data)
                     trend <- test[[1]]
                     p <- test[[3]]
 
