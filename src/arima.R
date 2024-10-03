@@ -29,7 +29,7 @@ enso_ann <- enso %>%
 # ####
 
 enso_metrics <- metrics %>%
-    dplyr::filter(., site_code == 'w6') %>%
+    dplyr::filter(., site_code == 'GSLOOK') %>%
     left_join(., enso_ann, by = 'water_year') %>%
     select(water_year, precip_mean_ann, NPGO) %>%
     na.omit()
@@ -41,30 +41,48 @@ ts_precip <- ts(enso_metrics$precip_mean_ann, start = min(enso_metrics$water_yea
 # Plot the time series to visualize it
 plot(ts_precip, main = "Annual Precipitation Over Time", ylab = "Annual Precipitation", xlab = "Year")
 
-components.ts = decompose(ts_precip)
-
-
 # If you want to consider the ENSO index as a covariate:
 # Fit the Auto ARIMA model with the ENSO index as an external regressor (xreg)
-model_npgo <- auto.arima(ts_precip, xreg = enso_metrics$NPGO)
+model_test <- auto.arima(ts_precip, xreg = enso_metrics$water_year)
+# model_test2 <- auto.arima(ts_precip)
+summary(model_test)
+# summary(model_test2)
 
-summary(model_npgo)
+# test3 <- summary(lm(data = enso_metrics, precip_mean_ann ~ water_year))
+# test3
+
+test4 <- sens.slope(ts_precip)
+test4
+
+# calc p values
+# from https://www.geeksforgeeks.org/how-to-calculate-the-p-value-of-parameters-for-arima-model-in-r/
+# Extract coefficients
+coefs <- coef(model_test)
+print(coefs)
+
+fit<-model_test
+
+# Calculate the t-values
+t_values <- coefs / 2e-04
+
+# Calculate the p-values
+p_values <- 2 * (1 - pnorm(abs(t_values[[1]])))
+
+plot(ts_precip)
 
 fitted_values <- fitted(model_npgo)
 
 checkresiduals(model_npgo)
 
-#install.packages("TSA") #if needed
-library("TSA")
-periodogram(ts_precip)
+coef(model_npgo)
+
+# Now we need to convert this frequency to actual time periods by taking the inverse of the frequency.
+TimePeriod<-1/top2[2,1]
+TimePeriod
 
 
-# Create a plot for the actual vs fitted values
-ggplot(fitted_values, aes(x = water_year)) +
-    geom_line(aes(y = ts_precip), color = 'Actual') +
-    geom_line(aes(y = fitted_values), color = 'Fitted') +
-    labs(title = 'Actual vs Fitted Annual Precipitation',
-         x = 'Year',
-         y = 'Annual Precipitation') +
-    scale_color_manual(values = c('Actual' = 'blue', 'Fitted' = 'red')) +
-    theme_minimal()
+# now make ts with that period
+ts_precip_cyc <- ts(enso_metrics$precip_mean_ann, start = min(enso_metrics$water_year), end = max(enso_metrics$water_year), frequency =  10)
+
+decomp <- stl(ts_precip_cyc, s.window="periodic")
+autoplot(decomp)
