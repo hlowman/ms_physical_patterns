@@ -534,7 +534,7 @@ p_out <- p_data %>%
     pivot_wider(id_cols = c('site_code', 'water_year'), names_from = 'var', values_from = 'val') %>%
     select(site_code, water_year, lai = vb_lai_median,
            ndvi = vb_ndvi_median, tree_cover = vb_tree_cover_median, veg_cover = vb_veg_cover_median,
-           evi = vb_evi_median, lai = vb_lai_median, gpp_conus = vb_gpp_global_500m_sd,
+           evi = vb_evi_median, lai = vb_lai_median, gpp_conus = va_gpp_CONUS_30m_median,
            gpp_global = vb_gpp_global_500m_median)
 
 # EXPORT ####
