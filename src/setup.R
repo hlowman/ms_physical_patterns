@@ -90,7 +90,7 @@ frequency_check <- function(data_in){
     q_data <- data_in
 
     freq_check <- q_data %>%
-    mutate(week_year = paste0(week(datetime), '_', water_year)) %>%
+    mutate(week_year = paste0(week(date), '_', water_year)) %>%
     group_by(site_code, week_year) %>%
     summarize(water_year = max(water_year),
               n = n()) %>%
