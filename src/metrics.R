@@ -325,7 +325,7 @@ t_data <- ms_load_product(
     filter_vars = 'temp',
     warn = F
 ) %>%
-    mutate(month = month(date),
+    mutate(month = month(datetime),
            year = year(datetime),
            water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                   TRUE ~ year))

@@ -9,11 +9,12 @@ metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS')) %>%
 
 # run full climate trends first
 clim_trends <- metrics %>%
-    select(-contains('date')) %>% # dates breaking math
+    select(-contains('date'),
+           -var, - season) %>% # dates breaking math
     pivot_longer(cols = -c('site_code', 'water_year'),
                  names_to = 'var',
                  values_to = 'val') %>%
-    filter(var %in% c('temp_mean_ann', 'precip_mean_ann', 'gpp_global')) %>%
+    filter(var %in% c('temp_mean_ann', 'precip_mean_ann', 'gpp_conus')) %>%
     distinct() %>%
     reduce_to_longest_site_runs(., metric = 'temp_mean_ann') %>%
     detect_trends(.,'full_prisim')
@@ -31,7 +32,7 @@ clim_trends %>%
 prism_site_run_trends_data <- metrics %>%
     select(-contains('date')) %>% # dates breaking math
     select(site_code, water_year,
-           temp_mean_ann, precip_mean_ann, q_mean, q_ar1, q_rbi, stream_temp_mean_ann, gpp_global, stream_Nflux_kgdh) %>%
+           temp_mean_ann, precip_mean_ann, q_mean, q_ar1, q_rbi, stream_temp_mean_ann, gpp_conus, stream_Nflux_kgdh) %>%
     #drop_na(temp_mean_ann, precip_mean_ann, q_mean) %>%
     pivot_longer(cols = -c('site_code', 'water_year'),
                  names_to = 'var',

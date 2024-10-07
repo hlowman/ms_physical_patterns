@@ -23,10 +23,10 @@ full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climat
            warming = case_when(trend_temp_mean_ann > 0 & p_temp_mean_ann <= 0.05 ~ 'H',
                                 trend_temp_mean_ann < 0 & p_temp_mean_ann <= 0.05 ~ 'C',
                                 p_temp_mean_ann > 0.05 ~ 'N'),
-           greening = case_when(trend_gpp_global > 0 & p_gpp_global <= 0.05 ~ 'G',
-                                trend_gpp_global < 0 & p_gpp_global <= 0.05 ~ 'B',
-                                p_gpp_global > 0.05 ~ 'N',
-                                trend_gpp_global == 0 ~ 'N'),
+           greening = case_when(trend_gpp_conus > 0 & p_gpp_conus <= 0.05 ~ 'G',
+                                trend_gpp_conus < 0 & p_gpp_conus <= 0.05 ~ 'B',
+                                p_gpp_conus > 0.05 ~ 'N',
+                                trend_gpp_conus == 0 ~ 'N'),
            grouping = as.factor(paste0(warming, wetting, greening))
            ) %>%
     left_join(., ms_site_data, by = 'site_code') %>%
@@ -77,11 +77,15 @@ full_prism_trends %>%
            streamflow == 'decreasing') %>%
     select(domain)
 
+View(full_prism_trends %>%
+    filter(grouping == 'NNG') %>%
+    select(domain, site_code))
+
 
 metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS')) %>%
     distinct()
 
 metrics %>%
     filter(site_code == 'GSWS06', water_year > 1980) %>%
-    ggplot(aes(x = water_year, y = gpp_global))+
+    ggplot(aes(x = water_year, y = gpp_conus))+
     geom_point()

@@ -136,7 +136,7 @@ reduce_to_longest_site_runs <- function(data_in, metric){
 # reduces long data frame to years of data with at least 60% coverage
 reduce_to_best_range <- function(data_in, metric, max_missing = 0.4) {
 
-    output <- head(data, n =0)
+    output <- head(data_in, n =0)
 
     max_missing = max_missing
     target_metric = metric
@@ -146,6 +146,7 @@ for (i in unique(data_in$site_code)){
     data <- data_in %>%
         filter(site_code == target_site,
                var == target_metric) %>%
+        distinct() %>%
         na.omit()
 
     if(nrow(data) > 9){
@@ -180,12 +181,18 @@ for (i in unique(data_in$site_code)){
             } # end if
         } # end start index
     } # end end index
-}else{next} # end 10 year data check
-inner <- data_in %>%
-    filter(site_code == target_site,
-           water_year %in% best_start:best_end)
+    inner <- data_in %>%
+        filter(site_code == target_site,
+               water_year %in% best_start:best_end)
+
+    output <- rbind(output, inner)
+
+}else{
+inner <- head(data) %>%
+    add_case(site_code = target_site)
 
 output <- rbind(output, inner)
+} # end 10 year data check
 } # end for loop for sites
 return(output)
 }   # end function
