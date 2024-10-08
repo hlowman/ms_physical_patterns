@@ -136,11 +136,11 @@ c_master
 ## assemble plot #####
 zipper_plot <- make_trend_panel('temp_mean_ann_full', 'Ta') +
     make_trend_panel('precip_mean_ann_full', 'P')+
-    make_trend_panel('gpp_global_full', 'GPP')+
+    make_trend_panel('gpp_conus_full', 'GPP')+
     c_master +
     make_trend_panel('temp_mean_ann_longest_run', 'Ta') +
     make_trend_panel('precip_mean_ann_longest_run', 'P') +
-    make_trend_panel('gpp_global_longest_run', 'GPP')+
+    make_trend_panel('gpp_conus_longest_run', 'GPP')+
     make_trend_panel('stream_temp_mean_ann_longest_run', 'Ts') +
     make_trend_panel('q_mean_longest_run', 'Q') +
     make_trend_panel('q_rbi_longest_run', 'RBI') +

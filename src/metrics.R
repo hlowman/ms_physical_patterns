@@ -25,7 +25,7 @@ log_info({nrow(q_data)}, ' rows of discharge data')
 
 # Filter out repeat measures detected (n = 3,741 or ~ 0.1%).
 q_data_nodup <- dplyr::distinct(q_data, site_code,
-                                date, .keep_all = TRUE)
+                                datetime, .keep_all = TRUE)
 
 log_info({nrow(q_data) - nrow(q_data_nodup)}, ' rows of discharge data removed during duplicate check')
 
@@ -68,8 +68,8 @@ q_data_nointerp_scaled <- left_join(q_data_nointerp, area,
 log_info('assigning water years')
 
 q_data_scaled <- q_data_nointerp_scaled %>%
-  mutate(month = month(date),
-         year = year(date)) %>%
+  mutate(month = month(datetime),
+         year = year(datetime)) %>%
   mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                 TRUE ~ year))
 
@@ -417,7 +417,7 @@ chem_data <- ms_load_product(
 q_data_scaled$q_Lsecha <- q_data_scaled$val/q_data_scaled$ws_area_ha
 
 q_trim <- q_data_scaled %>%
-    select(date, site_code, ws_area_ha, q_Lsecha)
+    select(datetime, site_code, ws_area_ha, q_Lsecha)
 
 chem_q_data <- left_join(chem_data, q_trim)
 
@@ -425,9 +425,9 @@ chem_q_data <- left_join(chem_data, q_trim)
 # on a monthly basis.
 chem_q_vwm <- chem_q_data %>%
     # Create temporal columns for later grouping.
-    mutate(year = year(date),
-           month = month(date),
-           day = day(date)) %>%
+    mutate(year = year(datetime),
+           month = month(datetime),
+           day = day(datetime)) %>%
     # Calculate instantaneous C*Q.
     mutate(c_q_instant = val*q_Lsecha) %>%
     # Now impose groupings.
@@ -561,11 +561,10 @@ p_out <- p_data %>%
     group_by(site_code, water_year, var) %>%
     summarize(val = mean(val, na.rm = T)) %>%
     pivot_wider(id_cols = c('site_code', 'water_year'), names_from = 'var', values_from = 'val') %>%
-    select(site_code, water_year, lai = lai_median,
-           ndvi = ndvi_median, tree_cover = tree_cover_median,
-           veg_cover = veg_cover_median,
-           evi = evi_median, lai = lai_median, gpp_conus = gpp_global_500m_sd,
-           gpp_global = gpp_global_500m_median)
+    select(site_code, water_year, lai = vb_lai_median,
+           ndvi = vb_ndvi_median, tree_cover = vb_tree_cover_median, veg_cover = vb_veg_cover_median,
+           evi = vb_evi_median, lai = vb_lai_median, gpp_conus = va_gpp_CONUS_30m_median,
+           gpp_global = vb_gpp_global_500m_median)
 
 # EXPORT ####
 ## climate ####
