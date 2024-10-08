@@ -136,7 +136,7 @@ reduce_to_longest_site_runs <- function(data_in, metric){
 # reduces long data frame to years of data with at least 60% coverage
 reduce_to_best_range <- function(data_in, metric, max_missing = 0.4) {
 
-    output <- head(data, n =0)
+    output <- head(data_in, n =0)
 
     max_missing = max_missing
     target_metric = metric
@@ -146,6 +146,7 @@ for (i in unique(data_in$site_code)){
     data <- data_in %>%
         filter(site_code == target_site,
                var == target_metric) %>%
+        distinct() %>%
         na.omit()
 
     if(nrow(data) > 9){
@@ -180,12 +181,18 @@ for (i in unique(data_in$site_code)){
             } # end if
         } # end start index
     } # end end index
-}else{next} # end 10 year data check
-inner <- data_in %>%
-    filter(site_code == target_site,
-           water_year %in% best_start:best_end)
+    inner <- data_in %>%
+        filter(site_code == target_site,
+               water_year %in% best_start:best_end)
+
+    output <- rbind(output, inner)
+
+}else{
+inner <- head(data) %>%
+    add_case(site_code = target_site)
 
 output <- rbind(output, inner)
+} # end 10 year data check
 } # end for loop for sites
 return(output)
 }   # end function
@@ -216,6 +223,7 @@ detect_trends <- function(df_in, diag_string){
             for(j in unique(target_site$var)){
                 target_solute <- filter(target_site, var == j)  %>%
                     arrange(water_year) %>%
+                    distinct() %>%
                     na.omit()
 
                 if(nrow(target_solute) > 9 ){
@@ -227,7 +235,12 @@ detect_trends <- function(df_in, diag_string){
                     # check_vec <- (target_solute$water_year-lag(target_solute$water_year))[-1]
                     #
                     # if(all(check_vec == 1)){
-                    test <- sens.slope(target_solute$val)
+                    slope_data <- target_solute %>%
+                        #full_join(., tibble(water_year = start:end)) %>%
+                        select(val) %>%
+                        as.ts()
+                    rownames(slope_data) <- target_solute$water_year
+                    test <- sens.slope(slope_data)
                     trend <- test[[1]]
                     p <- test[[3]]
 
