@@ -132,7 +132,7 @@ q_data_good <- q_data_good %>%
   mutate(scaleQ = (q_data_good$val_mmd -
                      mean(q_data_good$val_mmd, na.rm = TRUE))/
            sd(q_data_good$val_mmd, na.rm = TRUE),
-         decimalY = decimal_date(datetime),
+         decimalY = decimal_date(date),
 # Add covariates for streamflow signal regression.
         sin_2pi_year = sin(2*pi*decimalY),
          cos_2pi_year = cos(2*pi*decimalY))
@@ -164,11 +164,11 @@ q_data_50_doy <- q_data_good %>%
     group_by(site_code, water_year) %>%
     slice_head() %>%
     # reformat date to be dys into the WY
-    mutate(q50_dowy_exceed = as.numeric(difftime(datetime,
+    mutate(q50_dowy_exceed = as.numeric(difftime(date,
                                                  as_date(paste(water_year-1, "10", "01")),
                                                  units = "days"))) %>%
     # and keep only columns of interest for later joining
-    rename(q50_date_exceed = datetime) %>%
+    rename(q50_date_exceed = date) %>%
     select(site_code, water_year, q50_sum, q50_date_exceed, q50_dowy_exceed)
 
 # Calculate number of records for each site-water year,
@@ -271,8 +271,8 @@ log_info('calculate winter min')
 clim_Wmin <- clim %>%
     filter(season == "Winter") %>%
     group_by(site_code, water_year) %>%
-    drop_na(cc_temp_mean_median) %>%
-    summarize(min_air_temp_winter = min(cc_temp_mean_median)) %>%
+    drop_na(temp_median) %>%
+    summarize(min_air_temp_winter = min(temp_median)) %>%
     ungroup()
 
 ## Summer Mean #####
@@ -280,8 +280,8 @@ log_info('calculate summer mean')
 clim_Smean <- clim %>%
     filter(season == "Summer") %>%
     group_by(site_code, water_year) %>%
-    drop_na(cc_temp_mean_median) %>%
-    summarize(mean_air_temp_summer = mean(cc_temp_mean_median)) %>%
+    drop_na(temp_median) %>%
+    summarize(mean_air_temp_summer = mean(temp_median)) %>%
     ungroup()
 
 ## Median Cumulative P #####
@@ -290,8 +290,8 @@ clim_Smean <- clim %>%
 log_info('calculate median cum p')
 clim_50_doy <- clim %>%
     group_by(site_code, water_year) %>%
-    mutate(p50_sum = 0.5*sum(cc_precip_median, na.rm = T),
-           p_sum = cumsum(cc_precip_median)) %>%
+    mutate(p50_sum = 0.5*sum(precip_median, na.rm = T),
+           p_sum = cumsum(precip_median)) %>%
     mutate(p50_exceed = case_when(p_sum > p50_sum ~ 1,
                                   p_sum <= p50_sum ~ 0,
                                   TRUE ~ NA)) %>%
@@ -310,9 +310,9 @@ clim_50_doy <- clim %>%
 # join together
 clim_metrics_siteyear <- clim %>%
     group_by(site_code, water_year) %>%
-    summarize(precip_mean_ann = mean(cc_precip_median, na.rm = T),
-              precip_total_ann = sum(cc_precip_median, na.rm = T),
-              temp_mean_ann = mean(cc_temp_mean_median, na.rm = T)) %>%
+    summarize(precip_mean_ann = mean(precip_median, na.rm = T),
+              precip_total_ann = sum(precip_median, na.rm = T),
+              temp_mean_ann = mean(temp_median, na.rm = T)) %>%
     left_join(., clim_Wmin) %>%
     left_join(.,clim_Smean) %>%
     left_join(., clim_50_doy)
@@ -323,10 +323,9 @@ t_data <- ms_load_product(
     macrosheds_root = here(my_ms_dir),
     prodname = "stream_chemistry",
     filter_vars = 'temp',
-    warn = F
-) %>%
-    mutate(month = month(datetime),
-           year = year(datetime),
+    warn = F) %>%
+    mutate(month = month(date),
+           year = year(date),
            water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                   TRUE ~ year))
 
@@ -337,7 +336,7 @@ log_info('performing freq check on stream temp')
 
 freq_check <- t_data %>%
             filter(ms_interp == 0) %>%
-            mutate(month_year = paste0(month(datetime), '_', water_year)) %>%
+            mutate(month_year = paste0(month(date), '_', water_year)) %>%
     group_by(site_code, ,month_year) %>%
     summarize(water_year = max(water_year),
               n = n()) %>%
@@ -356,7 +355,6 @@ t_good <- t_data %>%
     right_join(., freq_check, by = c('site_code', 'water_year')) %>%
     select(site_code, water_year, season, var, val) %>%
     na.omit()
-
 
 t_ann <- t_good %>%
     group_by(site_code, water_year) %>%
@@ -394,6 +392,10 @@ t_out <- t_ann %>%
     full_join(., t_smean, by = c('site_code', 'water_year'))
 
 # STREAM CHEMISTRY ####
+
+# Note - this only works up nitrogen for now, but will likely
+# add DOC in here in the future.
+
 # read data ####
 chem_data <- ms_load_product(
     macrosheds_root = here(my_ms_dir),
@@ -409,7 +411,7 @@ chem_data <- ms_load_product(
 # note - ms_calc_vwc has been deprecated from the most recent
 # version of the macrosheds package
 # so, hard-coding the calculation of volume-weighted mean
-# monthly concentrations & then fluxes below
+# monthly concentrations below
 
 # Now, join with q data.
 q_data_scaled$q_Lsecha <- q_data_scaled$val/q_data_scaled$ws_area_ha
@@ -430,8 +432,7 @@ chem_q_vwm <- chem_q_data %>%
     mutate(c_q_instant = val*q_Lsecha) %>%
     # Now impose groupings.
     group_by(site_code, var, year, month) %>%
-    # Calculate mean monthly volume weighted concentrations
-    # as well as mean monthly discharge.
+    # Calculate mean monthly volume weighted concentrations.
     summarize(monthly_vwm_mgL = (sum(c_q_instant))/(sum(q_Lsecha)),
               n_days_of_obs_chem = n()) %>%
     ungroup() %>%
@@ -442,19 +443,21 @@ chem_q_vwm <- chem_q_data %>%
     na.omit()
 
 log_info({nrow(chem_q_vwm)}, ' rows of stream vwm chemistry data')
-# want at least monthly sampling for most of the year for now
-# 10 months of the year
+# want at least biweekly sampling for 10 months of the year
 log_info('performing freq check on stream vwm chemistry')
 
 freq_check_chem <- chem_q_vwm %>%
-    mutate(month_year = paste0(month, '_', water_year)) %>%
-    group_by(site_code, month_year, var) %>%
-    summarize(water_year = max(water_year),
-              n = n()) %>%
-    filter(n >= 1) %>%
-    group_by(site_code, water_year, var) %>%
+    mutate(site_wyear = paste0(site_code, '_', water_year)) %>%
+    # 2,971 site-years remaining at 184 sites (note, across all analytes)
+    # minimum 2 samples per month
+    filter(n_days_of_obs_chem >= 2) %>%
+    # 2,855 site-years remaining at 182 sites (again across all analytes)
+    # This drops to 2,199 site-years at 164 sites if we bump to 4 samples/month
+    group_by(site_code, water_year, site_wyear, var) %>%
     summarize(n = n()) %>%
+    # minimum 10 months per year
     filter(n >= 10)
+    # now 1,197 site-years remaining at 106 sites
 
 chem_q_good <- chem_q_vwm %>%
     mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
@@ -468,7 +471,7 @@ chem_q_good <- chem_q_vwm %>%
                       'water_year')) %>%
     na.omit()
 
-log_info({nrow(chem_q_vwm) - nrow(chem_q_good)}, ' rows of stream vwm chem data removed during freq/interp check')
+log_info({nrow(chem_q_vwm) - nrow(chem_q_good)}, ' rows of stream vwm chem data removed during freq check')
 
 sites_lost <- chem_q_vwm %>%
     select(site_code) %>%
@@ -476,40 +479,66 @@ sites_lost <- chem_q_vwm %>%
     dplyr::filter(!site_code %in% unique(chem_q_good$site_code))
 
 if(length(sites_lost > 0)){
-    log_warn({nrow(sites_lost)}, ' sites lost in stream vwm chem freq/interp check')
+    log_warn({nrow(sites_lost)}, ' sites lost in stream vwm chem freq check')
 }
 
-# Finally, add in discharge to convert vwm to flux.
-q_monthly <- q_data_scaled %>%
-     # Now impose groupings.
-    group_by(site_code, year, month) %>%
-    # Calculate monthly discharge.
-    summarize(monthly_mean_q_Ldh = mean(q_Lsecha)*60*60*24, # daily mean discharge
-              monthly_sum_q_Lh = sum(q_Lsecha)*60*60*24, # monthly cumulative discharge
-              n_days_of_obs_q = n()) %>%
-    ungroup()
+# Commenting out flux calculations for now since we're using VWMs.
+# q_monthly <- q_data_scaled %>%
+#      # Now impose groupings.
+#     group_by(site_code, year, month) %>%
+#     # Calculate monthly discharge.
+#     summarize(monthly_mean_q_Ldh = mean(q_Lsecha)*60*60*24, # daily mean discharge
+#               monthly_sum_q_Lh = sum(q_Lsecha)*60*60*24, # monthly cumulative discharge
+#               n_days_of_obs_q = n()) %>%
+#     ungroup()
 
-chem_q_good <- left_join(chem_q_good, q_monthly) %>%
-    mutate(monthly_mean_flux_kgdh = (monthly_vwm_mgL*monthly_mean_q_Ldh)/1000,
-           monthly_sum_flux_kgh = (monthly_vwm_mgL*monthly_sum_q_Lh)/1000)
+# chem_q_good <- left_join(chem_q_good, q_monthly) %>%
+#     mutate(monthly_mean_flux_kgdh = (monthly_vwm_mgL*monthly_mean_q_Ldh)/1000,
+#            monthly_sum_flux_kgh = (monthly_vwm_mgL*monthly_sum_q_Lh)/1000)
 
-## Seasonal means #####
-log_info('calculate seasonal stream flux')
-n_means <- chem_q_good %>%
-    group_by(site_code, var, season, water_year) %>%
-    summarize(stream_Nflux_kgdh = mean(monthly_mean_flux_kgdh)) %>%
-    ungroup()
+## Monthly means #####
+log_info('widen dataset for trend analysis')
+n_monthly_vwmeans <- chem_q_good %>%
+    select(site_code, var, water_year, month, monthly_vwm_mgL) %>%
+    pivot_wider(
+        names_from = c(var, month),
+        values_from = monthly_vwm_mgL)
 
-# Quick plots to see how these look
-# ggplot(n_means %>%
-#            filter(site_code == "MPR") %>%
-#            filter(season == "Summer"),
-#        aes(x = water_year, y = stream_Nflux_kgdh)) +
+## Annual means #####
+log_info('also append annual means for trend analysis')
+n_annual_vwmeans <- chem_q_good %>%
+    group_by(site_code, var, water_year) %>%
+    summarize(Annual = mean(monthly_vwm_mgL, na.rm = TRUE)) %>%
+    ungroup() %>%
+    pivot_wider(
+        names_from = var,
+        values_from = Annual) %>%
+    rename(NH4_N_Annual = NH4_N,
+           NO3_NO2_N_Annual = NO3_NO2_N,
+           TDN_Annual = TDN,
+           TPN_Annual = TPN,
+           NO3_N_Annual = NO3_N,
+           TIN_Annual = TIN,
+           TN_Annual = TN,
+           NO2_N_Annual = NO2_N,
+           NH3_N_Annual = NH3_N,
+           TDKN_Annual = TDKN,
+           TKN_Annual = TKN,
+           N2O_Annual = N2O)
+
+n_vwmeans <- full_join(n_monthly_vwmeans, n_annual_vwmeans)
+
+# Quick plots to make sure these appear to populate correctly.
+# ggplot(n_vwmeans %>%
+#            select(site_code:NH4_N_11) %>%
+#            filter(site_code == "w6") %>%
+#            pivot_longer(cols = NH4_N_12:NH4_N_11, names_to = "var_month"),
+#        aes(x = water_year, y = value)) +
 #     geom_point() +
 #     geom_line() +
 #     theme_bw() +
 #     theme(legend.position = "none") +
-#     facet_wrap(.~var, scales = "free")
+#     facet_wrap(.~var_month, scales = "free")
 
 # PRODUCTIVITY ####
 ## read data ####
@@ -549,12 +578,13 @@ q_data_out <- q_metrics_siteyear %>%
     mutate(runoff_ratio = q_mean/precip_mean_ann) %>%
     full_join(., t_out, by = c('site_code', 'water_year')) %>%
     full_join(., p_out, by = c('site_code', 'water_year')) %>%
-    full_join(., n_means, by = c('site_code', 'water_year')) %>%
+    full_join(., n_vwmeans, by = c('site_code', 'water_year')) %>%
     distinct()
 
 out_path <- here('data_working', 'discharge_metrics_siteyear.rds')
 saveRDS(q_data_out, out_path)
 log_info('file saved to ', out_path)
+
 # Create summarized dataset with all 8 metrics for full time series at each site.
 log_info('calculate site level metrics')
 q_metrics_site <- q_data_good %>%
