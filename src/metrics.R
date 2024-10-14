@@ -560,11 +560,13 @@ p_out <- p_data %>%
                               TRUE ~ NA)) %>%
     group_by(site_code, water_year, var) %>%
     summarize(val = mean(val, na.rm = T)) %>%
-    pivot_wider(id_cols = c('site_code', 'water_year'), names_from = 'var', values_from = 'val') %>%
+    pivot_wider(id_cols = c('site_code', 'water_year'),
+                names_from = 'var', values_from = 'val') %>%
     select(site_code, water_year, lai = lai_median,
            ndvi = ndvi_median, tree_cover = tree_cover_median,
            veg_cover = veg_cover_median,
-           evi = evi_median, lai = lai_median, gpp_conus = gpp_global_500m_sd,
+           evi = evi_median, lai = lai_median,
+           gpp_conus = gpp_CONUS_30m_median,
            gpp_global = gpp_global_500m_median)
 
 # EXPORT ####
