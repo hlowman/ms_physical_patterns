@@ -623,20 +623,21 @@ n_vwmeans <- full_join(n_monthly_vwmeans, n_annual_vwmeans)
 #     facet_wrap(.~var_month, scales = "free")
 
 ## CQ slopes #####
-
-chem_cq <- chem_q_data %>%
+# Calculating seasonal CQ slopes since annual ones will have their
+# signal swamped.
+chem_seas_cq <- chem_q_data %>%
     # Create temporal columns for later grouping.
     mutate(year = year(date),
            month = month(date),
            day = day(date)) %>%
+    mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
+                              month %in% c(12,1,2) ~ "Winter",
+                              month %in% c(3,4,5) ~ "Spring",
+                              month %in% c(9,10,11) ~ "Fall",
+                              TRUE ~ NA)) %>%
     # Add water year
     mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                   TRUE ~ year)) %>%
-    # And filter based on good data
-    right_join(., freq_check_chem,
-               by = c('site_code',
-                      'var',
-                      'water_year')) %>%
     # Drop NAs that won't compute.
     drop_na(q_Lsecha) %>%
     # Calculate log-scaled concentration and discharge.
@@ -646,26 +647,36 @@ chem_cq <- chem_q_data %>%
     filter(log_conc != -Inf) %>%
     filter(log_q != -Inf) %>%
     # Now impose groupings.
-    group_by(site_code, var, water_year) %>%
+    group_by(site_code, var, water_year, season) %>%
     # Estimate CQ slopes and intercepts.
     summarize(cq_slope = coef(lm(log_conc~log_q))[[2]],
-              cq_intcpt = coef(lm(log_conc~log_q))[[1]]) %>%
-    ungroup()
+              cq_int = coef(lm(log_conc~log_q))[[1]],
+              n_cq_obs = n()) %>%
+    ungroup() %>%
+    # and pivot so all have their own columns
+    pivot_wider(names_from = "season", values_from = cq_slope:n_cq_obs) %>%
+    pivot_wider(names_from = "var", values_from = cq_slope_Fall:n_cq_obs_Winter)
 
-ggplot(chem_q_data %>%
-           mutate(year = year(date),
-                  month = month(date),
-                  day = day(date)) %>%
-           mutate(water_year = factor(case_when(month %in% c(10, 11, 12) ~ year+1,
-                                          TRUE ~ year))) %>%
-           filter(site_code == "AB00" & var == "NH4_N"),
-       aes(x = log(q_Lsecha),
-           y = log(val),
-           color = water_year)) +
-    geom_point() +
-    geom_smooth(method = "lm") +
-    theme_bw()
-
+# Check to see how things look.
+# ggplot(chem_q_data %>%
+#            mutate(year = year(date),
+#                   month = month(date),
+#                   day = day(date)) %>%
+#            mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
+#                                      month %in% c(12,1,2) ~ "Winter",
+#                                      month %in% c(3,4,5) ~ "Spring",
+#                                      month %in% c(9,10,11) ~ "Fall",
+#                                      TRUE ~ NA)) %>%
+#            mutate(water_year = factor(case_when(month %in% c(10, 11, 12) ~ year+1,
+#                                          TRUE ~ year))) %>%
+#            filter(site_code == "w6" & var == "NO3_N"),
+#        aes(x = log(q_Lsecha),
+#            y = log(val),
+#            color = water_year)) +
+#     geom_point() +
+#     geom_smooth(method = "lm", se = F) +
+#     theme_bw() +
+#     facet_wrap(.~season, scales = "free")
 
 # PRODUCTIVITY ####
 ## read data ####
@@ -706,6 +717,7 @@ q_data_out <- q_metrics_siteyear %>%
     full_join(., t_out, by = c('site_code', 'water_year')) %>%
     full_join(., p_out, by = c('site_code', 'water_year')) %>%
     full_join(., n_vwmeans, by = c('site_code', 'water_year')) %>%
+    full_join(., chem_seas_cq, by = c('site_code', 'water_year')) %>%
     distinct()
 
 out_path <- here('data_working', 'discharge_metrics_siteyear.rds')
