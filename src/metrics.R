@@ -25,7 +25,7 @@ log_info({nrow(q_data)}, ' rows of discharge data')
 
 # Filter out repeat measures detected (n = 3,741 or ~ 0.1%).
 q_data_nodup <- dplyr::distinct(q_data, site_code,
-                                datetime, .keep_all = TRUE)
+                                date, .keep_all = TRUE)
 
 log_info({nrow(q_data) - nrow(q_data_nodup)}, ' rows of discharge data removed during duplicate check')
 
@@ -68,8 +68,8 @@ q_data_nointerp_scaled <- left_join(q_data_nointerp, area,
 log_info('assigning water years')
 
 q_data_scaled <- q_data_nointerp_scaled %>%
-  mutate(month = month(datetime),
-         year = year(datetime)) %>%
+  mutate(month = month(date),
+         year = year(date)) %>%
   mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                 TRUE ~ year))
 
@@ -82,7 +82,6 @@ log_info('all_possible_good_siteyears.csv has been created')
 
 q_data_good <- q_data_scaled %>%
     right_join(., freq_check, by = c('site_code', 'water_year'))
-
 
 log_info({nrow(q_data_scaled) - nrow(q_data_good)},
          ' rows of discharge data removed during freq check')
@@ -148,28 +147,93 @@ rbi_print <- function(x) {
     return(RBI)
 }
 
-## Median Cumulative Q #####
-log_info('median cumlative q')
-# Calculate the day of year when the median
+## Cumulative Q #####
+log_info('median cumulative q')
+# Calculate the days of year when the x-tile
 # cumulative discharge is reached.
-q_data_50_doy <- q_data_good %>%
+q_data_doy <- q_data_good %>%
+    # first calculate quantiles and running sums
     group_by(site_code, water_year) %>%
-        mutate(q50_sum = 0.5*sum(val_mmd),
-               q_sum = cumsum(val_mmd),
-        q50_exceed = case_when(q_sum > q50_sum ~ 1,
-                                      q_sum <= q50_sum ~ 0,
-                                      TRUE ~ NA)) %>%
+        mutate(q_totsum = sum(val_mmd),
+               q01_sum = 0.01*sum(val_mmd),
+               q05_sum = 0.05*sum(val_mmd),
+               q25_sum = 0.25*sum(val_mmd),
+               q50_sum = 0.5*sum(val_mmd),
+               q75_sum = 0.75*sum(val_mmd),
+               q95_sum = 0.95*sum(val_mmd),
+               q99_sum = 0.99*sum(val_mmd),
+               q_sum = cumsum(val_mmd)) %>%
+    # and then add in demarcation of when cumulative q
+    # thresholds are surpassed
+        mutate(q01_exceed = case_when(q_sum > q01_sum ~ 1,
+                                      q_sum <= q01_sum ~ 0,
+                                      TRUE ~ NA),
+               q05_exceed = case_when(q_sum > q05_sum ~ 1,
+                                     q_sum <= q05_sum ~ 0,
+                                     TRUE ~ NA),
+               q25_exceed = case_when(q_sum > q25_sum ~ 1,
+                                     q_sum <= q25_sum ~ 0,
+                                     TRUE ~ NA),
+               q50_exceed = case_when(q_sum > q50_sum ~ 1,
+                                     q_sum <= q50_sum ~ 0,
+                                     TRUE ~ NA),
+               q75_exceed = case_when(q_sum > q75_sum ~ 1,
+                                     q_sum <= q75_sum ~ 0,
+                                     TRUE ~ NA),
+               q95_exceed = case_when(q_sum > q95_sum ~ 1,
+                                     q_sum <= q95_sum ~ 0,
+                                     TRUE ~ NA),
+               q99_exceed = case_when(q_sum > q99_sum ~ 1,
+                                     q_sum <= q99_sum ~ 0,
+                                     TRUE ~ NA)) %>%
     ungroup() %>%
-    filter(q50_exceed == 1) %>%
-    group_by(site_code, water_year) %>%
+    # pivot this so all exceedances are in a named column
+    pivot_longer(cols = q01_exceed:q99_exceed,
+                 names_to = "quantile_exceeded",
+                 values_to = "exceed") %>%
+    filter(exceed == 1) %>%
+    group_by(site_code, water_year, quantile_exceeded) %>%
     slice_head() %>%
-    # reformat date to be dys into the WY
-    mutate(q50_dowy_exceed = as.numeric(difftime(date,
-                                                 as_date(paste(water_year-1, "10", "01")),
-                                                 units = "days"))) %>%
+    # reformat date to be days into the WY - VERY IMPORTANT
+    mutate(dowy_exceed = as.numeric(difftime(date,
+                                             as_date(paste(water_year-1, "10", "01")),
+                                             units = "days"))) %>%
     # and keep only columns of interest for later joining
-    rename(q50_date_exceed = date) %>%
-    select(site_code, water_year, q50_sum, q50_date_exceed, q50_dowy_exceed)
+    select(site_code, water_year, q_totsum:q99_sum, quantile_exceeded, dowy_exceed) %>%
+    # and finally pivot for easier viewing
+    pivot_wider(names_from = quantile_exceeded, values_from = dowy_exceed)
+
+## October low flows #####
+log_info('october low q')
+# Calculating the 25th percentile of flows in October of each water year,
+# assuming this is generally the time of year when contributions from
+# precip will be lowest.
+q_data_oct <- q_data_good %>%
+    filter(month == 10) %>%
+    # first calculate quantiles and running sums
+    group_by(site_code, water_year) %>%
+    summarize(q25_oct = 0.25*sum(val_mmd)) %>%
+    ungroup()
+
+## High flow days #####
+log_info('high flow days')
+# Calculating the number of days per year that fall above the mean +1SD
+# of flows.
+q_data_summary <- q_data_good %>%
+    group_by(site_code, water_year) %>%
+    summarize(q_mean = mean(val_mmd, na.rm = TRUE),
+              q_sd = sd(val_mmd, na.rm = TRUE)) %>%
+    ungroup() %>%
+    mutate(q_mean_plus_sd = q_mean + q_sd) %>%
+    select(site_code, water_year, q_mean_plus_sd)
+
+q_high_flows <- q_data_good %>%
+    full_join(q_data_summary) %>%
+    mutate(high_flow = case_when(val_mmd > q_mean_plus_sd ~ "YES",
+                                 TRUE ~ "NO")) %>%
+    filter(high_flow == "YES") %>%
+    count(site_code, water_year) %>%
+    rename(high_flow_days = n)
 
 # Calculate number of records for each site-water year,
 # since those with too few records will break the
@@ -215,8 +279,8 @@ q_metrics_siteyear <- q_data_good %>%
   # finally, calculate the discharge metrics
   group_by(site_code, water_year) %>%
   summarize(q_mean = mean(val_mmd, na.rm = TRUE), # mean
-            q_q1 = quantile(val_mmd, probs = 0.01, na.rm = TRUE), # 1st percentile Q
-            q_q5 = quantile(val_mmd, probs = 0.05, na.rm = TRUE), # 5th percentile Q
+            q_q01 = quantile(val_mmd, probs = 0.01, na.rm = TRUE), # 1st percentile Q
+            q_q05 = quantile(val_mmd, probs = 0.05, na.rm = TRUE), # 5th percentile Q
             q_q25 = quantile(val_mmd, probs = 0.25, na.rm = TRUE), # 25th percentile Q
             q_q50 = quantile(val_mmd, probs = 0.50, na.rm = TRUE), # median Q
             q_q75 = quantile(val_mmd, probs = 0.75, na.rm = TRUE), # 75th percentile Q
@@ -247,8 +311,11 @@ if(length(sites_lost > 0)){
     log_warn({nrow(sites_lost)}, ' sites lost in metric computation')
 }else{log_info('no sites lost in q metric computation')}
 
-# Join with days on which 50% of cumulative flow is exceeded.
-q_metrics_siteyear <- full_join(q_metrics_siteyear, q_data_50_doy)
+# Join with all other discharge metrics created.
+q_metrics_siteyear <- q_metrics_siteyear %>%
+    left_join(., q_data_doy) %>%
+    left_join(., q_data_oct) %>%
+    left_join(., q_high_flows)
 
 # CLIMATE #####
 # read in climate data
@@ -284,7 +351,7 @@ clim_Smean <- clim %>%
     summarize(mean_air_temp_summer = mean(temp_median)) %>%
     ungroup()
 
-## Median Cumulative P #####
+## Med. Cumulative P #####
 # Calculate the day of year when the median
 # precip is reached.
 log_info('calculate median cum p')
@@ -307,6 +374,19 @@ clim_50_doy <- clim %>%
     rename(p50_date_exceed = date) %>%
     select(site_code, water_year, p50_sum, p50_date_exceed, p50_dowy_exceed)
 
+## P Event Days per Year #####
+log_info('calculate days of p per year')
+# Essentially normalize annual p by number of non-zero
+# precipitation days per year.
+ppt_days_yr <- clim %>%
+    # remove days on which there is no precip data
+    drop_na(precip_median) %>%
+    # also remove days on which precip = 0
+    filter(precip_median > 0) %>%
+    count(site_code, water_year) %>%
+    ungroup() %>%
+    rename(ppt_days = n)
+
 # join together
 clim_metrics_siteyear <- clim %>%
     group_by(site_code, water_year) %>%
@@ -315,10 +395,12 @@ clim_metrics_siteyear <- clim %>%
               temp_mean_ann = mean(temp_median, na.rm = T)) %>%
     left_join(., clim_Wmin) %>%
     left_join(.,clim_Smean) %>%
-    left_join(., clim_50_doy)
+    left_join(., clim_50_doy) %>%
+    left_join(., ppt_days_yr) %>%
+    mutate(precip_total_ann_days = precip_total_ann/ppt_days)
 
 # STREAM TEMP ####
-# read data ####
+## read data #####
 t_data <- ms_load_product(
     macrosheds_root = here(my_ms_dir),
     prodname = "stream_chemistry",
@@ -396,7 +478,7 @@ t_out <- t_ann %>%
 # Note - this only works up nitrogen for now, but will likely
 # add DOC in here in the future.
 
-# read data ####
+##### read data #####
 chem_data <- ms_load_product(
     macrosheds_root = here(my_ms_dir),
     prodname = "stream_chemistry",
@@ -417,7 +499,7 @@ chem_data <- ms_load_product(
 q_data_scaled$q_Lsecha <- q_data_scaled$val/q_data_scaled$ws_area_ha
 
 q_trim <- q_data_scaled %>%
-    select(datetime, site_code, ws_area_ha, q_Lsecha)
+    select(date, site_code, ws_area_ha, q_Lsecha)
 
 chem_q_data <- left_join(chem_data, q_trim)
 
@@ -425,9 +507,9 @@ chem_q_data <- left_join(chem_data, q_trim)
 # on a monthly basis.
 chem_q_vwm <- chem_q_data %>%
     # Create temporal columns for later grouping.
-    mutate(year = year(datetime),
-           month = month(datetime),
-           day = day(datetime)) %>%
+    mutate(year = year(date),
+           month = month(date),
+           day = day(date)) %>%
     # Calculate instantaneous C*Q.
     mutate(c_q_instant = val*q_Lsecha) %>%
     # Now impose groupings.
@@ -539,6 +621,51 @@ n_vwmeans <- full_join(n_monthly_vwmeans, n_annual_vwmeans)
 #     theme_bw() +
 #     theme(legend.position = "none") +
 #     facet_wrap(.~var_month, scales = "free")
+
+## CQ slopes #####
+
+chem_cq <- chem_q_data %>%
+    # Create temporal columns for later grouping.
+    mutate(year = year(date),
+           month = month(date),
+           day = day(date)) %>%
+    # Add water year
+    mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+                                  TRUE ~ year)) %>%
+    # And filter based on good data
+    right_join(., freq_check_chem,
+               by = c('site_code',
+                      'var',
+                      'water_year')) %>%
+    # Drop NAs that won't compute.
+    drop_na(q_Lsecha) %>%
+    # Calculate log-scaled concentration and discharge.
+    mutate(log_conc = log(val),
+           log_q = log(q_Lsecha)) %>%
+    # Also drop -Inf that won't compute
+    filter(log_conc != -Inf) %>%
+    filter(log_q != -Inf) %>%
+    # Now impose groupings.
+    group_by(site_code, var, water_year) %>%
+    # Estimate CQ slopes and intercepts.
+    summarize(cq_slope = coef(lm(log_conc~log_q))[[2]],
+              cq_intcpt = coef(lm(log_conc~log_q))[[1]]) %>%
+    ungroup()
+
+ggplot(chem_q_data %>%
+           mutate(year = year(date),
+                  month = month(date),
+                  day = day(date)) %>%
+           mutate(water_year = factor(case_when(month %in% c(10, 11, 12) ~ year+1,
+                                          TRUE ~ year))) %>%
+           filter(site_code == "AB00" & var == "NH4_N"),
+       aes(x = log(q_Lsecha),
+           y = log(val),
+           color = water_year)) +
+    geom_point() +
+    geom_smooth(method = "lm") +
+    theme_bw()
+
 
 # PRODUCTIVITY ####
 ## read data ####
