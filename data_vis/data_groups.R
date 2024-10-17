@@ -47,8 +47,12 @@ full_prism_trends$grouping <- factor(full_prism_trends$grouping, levels = c('HDG
                                                                             'NNB', 'NWN', #light up
                                                                             'NWB')) # strong up
 
+full_prism_trends %>%
+    select(site_code, grouping, streamflow) %>%
+    write_csv(here('data_working', 'site_groupings_by_prsim_trend.csv'))
+# plots ####
 
-
+## bar charts  by group ####
 ggplot(full_prism_trends, aes(x = grouping, fill = streamflow))+
     geom_bar()+
     theme_few(base_size = 20)+
@@ -78,8 +82,9 @@ full_prism_trends %>%
     select(domain)
 
 View(full_prism_trends %>%
-    filter(grouping == 'NNG') %>%
-    select(domain, site_code))
+    filter(grouping == 'NNN',
+           streamflow == 'decreasing') %>%
+    select(domain, site_code, ws_status))
 
 
 metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS')) %>%
@@ -89,3 +94,34 @@ metrics %>%
     filter(site_code == 'GSWS06', water_year > 1980) %>%
     ggplot(aes(x = water_year, y = gpp_conus))+
     geom_point()
+
+## hydrographs ####
+q_data <- ms_load_product(prodname = 'discharge', macrosheds_root = my_ms_dir)
+
+group_counts <- full_prism_trends %>%
+    filter(streamflow != 'data limited') %>%
+    group_by(grouping) %>%
+    summarize(n = n())
+
+options(scipen = 999) # turn off scientific notation
+q_data %>%
+    right_join(., full_prism_trends, by = 'site_code') %>%
+    right_join(., group_counts) %>%
+    filter(val != 0) %>%
+    mutate(facet_lab = paste0(grouping, ', n=', n)) %>%
+    ggplot(aes(x = date, y = val, color = site_code))+
+        geom_line()+
+        scale_y_log10()+
+    #geom_label_repel(aes(label = domain))+
+    theme_few(base_size = 20)+
+    scale_color_viridis(discrete = T)+
+    theme(#axis.text = element_blank(),
+          axis.title = element_blank(),
+          axis.ticks = element_blank(),
+          legend.position = 'none',
+          )+
+    facet_wrap(~facet_lab, scales = 'fixed')
+
+
+
+

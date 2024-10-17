@@ -34,12 +34,21 @@ library(logger)
 library(foreach)
 
 # Using revised code from Mike to point to new data.
-rdata_path <- "data_raw" # updated path
+rdata_path <- "data_raw/ms" # updated path
 
-load(file.path(rdata_path, 'ms_site_data.RData'))
-load(file.path(rdata_path, 'ms_vars_ws_attr.RData'))
-load(file.path(rdata_path, 'ms_vars_ts.RData'))
-load(file.path(rdata_path, 'ms_var_catalog.RData'))
+# dl initial dataset
+# options(timeout = 9999)
+# macrosheds::ms_download_core_data(
+#     macrosheds_root = rdata_path,
+#     domains = 'all'
+# )
+# macrosheds::ms_download_ws_attr(
+#     macrosheds_root = rdata_path,
+#     dataset = 'all'
+# )
+
+ms_site_data <- ms_load_sites()
+ms_ws_attr <- read_feather(file.path(rdata_path, 'v2', 'watershed_summaries.feather'))
 
 nv <- as.environment('package:macrosheds')
 
