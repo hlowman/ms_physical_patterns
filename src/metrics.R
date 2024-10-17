@@ -698,11 +698,15 @@ p_out <- p_data %>%
                               TRUE ~ NA)) %>%
     group_by(site_code, water_year, var) %>%
     summarize(val = mean(val, na.rm = T)) %>%
-    pivot_wider(id_cols = c('site_code', 'water_year'), names_from = 'var', values_from = 'val') %>%
-    select(site_code, water_year, lai = vb_lai_median,
-           ndvi = vb_ndvi_median, tree_cover = vb_tree_cover_median, veg_cover = vb_veg_cover_median,
-           evi = vb_evi_median, lai = vb_lai_median, gpp_conus = va_gpp_CONUS_30m_median,
-           gpp_global = vb_gpp_global_500m_median)
+    pivot_wider(id_cols = c('site_code', 'water_year'),
+                names_from = 'var',
+                values_from = 'val') %>%
+    select(site_code, water_year, lai = lai_median,
+           ndvi = ndvi_median, tree_cover = tree_cover_median,
+           veg_cover = veg_cover_median,
+           evi = evi_median, lai = lai_median,
+           gpp_conus = gpp_CONUS_30m_median,
+           gpp_global = gpp_global_500m_median)
 
 # EXPORT ####
 ## climate ####
@@ -712,12 +716,13 @@ log_info('file saved to ', out_path)
 ## site_year level ####
 log_info('saving out')
 q_data_out <- q_metrics_siteyear %>%
-    full_join(., readRDS(here('data_working', 'clim_summaries.rds')), by = c('site_code', 'water_year')) %>%
+    full_join(., readRDS(here('data_working', 'clim_summaries.rds')),
+              by = c('site_code', 'water_year')) %>%
     mutate(runoff_ratio = q_mean/precip_mean_ann) %>%
     full_join(., t_out, by = c('site_code', 'water_year')) %>%
     full_join(., p_out, by = c('site_code', 'water_year')) %>%
-    full_join(., n_vwmeans, by = c('site_code', 'water_year')) %>%
-    full_join(., chem_seas_cq, by = c('site_code', 'water_year')) %>%
+    #full_join(., n_vwmeans, by = c('site_code', 'water_year')) %>%
+    #full_join(., chem_seas_cq, by = c('site_code', 'water_year')) %>%
     distinct()
 
 out_path <- here('data_working', 'discharge_metrics_siteyear.rds')
