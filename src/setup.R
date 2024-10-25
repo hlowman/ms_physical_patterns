@@ -1,7 +1,7 @@
-# setup script to save effort when using v2 without package
+# setup script to save effort
 
-# Note, this script uses a newer version of the data (v2) sent by
-# Mike on 8/19/24, not the current package version of the dataset.
+# Note, this script uses a newer version of the data (v2)
+# published on 09/30/24.
 
 # Load common packages.
 ## core
@@ -37,18 +37,21 @@ library(foreach)
 rdata_path <- "data_raw/ms" # updated path
 
 # dl initial dataset
+# note - ONLY NEED TO RUN ONCE hence commented out
 # options(timeout = 9999)
 # macrosheds::ms_download_core_data(
 #     macrosheds_root = rdata_path,
 #     domains = 'all'
 # )
+# this includes 0/1st order CAMELS climate data
 # macrosheds::ms_download_ws_attr(
 #     macrosheds_root = rdata_path,
 #     dataset = 'all'
 # )
 
-ms_site_data <- ms_load_sites()
-ms_ws_attr <- read_feather(file.path(rdata_path, 'v2', 'watershed_summaries.feather'))
+ms_site_data <- ms_load_sites() # 383 sites in 29 domains
+ms_ws_attr <- read_feather(file.path(rdata_path,
+                                     'watershed_summaries.feather'))
 
 nv <- as.environment('package:macrosheds')
 
@@ -59,7 +62,7 @@ for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
 }
 
 # Set directory to folder containing new data.
-my_ms_dir <- "data_raw"
+my_ms_dir <- "data_raw/ms"
 
 # set master vars for data coverage to define 'good years'
 # shared across all data coverage scripts
@@ -68,15 +71,16 @@ minimum_per_week_sampling_frequency_master <- 4
 good_weeks_to_year_master <- 51
 minimum_continuous_record_length_master <- 10
 
-
 # set flag colors for plots
-flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "grey")
+flag_colors <- c('increasing' = "red",
+                 'decreasing' = 'blue',
+                 'flat' = 'green',
+                 'non-significant' = "grey")
 
 # set sat launch years
 prisim_year <- 1980
 landsat_year <- 1984
 modis_year <- 2000
-
 
 # helper functions ####
 # set logger for script
@@ -114,7 +118,9 @@ frequency_check <- function(data_in){
 # reduces long data frame to years of longest run within that dataframe per site
 reduce_to_longest_site_runs <- function(data_in, metric){
     # initialize output
-    out_frame <- tibble(site_code = as.character(), water_year = as.integer(), n = as.integer())
+    out_frame <- tibble(site_code = as.character(),
+                        water_year = as.integer(),
+                        n = as.integer())
 
     # loop through sites
     for(i in unique(data_in$site_code)){
@@ -182,7 +188,8 @@ for (i in unique(data_in$site_code)){
             missing_years <- sum(!subrange$is_present)
             missing_pct <- missing_years / total_years
 
-            # If the missing percentage is below the threshold and the range is longer, update
+            # If the missing percentage is below the threshold
+            # and the range is longer, update
             if (missing_pct <= max_missing && total_years > longest_length) {
                 longest_length <- total_years
                 best_start <- subrange$water_year[1]
@@ -205,9 +212,11 @@ output <- rbind(output, inner)
 } # end for loop for sites
 return(output)
 }   # end function
+
 ## TRENDS #####
 
-# df_in needs to be a long dataframe with site, water_year, var, and val
+# df_in needs to be a long dataframe with site,
+# water_year, var, and val
 # outputs a
 detect_trends <- function(df_in, diag_string){
     com_long <- df_in
