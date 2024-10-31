@@ -3,7 +3,7 @@
 # discharge metrics (Archfield et al., 2014) as well as
 # the Richards-Baker Flashiness Index (Baker et al., 2004)
 # and some other annual temperature/climate metrics
-# for all MacroSheds sites at which data is currently available.
+# for all MacroSheds sites.
 library(here)
 source(here('src', 'setup.R'))
 
@@ -29,7 +29,7 @@ q_data_nodup <- dplyr::distinct(q_data, site_code,
 
 log_info({nrow(q_data) - nrow(q_data_nodup)}, ' rows of discharge data removed during duplicate check')
 
-# And filter out sites that were interpolated (n = 490,424 or ~ 25%).
+# And filter out sites that were interpolated.
 q_data_nointerp <- q_data_nodup %>%
   filter(ms_interp == 0)
 
@@ -44,7 +44,6 @@ sites_lost <- q_data_nodup %>%
 if(length(sites_lost > 0)){
 log_warn({nrow(sites_lost)}, ' sites lost')
 }
-
 
 # Only ~ 2% of records were marked as "1" or "questionable"
 # in the ms_status column, so we've left that as is.
@@ -381,8 +380,10 @@ log_info('calculate days of p per year')
 ppt_days_yr <- clim %>%
     # remove days on which there is no precip data
     drop_na(precip_median) %>%
-    # also remove days on which precip = 0
-    filter(precip_median > 0) %>%
+    # also remove days on which precip is negligible
+    # using USGS defined cutoff of 1mm/day
+    # https://earlywarning.usgs.gov/usraindry/rdreadme.php
+    filter(precip_median > 1) %>%
     count(site_code, water_year) %>%
     ungroup() %>%
     rename(ppt_days = n)
@@ -705,21 +706,26 @@ p_out <- p_data %>%
 out_path <- here('data_working', 'clim_summaries.rds')
 saveRDS(clim_metrics_siteyear, file = out_path)
 log_info('file saved to ', out_path)
+
 ## site_year level ####
 log_info('saving out')
 q_data_out <- q_metrics_siteyear %>%
-    full_join(., readRDS(here('data_working', 'clim_summaries.rds')), by = c('site_code', 'water_year')) %>%
+    full_join(., readRDS(here('data_working', 'clim_summaries.rds')),
+              by = c('site_code', 'water_year')) %>%
     mutate(runoff_ratio = q_mean/precip_mean_ann) %>%
+    # adding column to denote source
+    mutate(source = "MS") %>%
     full_join(., t_out, by = c('site_code', 'water_year')) %>%
     full_join(., p_out, by = c('site_code', 'water_year')) %>%
-    full_join(., n_vwmeans, by = c('site_code', 'water_year')) %>%
-    full_join(., chem_seas_cq, by = c('site_code', 'water_year')) %>%
+    #full_join(., n_vwmeans, by = c('site_code', 'water_year')) %>%
+    #full_join(., chem_seas_cq, by = c('site_code', 'water_year')) %>%
     distinct()
 
 out_path <- here('data_working', 'discharge_metrics_siteyear.rds')
 saveRDS(q_data_out, out_path)
 log_info('file saved to ', out_path)
 
+## site level Q ####
 # Create summarized dataset with all 8 metrics for full time series at each site.
 log_info('calculate site level metrics')
 q_metrics_site <- q_data_good %>%
@@ -751,7 +757,6 @@ q_metrics_site <- q_data_good %>%
   mutate(q_amp = sqrt((a_flow_sig)^2 + (b_flow_sig)^2), # amplitude
          q_phi = atan(-a_flow_sig/b_flow_sig)) # phase shift
 
-## site level ####
 out_path <- here("data_working", "discharge_metrics_site.rds")
 saveRDS(q_metrics_site, out_path)
 log_info('file saved to ', out_path)

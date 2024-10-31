@@ -31,21 +31,21 @@ plotting_covar <- function(x) {
 
     df <- x %>%
         select(domain, site_code, water_year,
-               evi, temp_mean_ann, precip_mean_ann,
-               q_mean, q_rbi, q_ar1) %>%
+               temp_mean_ann, gpp_conus, precip_mean_ann,
+               q_mean, stream_temp_mean_ann) %>%
         pivot_longer(-c(domain, site_code, water_year),
                      names_to = "var") %>%
         mutate(var = factor(var,
-                                 levels = c("evi", "temp_mean_ann", "precip_mean_ann",
-                                            "q_mean", "q_rbi", "q_ar1")))
+                                 levels = c("temp_mean_ann", "gpp_conus", "precip_mean_ann",
+                                            "q_mean", "stream_temp_mean_ann")))
     p <- ggplot(df,
                 aes(x = water_year,
                     y = value,
                     color = var)) +
         geom_point(alpha = 0.9, size = 2) +
-        geom_line(alpha = .5)+
-        scale_color_manual(values = c("#D46F10", "#69B9FA",
-                                      "#59A3F8", "#4B8FF7", "#5A7ECB", "#4CA49E")) +
+        geom_line(alpha = 0.5)+
+        scale_color_manual(values = c("#D46F10", "#4CA49E", "#69B9FA",
+                                      "#59A3F8", "#6B6D9F")) +
         labs(x = "Water Year (Oct 1 - Sept 30)",
              title = paste(df$domain[1],
                            df$site_code[1], sep = " ")) +
@@ -59,7 +59,8 @@ plotting_covar <- function(x) {
 }
 
 lapply(site_sub_list, function(x) ggsave(plot = plotting_covar(x),
-                                         filename = here('data_working','diag_plots', 'site_covariate_plots',
+                                         filename = here('figures',
+                                                         'site_covariate_plots',
                                                           paste0(x$domain[1],
                                                           x$site_code[1],
                                                           "covar.jpg")),
