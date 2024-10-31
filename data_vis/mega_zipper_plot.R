@@ -148,6 +148,61 @@ zipper_plot <- make_trend_panel('temp_mean_ann_full', 'Ta') +
     plot_layout(ncol = 11, widths = c(.25, .25, .25, 5, .25, .25, .25, .25, .25, .25, .25))
 zipper_plot
 
+# make secondary plot of new indices ####
+zipper_plot <- make_trend_panel('temp_mean_ann_full', 'Ta') +
+    make_trend_panel('gpp_conus_full', 'GPP')+
+    make_trend_panel('precip_mean_ann_full', 'P')+
+    c_master +
+    make_trend_panel('temp_mean_ann_longest_run', 'Ta') +
+    make_trend_panel('gpp_conus_longest_run', 'GPP')+
+    make_trend_panel('precip_mean_ann_longest_run', 'P') +
+    make_trend_panel('p_n_days_longest_run', 'P days') +
+    make_trend_panel('p_mean_intensity_longest_run', 'P int') +
+    make_trend_panel('q_mean_longest_run', 'Q') +
+    make_trend_panel('q_q25_oct_longest_run', 'Q (Oct q25)') +
+    add_legend(make_trend_panel('runoff_ratio_longest_run', 'Q/P'))+
+    plot_layout(ncol = 12, widths = c(.25, .25, .25, 2, .25, .25, .25, .25, .25, .25, .25, .25))
+zipper_plot
+
+
+longest_run_trends %>%
+    select(site_code, var, trend, p) %>%
+    pivot_wider(id_cols = site_code, names_from = var, values_from = c(trend, p))%>%
+    left_join(., ms_site_data, by = 'site_code') %>%
+    mutate(plot_label = case_when(p_p_mean_intensity > 0.05 ~ 'non-signficant',
+                                  p_p_mean_intensity <= 0.05 ~ as.character(sign(trend_p_mean_intensity)))) %>%
+    ggplot(aes(y = trend_precip_mean_ann, x = trend_p_n_days, label = domain, color = domain, shape = plot_label))+
+    geom_point(cex = 5)+
+    geom_hline(yintercept = 0, color = 'black')+
+    geom_vline(xintercept = 0, color = 'black')+
+    scale_shape_manual(values=c(6, 2, 1))+
+    #geom_text()+
+    theme_few()+
+    #theme(legend.position = 'none')+
+    labs(x = 'trend in precip event days',
+         y = 'trend in mean precip',
+         shape  = 'Trend in mean intensity')
+
+longest_run_trends %>%
+    select(site_code, var, trend, p) %>%
+    pivot_wider(id_cols = site_code, names_from = var, values_from = c(trend, p))%>%
+    left_join(., ms_site_data, by = 'site_code') %>%
+    mutate(plot_label = case_when(p_p_mean_intensity > 0.05 ~ 'non-significant',
+                                  p_p_mean_intensity <= 0.05 ~ as.character(sign(trend_p_mean_intensity)))) %>%
+    filter(plot_label != 'non-significant') %>%
+    ggplot(aes(y = trend_precip_mean_ann, x = trend_p_n_days, label = domain, color = domain, shape = plot_label))+
+    geom_point(cex = 5)+
+    geom_hline(yintercept = 0, color = 'black')+
+    geom_vline(xintercept = 0, color = 'black')+
+    scale_shape_manual(values=c(6, 2, 1))+
+    #geom_text()+
+    theme_few()+
+    #theme(legend.position = 'none')+
+    labs(x = 'trend in precip event days',
+         y = 'trend in mean precip',
+         shape  = 'Trend in mean intensity')
+
+
 # why are there black bands in our data?
 na_flag_sites <- full_prisim %>% filter(is.na(flag)) %>% select(site_code) %>% distinct()
 

@@ -319,7 +319,7 @@ q_metrics_siteyear <- q_metrics_siteyear %>%
 # CLIMATE #####
 # read in climate data
 log_info('read climate data')
-clim <- read_feather(here('data_raw', 'spatial_timeseries_climate.feather')) %>%
+clim <- read_feather(here('data_raw', 'ms', 'v2', 'spatial_timeseries_climate.feather')) %>%
   mutate(year = year(date),
          month = month(date),
         water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
@@ -681,7 +681,7 @@ chem_seas_cq <- chem_q_data %>%
 
 # PRODUCTIVITY ####
 ## read data ####
-p_data <- read_feather(here('data_raw', 'spatial_timeseries_vegetation.feather')) %>%
+p_data <- read_feather(here('data_raw', 'ms', 'v2', 'spatial_timeseries_vegetation.feather')) %>%
     mutate(month = month(date),
            year = year(date),
            water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
@@ -699,15 +699,7 @@ p_out <- p_data %>%
                               TRUE ~ NA)) %>%
     group_by(site_code, water_year, var) %>%
     summarize(val = mean(val, na.rm = T)) %>%
-    pivot_wider(id_cols = c('site_code', 'water_year'),
-                names_from = 'var',
-                values_from = 'val') %>%
-    select(site_code, water_year, lai = lai_median,
-           ndvi = ndvi_median, tree_cover = tree_cover_median,
-           veg_cover = veg_cover_median,
-           evi = evi_median, lai = lai_median,
-           gpp_conus = gpp_CONUS_30m_median,
-           gpp_global = gpp_global_500m_median)
+    pivot_wider(id_cols = c('site_code', 'water_year'), names_from = 'var', values_from = 'val')
 
 # EXPORT ####
 ## climate ####
