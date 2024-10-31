@@ -59,7 +59,7 @@ for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
 }
 
 # Set directory to folder containing new data.
-my_ms_dir <- "data_raw"
+my_ms_dir <- "data_raw/ms"
 
 # set master vars for data coverage to define 'good years'
 # shared across all data coverage scripts

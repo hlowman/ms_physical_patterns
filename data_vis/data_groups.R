@@ -6,8 +6,12 @@ source(here('src', 'setup.R'))
 #source(here('src', 'mega_zipper_data.R'))
 flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'non-significant' = "grey", 'data limited' = 'purple4')
 
+target_q_trend <- "q_mean"
+
 q_trends <- read_csv(here('data_working', 'trends', 'best_run_prisim.csv')) %>%
-    filter(var == 'q_mean') %>%
+    filter(
+        var == target_q_trend
+        ) %>%
     select(site_code, q_trend = trend, q_p = p)
 
 
@@ -56,14 +60,16 @@ full_prism_trends %>%
 ggplot(full_prism_trends, aes(x = grouping, fill = streamflow))+
     geom_bar()+
     theme_few(base_size = 20)+
-    scale_fill_manual(values = flag_colors)#,
+    scale_fill_manual(values = flag_colors)+#,
+    labs(fill = target_q_trend)
 
 ggplot(full_prism_trends, aes(x = grouping, fill = streamflow))+
     geom_bar()+
     theme_few(base_size = 20)+
     theme(axis.text.x = element_text(angle = 45, vjust = .5, hjust = .5))+
     scale_fill_manual(values = flag_colors)+#,
-    facet_wrap(~grouping_exp)
+    facet_wrap(~grouping_exp) +
+    labs(fill = target_q_trend)
 
 
 full_prism_trends %>%
