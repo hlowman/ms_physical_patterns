@@ -101,4 +101,80 @@ n_monthly_trends_summary <- n_monthly_trends %>%
 #        height = 10,
 #        units = "cm")
 
+#### Seasonality ####
+
+# Also curious to examine seasonal/monthly means over the full record
+# for all sites.
+n_monthly_means <- n_monthly %>%
+    # calculate monthly means
+    group_by(site_code, analyte, month) %>%
+    summarize(mean_vwm = mean(monthly_vwm_mgL, na.rm = TRUE),
+              sd_vwm = sd(monthly_vwm_mgL, na.rm = TRUE)) %>%
+    ungroup()
+
+n_peak_means <- n_monthly_means %>%
+    # and determine what season peak concentrations occur in
+    group_by(site_code, analyte) %>%
+    slice_max(mean_vwm) %>%
+    select(site_code, analyte, month) %>%
+    rename(peak_month = month) %>%
+    ungroup()
+
+# Trim down metadata for using domains.
+domains <- ms_site_data %>%
+    select(domain, site_code)
+
+n_monthly_means <- full_join(n_monthly_means, n_peak_means) %>%
+    left_join(., domains) %>%
+    mutate(peak_season = factor(case_when(peak_month %in% c(9,10,11) ~ "Fall",
+                                   peak_month %in% c(12,1,2) ~ "Winter",
+                                   peak_month %in% c(3,4,5) ~ "Spring",
+                                   peak_month %in% c(6,7,8) ~ "Summer"),
+                                levels = c("Fall", "Winter",
+                                           "Spring", "Summer")))
+
+(fig_seasonal1 <- ggplot(n_monthly_means %>%
+                             filter(analyte %in% c("nitrate_N",
+                                                   "ammonia_N",
+                                                   "TDN",
+                                                   "TN")),
+                  aes(x = peak_month, fill = domain)) +
+        scale_x_continuous(breaks = c(2,4,6,8,10,12)) +
+        scale_fill_viridis(discrete = TRUE) +
+        geom_bar(position = "stack") +
+        theme_bw() +
+        facet_wrap(analyte~.))
+
+# ggsave(fig_seasonal1,
+#        filename = "figures/n_vwm_monthly_peaks.jpg",
+#        width = 30,
+#        height = 15,
+#        units = "cm")
+
+(fig_seasonal2 <- ggplot(n_monthly_means %>%
+                             filter(analyte == "nitrate_N"),
+                         aes(x = month,
+                             y = mean_vwm,
+                             group = site_code,
+                             color = domain)) +
+        scale_x_continuous(breaks = c(2,4,6,8,10,12)) +
+        scale_color_viridis(discrete = TRUE) +
+        geom_line(linewidth = 1) +
+        theme_bw() +
+        facet_wrap(peak_season~., scales = "free"))
+
+# ggsave(fig_seasonal2,
+#        filename = "figures/n_vwm_seasonal.jpg",
+#        width = 30,
+#        height = 15,
+#        units = "cm")
+
+nitrate_monthly_means_summary <- n_monthly_means %>%
+    filter(analyte == "nitrate_N") %>%
+    group_by(site_code) %>%
+    slice_head() %>%
+    ungroup() %>%
+    count(peak_season) %>%
+    ungroup()
+
 # End of script.
