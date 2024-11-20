@@ -108,6 +108,9 @@ n_annual_trends <- n_annual_trends %>%
                                      "no trend",
                                      "ns. decreasing", "sig. decreasing")))
 
+# Export for use in making figures.
+#saveRDS(n_annual_trends, "data_working/nitrogen_annual_trends.rds")
+
 n_annual_trends_summary <- n_annual_trends %>%
     count(var, group) %>%
     ungroup()
