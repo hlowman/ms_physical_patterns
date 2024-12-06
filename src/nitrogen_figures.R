@@ -42,7 +42,7 @@ n_annual_trends <- readRDS("data_working/nitrogen_annual_trends.rds")
                 aes(x = water_year,
                     y = annual_vwm_mgL,
                     color = select)) +
-     geom_point(size = 2, shape = 1) +
+     geom_line(linewidth = 1) +
      scale_color_manual(values = c("black", "transparent")) +
      labs(x = "Water Year", y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
      scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
@@ -64,16 +64,33 @@ site_count <- n_annual_vwm %>%
     select(site_code) %>%
     distinct()
 
+# generating additional base year dataset
+# so as to remove the connecting lines on the plot
+years <- seq(from = 1964, to = 2024, by = 1)
+yrs_rep <- rep(years, times = 183)
+site_rep <- rep(site_count$site_code, each = 61)
+full_site_years <- as.data.frame(cbind(yrs_rep, site_rep))
+
+full_site_years <- full_site_years %>%
+    rename(water_year = yrs_rep,
+           site_code = site_rep) %>%
+    mutate(water_year = as.numeric(water_year)) %>%
+    mutate(analyte = "nitrate_N")
+
 # This is the base plot that all others should be built
 # around since it includes all possible sites (n = 183).
 (fig2 <- ggplot(n_annual_vwm %>%
                     filter(analyte == "nitrate_N") %>%
                     # removing 4 outliers for plotting ease
                     filter(annual_vwm_mgL > 0.000001) %>%
-                    filter(annual_vwm_mgL < 40),
+                    filter(annual_vwm_mgL < 40) %>%
+                    # add full site-years in to help with
+                    # plotting lines properly
+                    dplyr::right_join(full_site_years),
                 aes(x = water_year,
                     y = annual_vwm_mgL)) +
-     geom_point(size = 2, shape = 1, color = "black") +
+     geom_line(aes(group = site_code),
+               linewidth = 1, color = "black") +
      labs(x = "Water Year", y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
      scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
      theme_bw() +
@@ -105,11 +122,15 @@ site_counts_experimental <- n_annual_vwm %>%
                     filter(analyte == "nitrate_N") %>%
                     # removing outliers for plotting ease
                     filter(annual_vwm_mgL > 0.000001) %>%
-                    filter(annual_vwm_mgL < 40),
+                    filter(annual_vwm_mgL < 40) %>%
+                    # add full site-years in to help with
+                    # plotting lines properly
+                    dplyr::right_join(full_site_years),
                 aes(x = water_year,
                     y = annual_vwm_mgL,
+                    group = site_code,
                     color = ws_status)) +
-        geom_point(size = 2, shape = 1) +
+        geom_line(linewidth = 1) +
         scale_color_manual(values = c("transparent", "black")) +
         labs(x = "Water Year", y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
         scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
@@ -164,10 +185,12 @@ site_counts_sufficientdata <- n_annual_vwm %>%
                     filter(annual_vwm_mgL < 40),
                 aes(x = water_year,
                     y = annual_vwm_mgL,
-                    color = keepkeep)) +
+                    color = keepkeep,
+                    group = site_code)) +
+     geom_line(linewidth = 1) +
      scale_color_manual(values = c("black", "transparent")) +
-     geom_point(size = 2, shape = 1) +
-     labs(x = "Water Year", y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
+     labs(x = "Water Year",
+          y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
      scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
      theme_bw() +
      theme(axis.title.y = element_markdown(),
@@ -208,6 +231,13 @@ site_counts_trends <- n_annual_vwm %>%
     count(keepkeepkeep) %>%
     ungroup()
 
+# Make color-blind friendly colors.
+colors <- plasma(n = 8, alpha = 1, begin = 0,
+                  end = 1, direction = 1)
+
+"#0D0887FF" "#5402A3FF" "#8B0AA5FF" "#B93289FF"
+"#DB5C68FF" "#F48849FF""#FEBC2AFF" "#F0F921FF"
+
 (fig5a <- ggplot(n_annual_vwm %>%
                     filter(analyte == "nitrate_N")%>%
                     # removing outliers for plotting ease
@@ -216,18 +246,14 @@ site_counts_trends <- n_annual_vwm %>%
                 aes(x = water_year,
                     y = annual_vwm_mgL,
                     group = factor(site_code),
-                    fill = keepkeepkeep,
                     color = keepkeepkeep)) +
-        geom_point(size = 2, shape = 21) +
-        scale_fill_manual(values = c("#55C667FF",
-                                      "#404788FF",
-                                      "transparent",
-                                      "transparent")) +
-        scale_color_manual(values = c("#55C667FF",
-                                     "#404788FF",
-                                     "grey70",
+        geom_line(linewidth = 1) +
+        scale_color_manual(values = c("#F48849FF",
+                                      "#0D0887FF",
+                                      "grey80",
                                      "transparent")) +
-        labs(x = "Water Year", y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
+        labs(x = "Water Year",
+             y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
         scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
         theme_bw() +
         theme(axis.title.y = element_markdown(),
@@ -240,41 +266,41 @@ site_counts_trends <- n_annual_vwm %>%
 #        width = 35,
 #        units = "cm")
 
+sen <- function(..., weights = NULL) {
+    mblm::mblm(...)
+}
+
 # Highlighting positive trends at BES sites.
 (fig5a1 <- ggplot(n_annual_vwm %>%
-                     filter(analyte == "nitrate_N")%>%
-                     # removing outliers for plotting ease
-                     filter(annual_vwm_mgL > 0.000001) %>%
-                     filter(annual_vwm_mgL < 40),
-                 aes(x = water_year,
-                     y = annual_vwm_mgL,
-                     group = factor(site_code),
-                     fill = keepkeepkeep,
-                     color = keepkeepkeep)) +
-        geom_point(size = 2, shape = 21) +
-        scale_fill_manual(values = c("#55C667FF",
-                                     "#404788FF",
-                                     "transparent",
-                                     "transparent")) +
-        scale_color_manual(values = c("#55C667FF",
-                                      "#404788FF",
-                                      "grey70",
+                      filter(analyte == "nitrate_N")%>%
+                      # removing outliers for plotting ease
+                      filter(annual_vwm_mgL > 0.000001) %>%
+                      filter(annual_vwm_mgL < 40),
+                  aes(x = water_year,
+                      y = annual_vwm_mgL,
+                      group = factor(site_code),
+                      color = keepkeepkeep)) +
+        geom_line(linewidth = 1) +
+        scale_color_manual(values = c("#F48849FF",
+                                      "#0D0887FF",
+                                      "grey80",
                                       "transparent")) +
+        # Add increasing trends at BES
         geom_smooth(data = n_annual_vwm %>%
-                        # create additional column to designate
-                        # which lms show
-                        mutate(model = factor(case_when(site_code %in% c("BARN",
-                                                                         "MCDN") ~ "YES",
+        # create additional column to designate which lms show
+        mutate(model = factor(case_when(site_code %in% c("BARN", "MCDN") ~ "YES",
                                                         TRUE ~ "NO"),
                                               levels = c("YES", "NO"))) %>%
                         filter(model == "YES"),
                     aes(x = water_year,
                         y = annual_vwm_mgL,
                         group = site_code),
-                    method = "lm",
+                    method = sen,
                     se = F,
-                    color = "#55C667FF") +
-        labs(x = "Water Year", y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
+                    color = "#F48849FF",
+                    linewidth = 2) +
+        labs(x = "Water Year",
+             y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
         scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
         theme_bw() +
         theme(axis.title.y = element_markdown(),
@@ -296,33 +322,28 @@ site_counts_trends <- n_annual_vwm %>%
                   aes(x = water_year,
                       y = annual_vwm_mgL,
                       group = factor(site_code),
-                      fill = keepkeepkeep,
                       color = keepkeepkeep)) +
-        geom_point(size = 2, shape = 21) +
-        scale_fill_manual(values = c("#55C667FF",
-                                     "#404788FF",
-                                     "transparent",
-                                     "transparent")) +
-        scale_color_manual(values = c("#55C667FF",
-                                      "#404788FF",
-                                      "grey70",
+        geom_line(linewidth = 1) +
+        scale_color_manual(values = c("#F48849FF",
+                                      "#0D0887FF",
+                                      "grey80",
                                       "transparent")) +
+        # Add lms for Luquillo sites
         geom_smooth(data = n_annual_vwm %>%
-                        # create additional column to designate
-                        # which lms show
-                        mutate(model = factor(case_when(site_code %in% c("Q1",
-                                                                         "Q2",
-                                                                         "Q3") ~ "YES",
+        # create additional column to designate which lms show
+        mutate(model = factor(case_when(site_code %in% c("Q1","Q2","Q3") ~ "YES",
                                                         TRUE ~ "NO"),
                                               levels = c("YES", "NO"))) %>%
                         filter(model == "YES"),
                     aes(x = water_year,
                         y = annual_vwm_mgL,
                         group = site_code),
-                    method = "lm",
+                    method = sen,
                     se = F,
-                    color = "#404788FF") +
-        labs(x = "Water Year", y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
+                    color = "#0D0887FF",
+                    linewidth = 2) +
+        labs(x = "Water Year",
+             y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
         scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
         theme_bw() +
         theme(axis.title.y = element_markdown(),
@@ -344,35 +365,28 @@ site_counts_trends <- n_annual_vwm %>%
                   aes(x = water_year,
                       y = annual_vwm_mgL,
                       group = factor(site_code),
-                      fill = keepkeepkeep,
                       color = keepkeepkeep)) +
-        geom_point(size = 2, shape = 21) +
-        scale_fill_manual(values = c("#55C667FF",
-                                     "#404788FF",
-                                     "transparent",
-                                     "transparent")) +
-        scale_color_manual(values = c("#55C667FF",
-                                      "#404788FF",
-                                      "grey70",
+        geom_line(linewidth = 1) +
+        scale_color_manual(values = c("#F48849FF",
+                                      "#0D0887FF",
+                                      "grey80",
                                       "transparent")) +
+        # Add lms for Hubbard Brook sites.
         geom_smooth(data = n_annual_vwm %>%
-                        # create additional column to designate
-                        # which lms show
-                        mutate(model = factor(case_when(site_code %in% c("w3",
-                                                                         "w6",
-                                                                         "w7",
-                                                                         "w8",
-                                                                         "w9") ~ "YES",
+        mutate(model = factor(case_when(site_code %in% c("w3", "w6","w7",
+                                                         "w8", "w9") ~ "YES",
                                                         TRUE ~ "NO"),
                                               levels = c("YES", "NO"))) %>%
                         filter(model == "YES"),
                     aes(x = water_year,
                         y = annual_vwm_mgL,
                         group = site_code),
-                    method = "lm",
+                    method = sen,
                     se = F,
-                    color = "#404788FF") +
-        labs(x = "Water Year", y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
+                    color = "#0D0887FF",
+                    linewidth = 2) +
+        labs(x = "Water Year",
+             y = "Mean Annual VWM NO<sub>3</sub><sup>-</sup> (mg/L)") +
         scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
         theme_bw() +
         theme(axis.title.y = element_markdown(),

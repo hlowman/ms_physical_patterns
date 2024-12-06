@@ -44,6 +44,7 @@ detect_trends <- function(df_in){
                         var = as.character(),
                         start = as.integer(),
                         end = as.integer(),
+                        median = as.integer(),
                         trend = as.integer(),
                         p = as.integer(),
                         code = as.character())
@@ -61,6 +62,7 @@ detect_trends <- function(df_in){
 
                     start <- min(target_solute$water_year)
                     end <- max(target_solute$water_year)
+                    median <- median(target_solute$val)
                     n <- nrow(target_solute)
 
                     slope_data <- target_solute %>%
@@ -77,6 +79,7 @@ detect_trends <- function(df_in){
                                     var = j,
                                     start = start,
                                     end = end,
+                                    median = median,
                                     n = n,
                                     trend = trend,
                                     p = p
@@ -109,7 +112,7 @@ n_annual_trends <- n_annual_trends %>%
                                      "ns. decreasing", "sig. decreasing")))
 
 # Export for use in making figures.
-#saveRDS(n_annual_trends, "data_working/nitrogen_annual_trends.rds")
+# saveRDS(n_annual_trends, "data_working/nitrogen_annual_trends.rds")
 
 n_annual_trends_summary <- n_annual_trends %>%
     count(var, group) %>%
