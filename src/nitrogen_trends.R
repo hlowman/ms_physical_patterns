@@ -223,6 +223,9 @@ n_monthly_trends <- n_monthly_trends %>%
                                      "no trend",
                                      "ns. decreasing", "sig. decreasing")))
 
+# Export for use in making figures.
+# saveRDS(n_monthly_trends, "data_working/nitrogen_monthly_trends.rds")
+
 n_monthly_trends_summary <- n_monthly_trends %>%
     count(var, month, group) %>%
     ungroup()
