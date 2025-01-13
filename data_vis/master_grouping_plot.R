@@ -2,6 +2,7 @@
 #rm(list = ls())
 # Load packages.
 library(here)
+library(RColorBrewer)
 source(here('src', 'setup.R'))
 
 ms_groups <- read_csv(here('data_working', 'site_groupings_by_prsim_trend.csv')) %>%
@@ -22,3 +23,11 @@ ggplot(groups, aes(x= grouping)) +
     facet_wrap(~source,
                ncol = 1, scales = 'free_y')+
     theme_few()
+
+
+grid_groups %>%
+    mutate(grouping = str_sub(grouping, end = 2)) %>%
+    left_join(., ms_site_data, by = 'site_code') %>%
+    st_as_sf(., coords = c('longitude', 'latitude'),  crs = 4326) %>%
+    mapview(., zcol = 'grouping', col.regions=brewer.pal(5, "Spectral"))
+

@@ -4,19 +4,19 @@ source(here('src', 'setup.R'))
 
 # read in full q_metrics.R output
 #source(here('src', 'q_metrics.R'))
-metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS')) %>%
+metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds')) %>%
     distinct()
 
 # run full climate trends first
 clim_trends <- metrics %>%
-    select(-contains('date')) %>% # dates breaking math
+    select(-contains('date'), -source) %>% # dates breaking math
     pivot_longer(cols = -c('site_code', 'water_year'),
                  names_to = 'var',
                  values_to = 'val') %>%
-    filter(var %in% c('temp_mean_ann', 'precip_mean_ann', 'gpp_conus')) %>%
+    filter(var %in% c('temp_mean_ann', 'precip_mean_ann', 'gpp_CONUS_30m_median', 'median_air_temp_winter')) %>%
     distinct() %>%
     reduce_to_longest_site_runs(., metric = 'temp_mean_ann') %>%
-    detect_trends(.,'full_prisim')
+    detect_trends(.)
 
 write_csv(clim_trends, here('data_working', 'trends', 'full_prisim_climate.csv'))
 
@@ -33,6 +33,7 @@ prism_site_run_trends_data <- metrics %>%
     select(site_code, water_year,
            # climate
            temp_mean_ann,
+           temp_winter_median = median_air_temp_winter,
            precip_mean_ann,
            p_q50_dowy_exceed = p50_dowy_exceed,
            p_n_days = ppt_days,
