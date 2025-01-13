@@ -15,12 +15,20 @@ source(here('src', 'setup.R'))
 #     distinct() %>%
 #     st_as_sf(coords = c("longitude","latitude"), crs = 4326)
 
+us_states <- ne_states(country = "United States of America", returnclass = "sf")%>%
+    filter(!name %in% c("Alaska", "Hawaii", "Puerto Rico"))
+
+domains <- ms_site_data %>%
+    select(domain) %>%
+    filter(!domain %in% c('arctic', 'krycklan', 'luquillo', 'mcmurdo')) %>%
+    distinct() %>%
+    .$domain
+
 geospatial_aoi <- ms_load_spatial_product(macrosheds_root = my_ms_dir,
                                           spatial_product = 'stream_gauge_locations',
-                                          networks = 'neon')
-
-us_states <- ne_states(country = "United States of America", returnclass = "sf")
-
+                                          domains = domains) %>%
+    st_join(., us_states, join = st_within) %>%
+    filter(!is.na(name))
 
 mapview(geospatial_aoi)
 

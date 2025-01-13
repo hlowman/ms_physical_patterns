@@ -1,5 +1,6 @@
 # handle setup
 library(here)
+library(RColorBrewer)
 source(here('src', 'setup.R'))
 
 # read in full q_metrics.R output
@@ -76,27 +77,45 @@ map_data <- grid_metrics %>%
         Longitude = as.numeric(gsub("c\\((.*),.*", "\\1", geometry)),
         Latitude = as.numeric(gsub("c\\(.*,(.*)\\)", "\\1", geometry))
     ) %>%
-    left_join(grid_trends, by = 'site_code', relationship = 'many-to-many') %>%
+    left_join(grid_groups, by = 'site_code', relationship = 'many-to-many') %>%
     na.omit() %>%
     st_as_sf(coords = c('Longitude', 'Latitude'), crs = 4326)
 
+# map_data %>%
+#     filter(var == 'tmean') %>%
+#     mapview(., zcol = 'flag')
+#
+# map_data %>%
+#     filter(var == 'ET') %>%
+#     mapview(., zcol = 'flag')
+#
+# map_data %>%
+#     filter(var == 'ppt') %>%
+#     mapview(., zcol = 'flag')
+#
+# map_data %>%
+#     filter(var == 'pdi') %>%
+#     mapview(., zcol = 'flag')
+#
+# map_data %>%
+#     filter(var == 'GPP') %>%
+#     mapview(., zcol = 'flag')
+
+pal = mapviewPalette("mapviewTopoColors")
 map_data %>%
-    filter(var == 'tmean') %>%
-    mapview(., zcol = 'flag')
+    mapview(., zcol = 'trend_ET', col.regions=rev(brewer.pal(10, "Spectral")))
 
 map_data %>%
-    filter(var == 'ET') %>%
-    mapview(., zcol = 'flag')
+    mapview(., zcol = 'trend_GPP', col.regions=brewer.pal(10, "PiYG"))
 
 map_data %>%
-    filter(var == 'ppt') %>%
-    mapview(., zcol = 'flag')
+    filter(p_GPP < 0.1) %>%
+    mapview(., zcol = 'trend_GPP', col.regions=brewer.pal(10, "PiYG"))
+
 
 map_data %>%
-    filter(var == 'spei30d') %>%
-    mapview(., zcol = 'flag')
+    mapview(., zcol = 'trend_ppt', col.regions=brewer.pal(10, "Spectral"))
 
 map_data %>%
-    filter(var == 'GPP') %>%
-    mapview(., zcol = 'flag')
-
+    filter(p_tmean < 0.05) %>%
+    mapview(., zcol = 'trend_tmean', col.regions=rev(brewer.pal(10, "Spectral")))

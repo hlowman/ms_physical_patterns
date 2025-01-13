@@ -3,7 +3,7 @@
 # Note, this script uses a newer version of the data (v2)
 # published on 09/30/24.
 
-# Load common packages.
+# Load common packages ####
 ## core
 library(here)
 library(macrosheds)
@@ -23,6 +23,7 @@ library(plotly)
 library(e1071)
 library(lfstat)
 library(trend)
+library(zyp)
 ## data carpentry
 library(naniar)
 library(lubridate)
@@ -32,37 +33,13 @@ library(sf)
 library(feather)
 library(logger)
 library(foreach)
-
-# Using revised code from Mike to point to new data.
+# data pointing ####
+# download the ms dataset to your data_raw folder and update the script here
 rdata_path <- "data_raw/ms" # updated path
-
-# dl initial dataset
-# note - ONLY NEED TO RUN ONCE hence commented out
-# options(timeout = 9999)
-# macrosheds::ms_download_core_data(
-#     macrosheds_root = rdata_path,
-#     domains = 'all'
-# )
-# this includes 0/1st order CAMELS climate data
-# macrosheds::ms_download_ws_attr(
-#     macrosheds_root = rdata_path,
-#     dataset = 'all'
-# )
-
-ms_site_data <- ms_load_sites() # 383 sites in 29 domains
-ms_ws_attr <- read_feather(file.path(rdata_path,
-                                     'watershed_summaries.feather'))
-
-nv <- as.environment('package:macrosheds')
-
-for(ms_data in c('ms_vars_ts', 'ms_vars_ws', 'ms_site_data', 'ms_var_catalog')){
-    unlockBinding(ms_data, nv)
-    assign(ms_data, get(ms_data), envir = nv)
-    lockBinding(ms_data, nv)
-}
-
-# Set directory to folder containing new data.
 my_ms_dir <- "data_raw/ms"
+
+ms_site_data <- ms_load_sites()
+ms_ws_attr <- read_feather('data_raw/ms/v2/watershed_summaries.feather')
 
 # set master vars for data coverage to define 'good years'
 # shared across all data coverage scripts
@@ -83,7 +60,7 @@ landsat_year <- 1984
 modis_year <- 2000
 
 # helper functions ####
-# set logger for script
+# set logger for other scripts
 set_logger <- function(){
     log_file_name <- paste0(tools::file_path_sans_ext(basename(rstudioapi::getSourceEditorContext()$path)),
                             '_', format(Sys.time(), '%D_%H_%M_%S'), '.txt') %>%
@@ -96,8 +73,8 @@ set_logger <- function(){
 
 
 ## CARPENTRY ####
-
-# freq_check needs a data frame of long format q_data with water_year
+# freq_check checks how many days exists per week are sampled and then how many good weeks per year exist
+# freq_check needs a data frame of long format q_data with water_year, it returns a list of good years
 frequency_check <- function(data_in){
 
     q_data <- data_in
@@ -115,7 +92,8 @@ frequency_check <- function(data_in){
     return(freq_check)
 }
 
-# reduces long data frame to years of longest run within that dataframe per site
+# reduces long data frame to only contain years within the longest run of a given parameter for site
+# for example, cut all remote sensed data to year longest year range we have q data
 reduce_to_longest_site_runs <- function(data_in, metric){
     # initialize output
     out_frame <- tibble(site_code = as.character(),
@@ -148,7 +126,7 @@ reduce_to_longest_site_runs <- function(data_in, metric){
     return(out_frame)
 }
 
-# reduces long data frame to years of data with at least 60% coverage
+# reduces long data frame to years of data with at least 60% coverage of a given parameter
 reduce_to_best_range <- function(data_in, metric, max_missing = 0.4) {
 
     output <- head(data_in, n =0)
@@ -215,19 +193,26 @@ return(output)
 
 ## TRENDS #####
 
+# detect trends does the actual sen's slope testing
 # df_in needs to be a long dataframe with site,
 # water_year, var, and val
 # outputs a
-detect_trends <- function(df_in, diag_string){
+detect_trends <- function(df_in ){#, diag_string){
     com_long <- df_in
-    #  make trend dataset for entire prisim record ####
+    #  initialize output
     out_frame <- tibble(site_code = as.character(),
                         var = as.character(),
                         start = as.integer(),
                         end = as.integer(),
-                        trend = as.integer(),
-                        p = as.integer(),
+                        n = as.integer(),
+                        trend = as.numeric(),
+                        trend_upper = as.numeric(),
+                        trend_lower = as.numeric(),
+                        intercept = as.numeric(),
+                        intercept_upper = as.numeric(),
+                        intercept_lower = as.numeric(),
                         code = as.character())
+
 
     #foreach(i = unique(com_long$site_code)) %do%{
     for(i in unique(com_long$site_code)){
@@ -250,17 +235,35 @@ detect_trends <- function(df_in, diag_string){
                     end <- max(target_solute$water_year)
                     n <- nrow(target_solute)
 
-                    # check_vec <- (target_solute$water_year-lag(target_solute$water_year))[-1]
+
+                    # OLD SENS SLOPE CALC
+                    # slope_data <- target_solute %>%
+                    #     select(val) %>%
+                    #     as.ts()
                     #
-                    # if(all(check_vec == 1)){
+                    # rownames(slope_data) <- target_solute$water_year
+                    # test <- sens.slope(slope_data)
+                    # trend <- test[[1]]
+                    # p <- test[[3]]
+                    #
+                    #
+                    # inner <- tibble(site_code = i,
+                    #                 var = j,
+                    #                 start = start,
+                    #                 end = end,
+                    #                 n = n,
+                    #                 trend = trend,
+                    #                 p = p,
+                    #                 code = 'good')
+                    #
+
+                    # new sens slope calc
                     slope_data <- target_solute %>%
-                        #full_join(., tibble(water_year = start:end)) %>%
-                        select(val) %>%
-                        as.ts()
-                    rownames(slope_data) <- target_solute$water_year
-                    test <- sens.slope(slope_data)
-                    trend <- test[[1]]
-                    p <- test[[3]]
+                        select(water_year, val) %>%
+                        na.omit()
+
+                    out<-zyp.sen(val~water_year, slope_data)
+                    ints <- confint.zyp(out)
 
 
                     inner <- tibble(site_code = i,
@@ -268,13 +271,22 @@ detect_trends <- function(df_in, diag_string){
                                     start = start,
                                     end = end,
                                     n = n,
-                                    trend = trend,
-                                    p = p,
-                                    code = 'good'
-                    )
+                                    trend = out$coefficients[[2]],
+                                    trend_upper = ints[2,2],
+                                    trend_lower = ints[2,1],
+                                    intercept = out$coefficients[[1]],
+                                    intercept_upper = ints[1,2],
+                                    intercept_lower = ints[1,1],
+                                    code = 'good')
+
+
+
                     # bind out
                     out_frame <- rbind(out_frame, inner)
 
+                    # currently commenting our diag plots to save on run time
+                    # uncomment below to create a scatterplot for each good site/solute when run
+                    #
                     # diag <- ggplot(target_solute, aes(x = water_year, y = val)) +
                     #     labs(title = paste0(i, ' ', j),
                     #          caption = paste0('n = ', n))+
@@ -306,8 +318,13 @@ detect_trends <- function(df_in, diag_string){
                                       end = NA,
                                       n = NA,
                                       trend = NA,
-                                      p = NA,
+                                      trend_upper = NA,
+                                      trend_lower = NA,
+                                      intercept = NA,
+                                      intercept_upper = NA,
+                                      intercept_lower = NA,
                                       code = 'under_10')
+
                 # bind out
                 out_frame <- rbind(out_frame, inner)
                 } #solute level data avail check
@@ -326,10 +343,10 @@ add_flags <- function(data_in){
             #p > 0.05, # sig trends only
             var != 'a_flow_sig',
             var != 'b_flow_sig') %>%
-        mutate(flag = case_when(p >= 0.05 ~ 'non-significant',
-                                p < 0.05 & trend > 0 ~ 'increasing',
-                                p < 0.05 & trend < 0 ~ 'decreasing',
-                                p <0.05 & trend == 0 ~ 'flat')) %>%
+        mutate(flag = case_when(sign(trend_upper)!= sign(trend_lower) ~ 'non-significant',
+                                sign(trend_upper) == sign(trend_lower) & sign(trend) > 0 ~ 'increasing',
+                                sign(trend_upper) == sign(trend_lower) & sign(trend) < 0 ~ 'decreasing',
+                                sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat')) %>%
         filter(!is.nan(flag),
                !is.na(flag))
     return(data_out)

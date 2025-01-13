@@ -24,13 +24,16 @@ full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climat
     mutate(wetting = case_when(trend_precip_mean_ann > 0 & p_precip_mean_ann <= 0.05 ~ 'W',
                                trend_precip_mean_ann < 0 & p_precip_mean_ann <= 0.05 ~ 'D',
                                p_precip_mean_ann > 0.05 ~ 'N'),
-           warming = case_when(trend_temp_mean_ann > 0 & p_temp_mean_ann <= 0.05 ~ 'H',
-                                trend_temp_mean_ann < 0 & p_temp_mean_ann <= 0.05 ~ 'C',
-                                p_temp_mean_ann > 0.05 ~ 'N'),
-           greening = case_when(trend_gpp_conus > 0 & p_gpp_conus <= 0.05 ~ 'G',
-                                trend_gpp_conus < 0 & p_gpp_conus <= 0.05 ~ 'B',
-                                p_gpp_conus > 0.05 ~ 'N',
-                                trend_gpp_conus == 0 ~ 'N'),
+           # warming = case_when(trend_temp_mean_ann > 0 & p_temp_mean_ann <= 0.05 ~ 'H',
+           #                      trend_temp_mean_ann < 0 & p_temp_mean_ann <= 0.05 ~ 'C',
+           #                      p_temp_mean_ann > 0.05 ~ 'N'),
+           warming = case_when(trend_median_air_temp_winter > 0 & p_median_air_temp_winter <= 0.05 ~ 'H',
+                               trend_median_air_temp_winter < 0 & p_median_air_temp_winter <= 0.05 ~ 'C',
+                               p_median_air_temp_winter > 0.05 ~ 'N'),
+           greening = case_when(trend_gpp_CONUS_30m_median > 0 & p_gpp_CONUS_30m_median <= 0.05 ~ 'G',
+                                trend_gpp_CONUS_30m_median < 0 & p_gpp_CONUS_30m_median <= 0.05 ~ 'B',
+                                p_gpp_CONUS_30m_median > 0.05 ~ 'N',
+                                trend_gpp_CONUS_30m_median == 0 ~ 'N'),
            grouping = as.factor(paste0(warming, wetting, greening))
            ) %>%
     left_join(., ms_site_data, by = 'site_code') %>%
@@ -98,7 +101,7 @@ metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS')) %>%
 
 metrics %>%
     filter(site_code == 'GSWS06', water_year > 1980) %>%
-    ggplot(aes(x = water_year, y = gpp_conus))+
+    ggplot(aes(x = water_year, y = gpp_CONUS_30m_median))+
     geom_point()
 
 ## hydrographs ####
@@ -127,6 +130,7 @@ q_data %>%
           legend.position = 'none',
           )+
     facet_wrap(~facet_lab, scales = 'fixed')
+
 
 
 
