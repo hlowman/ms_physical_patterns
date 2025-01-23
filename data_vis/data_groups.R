@@ -4,36 +4,33 @@
 library(here)
 source(here('src', 'setup.R'))
 #source(here('src', 'mega_zipper_data.R'))
-flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'non-significant' = "grey", 'data limited' = 'purple4')
+flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "grey", 'insufficient data' = 'black')
 
 target_q_trend <- "q_mean"
 
 q_trends <- read_csv(here('data_working', 'trends', 'best_run_prisim.csv')) %>%
+    add_flags()%>%
     filter(
         var == target_q_trend
         ) %>%
-    select(site_code, q_trend = trend, q_p = p)
+    select(site_code, q_trend = trend, q_flag = flag)
 
 
 # read in data####
 full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climate.csv')) %>%
     add_flags() %>%
-    select(site_code, var, trend, p, flag) %>%
-    pivot_wider(id_cols = site_code, values_from = c(trend, p), names_from = var) %>%
-    na.omit() %>%
-    mutate(wetting = case_when(trend_precip_mean_ann > 0 & p_precip_mean_ann <= 0.05 ~ 'W',
-                               trend_precip_mean_ann < 0 & p_precip_mean_ann <= 0.05 ~ 'D',
-                               p_precip_mean_ann > 0.05 ~ 'N'),
-           # warming = case_when(trend_temp_mean_ann > 0 & p_temp_mean_ann <= 0.05 ~ 'H',
-           #                      trend_temp_mean_ann < 0 & p_temp_mean_ann <= 0.05 ~ 'C',
-           #                      p_temp_mean_ann > 0.05 ~ 'N'),
-           warming = case_when(trend_median_air_temp_winter > 0 & p_median_air_temp_winter <= 0.05 ~ 'H',
-                               trend_median_air_temp_winter < 0 & p_median_air_temp_winter <= 0.05 ~ 'C',
-                               p_median_air_temp_winter > 0.05 ~ 'N'),
-           greening = case_when(trend_gpp_CONUS_30m_median > 0 & p_gpp_CONUS_30m_median <= 0.05 ~ 'G',
-                                trend_gpp_CONUS_30m_median < 0 & p_gpp_CONUS_30m_median <= 0.05 ~ 'B',
-                                p_gpp_CONUS_30m_median > 0.05 ~ 'N',
-                                trend_gpp_CONUS_30m_median == 0 ~ 'N'),
+    select(site_code, var, trend, flag) %>%
+    pivot_wider(id_cols = site_code, values_from = c(trend, flag), names_from = var) %>%
+    mutate(wetting = case_when(flag_precip_mean == 'increasing' ~ 'W',
+                               flag_precip_mean == 'decreasing' ~ 'D',
+                               flag_precip_mean == 'non-significant' ~ 'N'),
+           warming = case_when(flag_temp_mean == 'increasing' ~ 'H',
+                               flag_temp_mean == 'decreasing' ~ 'C',
+                               flag_temp_mean == 'non-significant' ~ 'N'),
+           greening = case_when(flag_gpp_CONUS_30m_median == 'increasing' ~ 'G',
+                                flag_gpp_CONUS_30m_median == 'decreasing' ~ 'B',
+                                flag_gpp_CONUS_30m_median == 'non-significant' ~ 'N',
+                                flag_gpp_CONUS_30m_median == NA ~ 'N'),
            grouping = as.factor(paste0(warming, wetting, greening))
            ) %>%
     left_join(., ms_site_data, by = 'site_code') %>%
