@@ -164,26 +164,19 @@ q_data_doy <- q_data_good %>%
     # and then add in demarcation of when cumulative q
     # thresholds are surpassed
         mutate(q01_exceed = case_when(q_sum > q01_sum ~ 1,
-                                      q_sum <= q01_sum ~ 0,
-                                      TRUE ~ NA),
+                                      q_sum <= q01_sum ~ 0),
                q05_exceed = case_when(q_sum > q05_sum ~ 1,
-                                     q_sum <= q05_sum ~ 0,
-                                     TRUE ~ NA),
+                                     q_sum <= q05_sum ~ 0),
                q25_exceed = case_when(q_sum > q25_sum ~ 1,
-                                     q_sum <= q25_sum ~ 0,
-                                     TRUE ~ NA),
+                                     q_sum <= q25_sum ~ 0),
                q50_exceed = case_when(q_sum > q50_sum ~ 1,
-                                     q_sum <= q50_sum ~ 0,
-                                     TRUE ~ NA),
+                                     q_sum <= q50_sum ~ 0),
                q75_exceed = case_when(q_sum > q75_sum ~ 1,
-                                     q_sum <= q75_sum ~ 0,
-                                     TRUE ~ NA),
+                                     q_sum <= q75_sum ~ 0),
                q95_exceed = case_when(q_sum > q95_sum ~ 1,
-                                     q_sum <= q95_sum ~ 0,
-                                     TRUE ~ NA),
+                                     q_sum <= q95_sum ~ 0),
                q99_exceed = case_when(q_sum > q99_sum ~ 1,
-                                     q_sum <= q99_sum ~ 0,
-                                     TRUE ~ NA)) %>%
+                                     q_sum <= q99_sum ~ 0)) %>%
     ungroup() %>%
     # pivot this so all exceedances are in a named column
     pivot_longer(cols = q01_exceed:q99_exceed,
@@ -227,8 +220,7 @@ q_data_season_summaries <- q_data_good %>%
     mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
                               month %in% c(12,1,2) ~ "Winter",
                               month %in% c(3,4,5) ~ "Spring",
-                              month %in% c(9,10,11) ~ "Fall",
-                              TRUE ~ NA)) %>%
+                              month %in% c(9,10,11) ~ "Fall")) %>%
     group_by(site_code, season, water_year) %>%
     summarize(q_mean = mean(val_mmd, na.rm = TRUE), # mean
               q_q01 = quantile(val_mmd, probs = 0.01, na.rm = TRUE), # 1st percentile Q
@@ -277,8 +269,7 @@ q_wy_counts <- q_data_good %>%
     count(site_wy) %>%
     ungroup() %>%
     mutate(use = case_when(n > 3 ~ 1,
-                           n <= 3 ~ 0,
-                           TRUE ~ NA)) %>%
+                           n <= 3 ~ 0)) %>%
     select(site_wy, use)
 
 # Also notate sites for which the site-water year mean
@@ -291,8 +282,7 @@ q_wy_mean <- q_data_good %>%
     summarize(mean = mean(val_mmd, na.rm = TRUE)) %>%
     ungroup() %>%
     mutate(use2 = case_when(mean > 0 ~ 1,
-                            mean <= 0 ~ 0,
-                            TRUE ~ NA)) %>%
+                            mean <= 0 ~ 0)) %>%
     select(site_wy, use2)
 
 log_info('make q metrics output frame')
@@ -349,7 +339,7 @@ q_metrics_out <- q_metrics_siteyear %>%
     left_join(., q_data_doy, by = c('site_code', 'water_year')) %>%
     left_join(., q_high_flows, by = c('site_code', 'water_year', 'agg_code')) %>%
     full_join(., q_data_month_summaries) %>%
-    full_join(., q_data_season_summaries) %>%
+    full_join(., q_data_season_summaries)
 
 
 # CLIMATE #####
@@ -367,8 +357,7 @@ clim <- read_feather(here('data_raw', 'ms', 'v2', 'spatial_timeseries_climate.fe
     mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
                               month %in% c(12,1,2) ~ "Winter",
                               month %in% c(3,4,5) ~ "Spring",
-                              month %in% c(9,10,11) ~ "Fall",
-                              TRUE ~ NA))
+                              month %in% c(9,10,11) ~ "Fall"))
 
 ## monthly clim summaries #####
 log_info('monthly climate summaries')
@@ -401,8 +390,7 @@ clim_50_doy <- clim %>%
     mutate(p50_sum = 0.5*sum(precip_median, na.rm = T),
            p_sum = cumsum(precip_median)) %>%
     mutate(p50_exceed = case_when(p_sum > p50_sum ~ 1,
-                                  p_sum <= p50_sum ~ 0,
-                                  TRUE ~ NA)) %>%
+                                  p_sum <= p50_sum ~ 0)) %>%
     ungroup() %>%
     filter(p50_exceed == 1) %>%
     group_by(site_code, water_year) %>%
@@ -460,8 +448,7 @@ t_data <- ms_load_product(
     mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
                               month %in% c(12,1,2) ~ "Winter",
                               month %in% c(3,4,5) ~ "Spring",
-                              month %in% c(9,10,11) ~ "Fall",
-                              TRUE ~ NA))
+                              month %in% c(9,10,11) ~ "Fall"))
 
 
 log_info({nrow(t_data)}, ' rows of stream temp data')
@@ -472,7 +459,7 @@ log_info('performing freq check on stream temp')
 freq_check <- t_data %>%
             filter(ms_interp == 0) %>%
             mutate(month_year = paste0(month(date), '_', water_year)) %>%
-    group_by(site_code, ,month_year) %>%
+    group_by(site_code, month_year) %>%
     summarize(water_year = max(water_year),
               n = n()) %>%
     filter(n >= 1) %>%
@@ -486,11 +473,6 @@ t_good <- t_data %>%
     select(site_code, water_year, season, var, val) %>%
     na.omit()
 
-t_ann <- t_good %>%
-    group_by(site_code, water_year) %>%
-    summarize(stream_temp_mean = mean(val, na.rm = T),
-              stream_temp_q25 = quantile(temp_median, probs = 0.25, na.rm = T),
-              stream_temp_q75 = quantile(temp_median, probs = 0.75, na.rm = T))
 
 log_info({nrow(t_data) - nrow(t_good)}, ' rows of stream temp data removed during freq/interp check')
 
@@ -611,8 +593,7 @@ chem_q_good <- chem_q_vwm %>%
     mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
                               month %in% c(12,1,2) ~ "Winter",
                               month %in% c(3,4,5) ~ "Spring",
-                              month %in% c(9,10,11) ~ "Fall",
-                              TRUE ~ NA)) %>%
+                              month %in% c(9,10,11) ~ "Fall")) %>%
     right_join(., freq_check_chem,
                by = c('site_code',
                       'var',
@@ -690,8 +671,7 @@ chem_seas_cq <- chem_q_data %>%
     mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
                               month %in% c(12,1,2) ~ "Winter",
                               month %in% c(3,4,5) ~ "Spring",
-                              month %in% c(9,10,11) ~ "Fall",
-                              TRUE ~ NA)) %>%
+                              month %in% c(9,10,11) ~ "Fall")) %>%
     # Add water year
     mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
                                   TRUE ~ year)) %>%
@@ -746,8 +726,8 @@ p_data <- read_feather(here('data_raw', 'ms', 'v2', 'spatial_timeseries_vegetati
     mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
                               month %in% c(12,1,2) ~ "Winter",
                               month %in% c(3,4,5) ~ "Spring",
-                              month %in% c(9,10,11) ~ "Fall",
-                              TRUE ~ NA))
+                              month %in% c(9,10,11) ~ "Fall"))#,
+                              #TRUE ~ NA))
 
 log_info({nrow(p_data)}, ' rows of productivity data')
 

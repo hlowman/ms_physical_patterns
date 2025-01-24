@@ -4,7 +4,7 @@
 library(here)
 source(here('src', 'setup.R'))
 #source(here('src', 'mega_zipper_data.R'))
-flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "grey")
+flag_colors <- c('increasing' = "red", 'decreasing' = 'blue', 'flat' = 'green', 'non-significant' = "grey", 'insufficient data' = 'black')
 
 # read in data####
 full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climate.csv')) %>%
@@ -44,7 +44,7 @@ q_plot_data <-  full_data %>%
 
 # make full, non-site climate data record ####
 full_prisim <- full_prism_trends %>%
-    select(site_code, n , var, trend, p, flag)
+    select(site_code, n , var, trend, flag)
 
 full_prisim %>%
     filter(is.na(flag)) %>%
@@ -53,7 +53,7 @@ full_prisim %>%
 
 # make longest run of site data during prisim data record
 longest_run_prisim <- longest_run_trends %>%
-    select(site_code, n, var, trend, p, flag)
+    select(site_code, n, var, trend, flag)
 
 longest_run_prisim %>%
     filter(is.na(flag)) %>%
@@ -76,39 +76,54 @@ side_data <- full_join(fp_wide, lrp_wide) %>%
 
 # data checks
 side_data%>%
-    filter(is.na(temp_mean_ann_full),
-           !is.na(temp_mean_ann_longest_run))
+    filter(is.na(temp_mean_full),
+           !is.na(temp_mean_longest_run))
 
 side_data %>%
     filter(n > 9,
            is.na(q_mean_longest_run))
 
 side_data%>%
-    filter(is.na(temp_mean_ann_full),
-           !is.na(temp_mean_ann_longest_run))
+    filter(is.na(temp_mean_full),
+           !is.na(temp_mean_longest_run))
 
 # plots #####
 make_trend_panel <- function(target_trend, title_string){
 
-    side_data %>%
-        select(site_code, n, matches(target_trend)) %>%
-    ggplot(aes(y = reorder(site_code, n), fill = .[[3]]))+
+    plotColors <-
+        setNames( c('blue', 'red', 'grey', 'black')
+                  , c('decreasing', 'increasing', 'non-significant', 'insufficient data')  )
+
+    temp_data <- side_data %>%
+        select(site_code, n, val = starts_with(target_trend))
+
+    if(length(which(is.na(temp_data$val)) > 0)){
+    temp_data$val[which(is.na(temp_data$val))] <- 'insufficient data'
+    }
+
+    temp_data %>%
+        mutate(val=fct_relevel(val,c('decreasing', 'increasing', 'non-significant', 'insufficient data'))) %>%
+    ggplot(aes(y = reorder(site_code, n), fill = val))+
         geom_bar(width = 1)+
         coord_cartesian(xlim = c(0.4, .6))+
-        scale_fill_manual(values = flag_colors, na.value = 'black')+#,
+        #scale_fill_manual(labels = c('decreasing', 'increasing', 'non-significant', 'insufficient data'), values = c('blue', 'red', 'grey', 'black'))+
+        scale_fill_manual(values = flag_colors)+#,
                           #labels = c('Decreasing', 'Increasing', 'Non-significant', 'Insufficient Data'))+
         theme_few()+
         theme(axis.text = element_blank(),
           axis.title = element_blank(),
           axis.ticks = element_blank(),
-          legend.position = 'none')+
+          legend.position = 'none',
+          plot.title = element_text(hjust = 0.5))+
         labs(title = paste0(title_string))
+        #scale_fill_manual(labels = c('decreasing', 'increasing', 'non-significant', 'insufficient data'), values = c('blue', 'red', 'grey', 'black'))
 }
 
 add_legend <- function(plot){
     plot+
         theme(legend.position = 'right')+
-        labs(fill = 'Trend')
+        labs(fill = 'Trend')+
+        scale_fill_manual(labels = c('decreasing', 'increasing', 'non-significant', 'insufficient data'), values = c('blue', 'red', 'grey', 'black'))
 }
 ## make coverage plot ####
 
@@ -121,31 +136,30 @@ c_master <- q_plot_data %>%
     theme(legend.position = 'none',
           axis.text.y = element_blank(),
           axis.title = element_blank(),
-          axis.ticks.y = element_blank())+
+          axis.ticks.y = element_blank(),
+          plot.title = element_text(hjust = 0.5))+
     #scale_color_viridis(discrete = T) +
-    annotate("text", x=modis_year-1, y=25, label="MODIS", angle=90, size=5, color=contrast_color)+
+    annotate("text", x=modis_year-1.5, y=50, label="MODIS", angle=90, size=5, color=contrast_color)+
     geom_vline(xintercept = modis_year, color = contrast_color)+
-    annotate("text", x=landsat_year-1, y=25, label="LANDSAT-5", angle=90, size=5, color=contrast_color)+
+    annotate("text", x=landsat_year-1.5, y=50, label="LANDSAT-5", angle=90, size=5, color=contrast_color)+
     geom_vline(xintercept = landsat_year, color = contrast_color)+
-    annotate("text", x=prisim_year-1, y=25, label="PRISM", angle=90, size=5, color=contrast_color)+
+    annotate("text", x=prisim_year-1, y=50, label="PRISM", angle=90, size=5, color=contrast_color)+
     geom_vline(xintercept = prisim_year, color = contrast_color)+
-    labs(title = 'MS Site Data')
+    labs(title = 'MS Site Q Data Coverage')
 c_master
 
 
 ## assemble plot #####
-zipper_plot <- make_trend_panel('temp_mean_ann_full', 'Ta') +
-    make_trend_panel('precip_mean_ann_full', 'P')+
-    make_trend_panel('gpp_conus_full', 'GPP')+
+zipper_plot <- make_trend_panel('temp_mean_full', 'Temperature') +
+    make_trend_panel('precip_mean_full', 'Precipitation')+
+    make_trend_panel('gpp_CONUS_30m_median_full', 'GPP')+
     c_master +
-    make_trend_panel('temp_mean_ann_longest_run', 'Ta') +
-    make_trend_panel('precip_mean_ann_longest_run', 'P') +
-    make_trend_panel('gpp_conus_longest_run', 'GPP')+
-    make_trend_panel('stream_temp_mean_ann_longest_run', 'Ts') +
-    make_trend_panel('q_mean_longest_run', 'Q') +
-    make_trend_panel('q_rbi_longest_run', 'RBI') +
-    add_legend(make_trend_panel('q_ar1_longest_run', 'AR1')) +
-    plot_layout(ncol = 11, widths = c(.25, .25, .25, 5, .25, .25, .25, .25, .25, .25, .25))
+    make_trend_panel('temp_mean_longest_run', 'Temperature') +
+    #make_trend_panel('stream_temp_mean_longest_run', 'Ts')+
+    make_trend_panel('precip_mean_longest_run', 'Precipitation') +
+    add_legend(make_trend_panel('gpp_conus_longest_run', 'GPP'))+
+    plot_layout(ncol = 7, widths = c(.25, .25, .25, 1.5, .25, .25, .25))+
+    plot_annotation(tag_levels = 'A')
 zipper_plot
 
 # make secondary plot of new indices ####

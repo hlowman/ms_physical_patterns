@@ -346,7 +346,8 @@ add_flags <- function(data_in){
         mutate(flag = case_when(sign(trend_upper)!= sign(trend_lower) ~ 'non-significant',
                                 sign(trend_upper) == sign(trend_lower) & sign(trend) > 0 ~ 'increasing',
                                 sign(trend_upper) == sign(trend_lower) & sign(trend) < 0 ~ 'decreasing',
-                                sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat')) %>%
+                                sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat',
+                                trend == NA ~ 'insufficient data')) %>%
         filter(!is.nan(flag),
                !is.na(flag))
     return(data_out)
