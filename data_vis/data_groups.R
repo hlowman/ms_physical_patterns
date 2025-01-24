@@ -36,12 +36,7 @@ full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climat
     left_join(., ms_site_data, by = 'site_code') %>%
     mutate(grouping_exp = case_when(ws_status == 'experimental' ~ 'EXP',
                                 .default = 'NON')) %>%
-    left_join(., q_trends, by = 'site_code') %>%
-    mutate(streamflow = case_when(q_trend > 0 & q_p <= 0.05 ~ 'increasing',
-                                  q_trend < 0 & q_p <= 0.05 ~ 'decreasing',
-                                  q_p > 0.05 ~ 'non-significant',
-                                  .default = 'data limited'),
-           streamflow = as.factor(streamflow))
+    left_join(., q_trends, by = 'site_code')
 
 full_prism_trends$grouping <- factor(full_prism_trends$grouping, levels = c('HDG', #strong down
                                                                             'HDN', 'HNG', 'NDG', # mid down
@@ -52,9 +47,46 @@ full_prism_trends$grouping <- factor(full_prism_trends$grouping, levels = c('HDG
                                                                             'NWB')) # strong up
 
 full_prism_trends %>%
-    select(site_code, grouping, streamflow) %>%
+    #select(site_code, grouping, streamflow) %>%
     write_csv(here('data_working', 'site_groupings_by_prsim_trend.csv'))
 # plots ####
+# figure 2 for the paper
+# make plot of warming on x, wetting on y, and gpp as point size or color
+
+ggplot(full_prism_trends, aes(x = trend_temp_mean, y = trend_precip_mean)) +
+    # Points with 'non-significant' flag
+    geom_point(data = subset(full_prism_trends, flag_gpp_CONUS_30m_median == "non-significant"),
+               color = "grey", size = 10) +
+    # Points with other flags
+    geom_point(data = subset(full_prism_trends, flag_gpp_CONUS_30m_median != "non-significant"),
+               aes(color = trend_gpp_CONUS_30m_median), size = 10) +
+    scale_color_distiller(palette = 'BrBG', direction = 1) +
+    theme_few(base_size = 20) +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0) +
+    labs(x = 'Temperature trend (mean annual, degrees C)',
+         y = 'Precipitation trend (mean annual, mm)',
+         color = 'GPP trend (mean annual)')
+
+
+limit <- max(abs(full_prism_trends$q_trend), na.rm = T) * c(-1, 1)
+
+ggplot(full_prism_trends, aes(x = trend_temp_mean, y = trend_precip_mean)) +
+    # Points with 'non-significant' flag
+    geom_point(data = subset(full_prism_trends, q_flag == "non-significant"),
+               color = "grey", size = 10) +
+    # Points with other flags
+    geom_point(data = subset(full_prism_trends, q_flag != "non-significant"),
+               aes(color = q_trend), size = 10) +
+    scale_color_distiller(palette = 'RdBu', direction = 1, limit = limit) +
+    theme_few(base_size = 20) +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0) +
+    labs(x = 'Temperature trend (mean annual, degrees C)',
+         y = 'Precipitation trend (mean annual, mm)',
+         color = 'Q trend (mean annual)')
+
+
 
 ## bar charts  by group ####
 ggplot(full_prism_trends, aes(x = grouping, fill = streamflow))+
