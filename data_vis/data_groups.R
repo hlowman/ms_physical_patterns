@@ -53,7 +53,7 @@ full_prism_trends %>%
 # figure 2 for the paper
 # make plot of warming on x, wetting on y, and gpp as point size or color
 
-ggplot(full_prism_trends, aes(x = trend_temp_mean, y = trend_precip_mean)) +
+gpp_plot <- ggplot(full_prism_trends, aes(x = trend_temp_mean, y = trend_precip_mean, text = paste("Site:", site_code, "<br>Domain:", domain))) +
     # Points with 'non-significant' flag
     geom_point(data = subset(full_prism_trends, flag_gpp_CONUS_30m_median == "non-significant"),
                color = "grey", size = 10) +
@@ -68,10 +68,13 @@ ggplot(full_prism_trends, aes(x = trend_temp_mean, y = trend_precip_mean)) +
          y = 'Precipitation trend (mean annual, mm)',
          color = 'GPP trend (mean annual)')
 
+library(plotly)
+ggplotly(gpp_plot, tooltip = 'text')
+
 
 limit <- max(abs(full_prism_trends$q_trend), na.rm = T) * c(-1, 1)
 
-ggplot(full_prism_trends, aes(x = trend_temp_mean, y = trend_precip_mean)) +
+q_plot <- ggplot(full_prism_trends, aes(x = trend_temp_mean, y = trend_precip_mean, text = paste("Site:", site_code, "<br>Domain:", domain))) +
     # Points with 'non-significant' flag
     geom_point(data = subset(full_prism_trends, q_flag == "non-significant"),
                color = "grey", size = 10) +
@@ -85,6 +88,8 @@ ggplot(full_prism_trends, aes(x = trend_temp_mean, y = trend_precip_mean)) +
     labs(x = 'Temperature trend (mean annual, degrees C)',
          y = 'Precipitation trend (mean annual, mm)',
          color = 'Q trend (mean annual)')
+
+ggplotly(q_plot, tooltip = 'text')
 
 
 
