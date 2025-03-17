@@ -90,6 +90,25 @@ ggplot(aes(y = grouping, x = density, fill = source))+
          fill = 'Dataset')#+
     #scale_fill_manual(labels = c('Grid', 'MacroSheds'), values = c('blue', 'black'))
 
+
+# gpp scatter
+
+ggplot(grid_groups, aes(x = trend_tmean, y = trend_ppt)) +
+    # Points with 'non-significant' flag
+    geom_point(data = subset(grid_groups, flag_GPP == "non-significant"),
+               color = "grey", size = 2) +
+    # Points with other flags
+    geom_point(data = subset(grid_groups, flag_GPP != "non-significant"),
+               aes(color = trend_GPP), size = 5) +
+    scale_color_distiller(palette = 'BrBG', direction = 1) +
+    theme_few(base_size = 20) +
+    geom_hline(yintercept = 0) +
+    geom_vline(xintercept = 0) +
+    labs(x = 'Temperature trend (mean annual, degrees C)',
+         y = 'Precipitation trend (mean annual, mm)',
+         color = 'GPP trend (mean annual)')
+
+
 # maps ####
 lat_lon_pattern <- "c\\((-?\\d+\\.\\d+),\\s*(-?\\d+\\.\\d+)\\)"
 
