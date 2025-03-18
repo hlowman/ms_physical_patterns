@@ -34,12 +34,12 @@ library(logger)
 library(foreach)
 
 # Using revised code from Mike to point to new data.
-rdata_path <- "data_raw/ms" # updated path
+rdata_path <- "data_raw/ms/v2/" # updated path
 
 # dl initial dataset
 # note - ONLY NEED TO RUN ONCE hence commented out
-# options(timeout = 9999)
-# macrosheds::ms_download_core_data(
+#options(timeout = 9999)
+#macrosheds::ms_download_core_data(
 #     macrosheds_root = rdata_path,
 #     domains = 'all'
 # )
@@ -111,6 +111,24 @@ frequency_check <- function(data_in){
     group_by(site_code, water_year) %>%
     summarize(n = n()) %>%
     filter(n >= good_weeks_to_year_master)
+
+    return(freq_check)
+}
+
+# generalized freq_check function to customize data thresholds
+frequency_check <- function(data_in, min_per_week = 4, min_weeks_per_year = 51){
+
+    q_data <- data_in
+
+    freq_check <- q_data %>%
+        mutate(week_year = paste0(week(date), '_', water_year)) %>%
+        group_by(site_code, week_year) %>%
+        summarize(water_year = max(water_year),
+                  n = n()) %>%
+        filter(n >= min_per_week) %>%
+        group_by(site_code, water_year) %>%
+        summarize(n = n()) %>%
+        filter(n >= min_weeks_per_year)
 
     return(freq_check)
 }
@@ -334,3 +352,4 @@ add_flags <- function(data_in){
                !is.na(flag))
     return(data_out)
 }
+

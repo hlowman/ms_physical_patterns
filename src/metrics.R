@@ -487,7 +487,8 @@ chem_data <- ms_load_product(
                     "TPN", "NO3_N", "TN",
                     "TIN", "NO2_N", "NH3_N",
                     "TDKN", "TKN", "N2O",
-                    "NO3_NO2_N", "NH3_NH4_N"), warn = F) %>%
+                    "NO3_NO2_N", "NH3_NH4_N",
+                    "DOC","pH"), warn = F) %>%
     # remove interpolated values
     filter(ms_interp == 0)
 
@@ -533,7 +534,7 @@ freq_check_chem <- chem_q_vwm %>%
     mutate(site_wyear = paste0(site_code, '_', water_year)) %>%
     # 2,971 site-years remaining at 184 sites (note, across all analytes)
     # minimum 2 samples per month
-    filter(n_days_of_obs_chem >= 2) %>%
+    filter(n_days_of_obs_chem >= 1) %>%
     # 2,855 site-years remaining at 182 sites (again across all analytes)
     # This drops to 2,199 site-years at 164 sites if we bump to 4 samples/month
     group_by(site_code, water_year, site_wyear, var) %>%
@@ -587,6 +588,24 @@ n_monthly_vwmeans <- chem_q_good %>%
         names_from = c(var, month),
         values_from = monthly_vwm_mgL)
 
+doc_monthly_vwmeans <- chem_q_good %>%
+    select(site_code, var, water_year, month, monthly_vwm_mgL) %>%
+    pivot_wider(
+        names_from = c(var, month),
+        values_from = monthly_vwm_mgL)
+
+#out_path <- here("data_working", "doc_monthly_VWM.rds")
+#saveRDS(doc_monthly_vwmeans, out_path)
+
+pH_monthly_vwmeans <- chem_q_good %>%
+    select(site_code, var, water_year, month, monthly_vwm_mgL) %>%
+    pivot_wider(
+        names_from = c(var, month),
+        values_from = monthly_vwm_mgL)
+
+#out_path <- here("data_working", "pH_monthly_VWM.rds")
+#saveRDS(pH_monthly_vwmeans, out_path)
+
 ## Annual means #####
 log_info('also append annual means for trend analysis')
 n_annual_vwmeans <- chem_q_good %>%
@@ -611,8 +630,36 @@ n_annual_vwmeans <- chem_q_good %>%
 
 n_vwmeans <- full_join(n_monthly_vwmeans, n_annual_vwmeans)
 
+doc_annual_vwmeans <- chem_q_good %>%
+    group_by(site_code, var, water_year) %>%
+    summarize(Annual = mean(monthly_vwm_mgL, na.rm = TRUE)) %>%
+    ungroup() %>%
+    pivot_wider(
+        names_from = var,
+        values_from = Annual) %>%
+    rename(DOC_Annual = DOC)
+
+doc_vwmeans <- full_join(doc_monthly_vwmeans, doc_annual_vwmeans)
+
+#out_path <- here("data_working", "doc_annual_VWM.rds")
+#saveRDS(doc_vwmeans, out_path)
+
+pH_annual_vwmeans <- chem_q_good %>%
+    group_by(site_code, var, water_year) %>%
+    summarize(Annual = mean(monthly_vwm_mgL, na.rm = TRUE)) %>%
+    ungroup() %>%
+    pivot_wider(
+        names_from = var,
+        values_from = Annual) %>%
+    rename(pH_Annual = pH)
+
+pH_vwmeans <- full_join(pH_monthly_vwmeans, pH_annual_vwmeans)
+
+#out_path <- here("data_working", "pH_annual_VWM.rds")
+#saveRDS(pH_vwmeans, out_path)
+
 # Quick plots to make sure these appear to populate correctly.
-# ggplot(n_vwmeans %>%
+#ggplot(n_vwmeans %>%
 #            select(site_code:NH4_N_11) %>%
 #            filter(site_code == "w6") %>%
 #            pivot_longer(cols = NH4_N_12:NH4_N_11, names_to = "var_month"),
@@ -671,6 +718,27 @@ chem_seas_cq <- chem_q_data %>%
 #            mutate(water_year = factor(case_when(month %in% c(10, 11, 12) ~ year+1,
 #                                          TRUE ~ year))) %>%
 #            filter(site_code == "w6" & var == "NO3_N"),
+#        aes(x = log(q_Lsecha),
+#            y = log(val),
+#            color = water_year)) +
+#     geom_point() +
+#     geom_smooth(method = "lm", se = F) +
+#     theme_bw() +
+#     facet_wrap(.~season, scales = "free")
+
+# Check to see how things look: DOC
+# ggplot(chem_q_data %>%
+#            mutate(year = year(date),
+#                   month = month(date),
+#                   day = day(date)) %>%
+#            mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
+#                                      month %in% c(12,1,2) ~ "Winter",
+#                                      month %in% c(3,4,5) ~ "Spring",
+#                                      month %in% c(9,10,11) ~ "Fall",
+#                                      TRUE ~ NA)) %>%
+#            mutate(water_year = factor(case_when(month %in% c(10, 11, 12) ~ year+1,
+#                                          TRUE ~ year))) %>%
+#            filter(site_code == "w9" & var == "DOC"),
 #        aes(x = log(q_Lsecha),
 #            y = log(val),
 #            color = water_year)) +
