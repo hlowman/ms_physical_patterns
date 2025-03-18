@@ -4,19 +4,20 @@ source(here('src', 'setup.R'))
 
 # read in full q_metrics.R output
 #source(here('src', 'q_metrics.R'))
-metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS')) %>%
+metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds')) %>%
     distinct()
 
 # run full climate trends first
 clim_trends <- metrics %>%
-    select(-contains('date')) %>% # dates breaking math
-    pivot_longer(cols = -c('site_code', 'water_year'),
+    select(-contains('date'), -source) %>% # dates breaking math
+    pivot_longer(cols = -c('site_code', 'water_year', 'agg_code'),
                  names_to = 'var',
                  values_to = 'val') %>%
-    filter(var %in% c('temp_mean_ann', 'precip_mean_ann', 'gpp_conus')) %>%
+    filter(var %in% c('temp_mean', 'precip_mean', 'gpp_CONUS_30m_median'),
+           agg_code == 'annual') %>%
     distinct() %>%
-    reduce_to_longest_site_runs(., metric = 'temp_mean_ann') %>%
-    detect_trends(.,'full_prisim')
+    reduce_to_longest_site_runs(., metric = 'temp_mean') %>%
+    detect_trends(.)
 
 write_csv(clim_trends, here('data_working', 'trends', 'full_prisim_climate.csv'))
 
@@ -30,33 +31,31 @@ clim_trends %>%
 # make frame of all data during prism
 prism_site_run_trends_data <- metrics %>%
     select(-contains('date')) %>% # dates breaking math
-    select(site_code, water_year,
+    filter(agg_code == 'annual') %>%
+    select(site_code, water_year, agg_code,
            # climate
-           temp_mean_ann,
-           precip_mean_ann,
+           temp_mean,
+           precip_mean,
            p_q50_dowy_exceed = p50_dowy_exceed,
            p_n_days = ppt_days,
-           p_mean_intensity = precip_total_ann_days,
+           ppt_intensity_ratio,
            # hydro
            q_mean, q_ar1, q_rbi,
            q_q50_dowy_exceed = q50_exceed,
            runoff_ratio,
-           q_q25_oct = q25_oct,
            # in-stream
-           stream_temp_mean_ann,
-           stream_temp_min_winter,
-           stream_temp_mean_summer,
+           stream_temp_mean,
            # productivity
            gpp_conus = gpp_CONUS_30m_median) %>%
     #drop_na(temp_mean_ann, precip_mean_ann, q_mean) %>%
-    pivot_longer(cols = -c('site_code', 'water_year'),
+    pivot_longer(cols = -c('site_code', 'water_year', 'agg_code'),
                  names_to = 'var',
                  values_to = 'val') %>%
            filter(water_year >= prisim_year) %>%
     reduce_to_best_range(., metric = 'q_mean')
 
 # trend detection ####
-prism_site_run_trends <- detect_trends(prism_site_run_trends_data, 'site_run_prism')
+prism_site_run_trends <- detect_trends(prism_site_run_trends_data)
 
 # export
 #write_csv(prism_site_run_trends , here('data_working', 'trends', 'longest_site_run_prisim.csv'))
