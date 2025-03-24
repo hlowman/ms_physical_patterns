@@ -2,7 +2,7 @@
 # The following script will calculate the "magnificent 7"
 # discharge metrics (Archfield et al., 2014) as well as
 # the Richards-Baker Flashiness Index (Baker et al., 2004)
-# and some other annual temperature/climate metrics
+# and some other annual temperature/climate/chemistry metrics
 # for all MacroSheds sites.
 library(here)
 source(here('src', 'setup.R'))
@@ -22,7 +22,7 @@ q_data <- ms_load_product(
 log_info({nrow(q_data)}, ' rows of discharge data')
 
 ## Tidy ####
-# Filter out repeat measures detected (n = 3,741 or ~ 0.1%).
+# Filter out repeat measures detected.
 q_data_nodup <- dplyr::distinct(q_data, site_code,
                                 date, .keep_all = TRUE)
 
@@ -53,10 +53,11 @@ area <- ms_site_data %>%
 
 # And convert to mm/d.
 # --- Conversion equation ---
-# (L/s*ha) (1,000 m3s/Lps) * (86,400 s/d) * (1/10,000 ha/m2) * (1/1,000 mm/m) = 8.64 mm/d*ha
+# (L/s) * (86,400 s/d) * (0.001 m^3/L) * (1 / watershed area in ha) *
+# (1 ha/10,000 m^2) * (1,000 mm/1 m) = mm/d
 q_data_nointerp_scaled <- left_join(q_data_nointerp, area,
                                     by = c("site_code")) %>%
-  mutate(val_mmd = (val*86400*10000)/(ws_area_ha*100000000))
+  mutate(val_mmd = (val*86400)/(ws_area_ha*10000))
 
 ## Water Years ####
 
@@ -523,33 +524,29 @@ t_out <- t_ann %>%
 
 # STREAM CHEMISTRY ####
 
-# Note - this only works up nitrogen for now, but will likely
-# add DOC in here in the future.
+# First, going to read in core data for all chemistry.
 
 ##### read data #####
 chem_data <- ms_load_product(
     macrosheds_root = here(my_ms_dir),
-    prodname = "stream_chemistry",
-    filter_vars = c("NH4_N", "NO3_NO2_N", "TDN",
-                    "TPN", "NO3_N", "TN",
-                    "TIN", "NO2_N", "NH3_N",
-                    "TDKN", "TKN", "N2O",
-                    "NO3_NO2_N", "NH3_NH4_N"), warn = F) %>%
-    # remove interpolated values
-    filter(ms_interp == 0)
+    prodname = "stream_chemistry", warn = F)
 
 # note - ms_calc_vwc has been deprecated from the most recent
 # version of the macrosheds package
-# so, hard-coding the calculation of volume-weighted mean
-# monthly concentrations below
+# so, hard-coding the calculation of volume-weighted conc below
 
 # Now, join with q data.
+# Leaving in Liters per second per hectare since many chem data
+# values are expressed in milligrams per Liter.
 q_data_scaled$q_Lsecha <- q_data_scaled$val/q_data_scaled$ws_area_ha
 
 q_trim <- q_data_scaled %>%
-    select(date, site_code, ws_area_ha, q_Lsecha)
+    select(date, month, year, water_year,
+           site_code, ws_area_ha, q_Lsecha)
 
 chem_q_data <- left_join(chem_data, q_trim)
+
+#### Nitrogen ####
 
 # And convert to volume-weight mean concentrations,
 # on a monthly basis.
@@ -625,7 +622,7 @@ if(length(sites_lost > 0)){
 #     mutate(monthly_mean_flux_kgdh = (monthly_vwm_mgL*monthly_mean_q_Ldh)/1000,
 #            monthly_sum_flux_kgh = (monthly_vwm_mgL*monthly_sum_q_Lh)/1000)
 
-## Monthly means #####
+###### Season means #####
 log_info('widen dataset for trend analysis')
 n_monthly_vwmeans <- chem_q_good %>%
     select(site_code, var, water_year, month, monthly_vwm_mgL) %>%
@@ -635,7 +632,7 @@ n_monthly_vwmeans <- chem_q_good %>%
     mutate(agg_code = as.character(as.integer(month))) %>%
     select(-month)
 
-## Annual means #####
+###### Annual means #####
 log_info('also append annual means for trend analysis')
 n_annual_vwmeans <- chem_q_good %>%
     group_by(site_code, var, water_year) %>%
@@ -660,61 +657,11 @@ n_vwmeans <- full_join(n_monthly_vwmeans, n_annual_vwmeans)
 #     theme(legend.position = "none") +
 #     facet_wrap(.~var_month, scales = "free")
 
-## CQ slopes #####
-# Calculating seasonal CQ slopes since annual ones will have their
-# signal swamped.
-chem_seas_cq <- chem_q_data %>%
-    # Create temporal columns for later grouping.
-    mutate(year = year(date),
-           month = month(date),
-           day = day(date)) %>%
-    mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
-                              month %in% c(12,1,2) ~ "Winter",
-                              month %in% c(3,4,5) ~ "Spring",
-                              month %in% c(9,10,11) ~ "Fall")) %>%
-    # Add water year
-    mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
-                                  TRUE ~ year)) %>%
-    # Drop NAs that won't compute.
-    drop_na(q_Lsecha) %>%
-    # Calculate log-scaled concentration and discharge.
-    mutate(log_conc = log(val),
-           log_q = log(q_Lsecha)) %>%
-    # Also drop -Inf that won't compute
-    filter(log_conc != -Inf) %>%
-    filter(log_q != -Inf) %>%
-    # Now impose groupings.
-    group_by(site_code, var, water_year, season) %>%
-    # Estimate CQ slopes and intercepts.
-    summarize(cq_slope = coef(lm(log_conc~log_q))[[2]],
-              cq_int = coef(lm(log_conc~log_q))[[1]],
-              n_cq_obs = n()) %>%
-    ungroup() %>%
-    rename(agg_code = season)
+#### DOC ####
 
-# Check to see how things look.
-# ggplot(chem_q_data %>%
-#            mutate(year = year(date),
-#                   month = month(date),
-#                   day = day(date)) %>%
-#            mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
-#                                      month %in% c(12,1,2) ~ "Winter",
-#                                      month %in% c(3,4,5) ~ "Spring",
-#                                      month %in% c(9,10,11) ~ "Fall",
-#                                      TRUE ~ NA)) %>%
-#            mutate(water_year = factor(case_when(month %in% c(10, 11, 12) ~ year+1,
-#                                          TRUE ~ year))) %>%
-#            filter(site_code == "w6" & var == "NO3_N"),
-#        aes(x = log(q_Lsecha),
-#            y = log(val),
-#            color = water_year)) +
-#     geom_point() +
-#     geom_smooth(method = "lm", se = F) +
-#     theme_bw() +
-#     facet_wrap(.~season, scales = "free")
-chem_out <- n_annual_vwmeans %>%
-    full_join(n_monthly_vwmeans) %>%
-    full_join(chem_seas_cq)
+##### Season means #####
+
+##### Annual means #####
 
 # PRODUCTIVITY ####
 ## read data ####
