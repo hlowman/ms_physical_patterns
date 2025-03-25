@@ -538,11 +538,13 @@ chem_data <- ms_load_product(
 # Now, the discharge (q) data.
 # Leaving in Liters per second per hectare since many chem data
 # values are expressed in milligrams per Liter.
-q_data_scaled$q_Lsecha <- q_data_scaled$val/q_data_scaled$ws_area_ha
+
+# Do not need to scale discharge to watershed area because it
+# cancels out - instead we do this after calculating VWMs.
 
 q_trim <- q_data_scaled %>%
     select(date, month, year, water_year,
-           site_code, ws_area_ha, q_Lsecha)
+           site_code, ws_area_ha, val) # val in L/second
 
 #### Nitrogen ####
 
@@ -598,17 +600,18 @@ n_q_data <- n_q_data %>%
 # on a monthly basis.
 n_q_vwm_month <- n_q_data %>%
     # Calculate instantaneous C*Q.
-    mutate(c_q_instant = val_dailymean*q_Lsecha) %>%
+    mutate(c_q_instant = val_dailymean*val) %>%
     # And drop rows that yield NA values.
     drop_na(c_q_instant) %>%
     # Now impose groupings.
-    group_by(site_code, analyte_N, water_year, month) %>%
+    group_by(site_code, ws_area_ha, analyte_N, water_year, month) %>%
     # Calculate mean seasonal volume weighted concentrations.
     summarize(monthly_vwm_mgL = (sum(c_q_instant,
-                                      na.rm = TRUE))/(sum(q_Lsecha,
+                                      na.rm = TRUE))/(sum(val,
                                                           na.rm = TRUE)),
               n_of_obs_chem = n()) %>%
-    ungroup()
+    ungroup() %>%
+    mutate(monthly_vwm_mgLha = monthly_vwm_mgL/ws_area_ha)
 
 log_info({nrow(n_q_vwm_month)}, ' rows of monthly vwm N chemistry data')
 
