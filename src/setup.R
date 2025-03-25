@@ -36,9 +36,9 @@ library(foreach)
 
 # data pointing ####
 # download the ms dataset to your data_raw folder and update the script here
-rdata_path <- "data_raw/ms" # updated path
 
-my_ms_dir <- "data_raw/ms"
+rdata_path <- "data_raw/ms/v2" # updated path
+my_ms_dir <- "data_raw/ms/v2"
 
 ms_site_data <- ms_load_sites()
 ms_ws_attr <- read_feather('data_raw/ms/v2/watershed_summaries.feather')
