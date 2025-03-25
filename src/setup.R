@@ -33,8 +33,10 @@ library(sf)
 library(feather)
 library(logger)
 library(foreach)
+
 # data pointing ####
 # download the ms dataset to your data_raw folder and update the script here
+
 rdata_path <- "data_raw/ms/v2" # updated path
 my_ms_dir <- "data_raw/ms/v2"
 
@@ -92,8 +94,7 @@ frequency_check <- function(data_in){
     return(freq_check)
 }
 
-# reduces long data frame to only contain years within the longest run of a given parameter for site
-# for example, cut all remote sensed data to year longest year range we have q data
+
 reduce_to_longest_site_runs <- function(data_in, metric){
     # initialize output
     out_frame <- tibble(site_code = as.character(),
@@ -352,3 +353,4 @@ add_flags <- function(data_in){
                !is.na(flag))
     return(data_out)
 }
+
