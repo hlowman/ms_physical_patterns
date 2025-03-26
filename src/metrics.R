@@ -522,6 +522,11 @@ t_out <- t_ann %>%
     full_join(t_season) %>%
     select(-month)
 
+# PRECIP CHEMISTRY ####
+precip_data <- ms_load_product(
+    macrosheds_root = here(my_ms_dir),
+    prodname = "precip_chemistry", warn = F)
+
 # STREAM CHEMISTRY ####
 
 # First, going to read in core data for all chemistry.
@@ -529,7 +534,6 @@ t_out <- t_ann %>%
 ##### read data #####
 chem_data <- ms_load_product(
     macrosheds_root = here(my_ms_dir),
-  
    # prodname = "stream_chemistry",
    # filter_vars = c("NH4_N", "NO3_NO2_N", "TDN",
    #                 "TPN", "NO3_N", "TN",
@@ -537,9 +541,9 @@ chem_data <- ms_load_product(
    #                 "TDKN", "TKN", "N2O",
    #                 "NO3_NO2_N", "NH3_NH4_N",
    #                 "DOC","pH"), warn = F) %>%
+    prodname = "stream_chemistry", warn = F) %>%
     # remove interpolated values
-   # filter(ms_interp == 0)
-    prodname = "stream_chemistry", warn = F)
+    filter(ms_interp == 0)
 
 # note - ms_calc_vwc has been deprecated from the most recent
 # version of the macrosheds package
@@ -570,9 +574,7 @@ n_data <- chem_data %>%
                       "NH4_N", "NH3_N", "NH3_NH4_N",
                       "TDN", "TPN", "TN")) %>%
     # remove NAs
-    drop_na(val) %>%
-    # and remove interpolated values
-    filter(ms_interp == 0)
+    drop_na(val)
 
 # Make uniform names for analytes
 n_data <- n_data %>%
@@ -623,7 +625,7 @@ n_q_vwm_month <- n_q_data %>%
     ungroup() %>%
     mutate(monthly_vwm_mgLha = monthly_vwm_mgL/ws_area_ha)
 
-#log_info({nrow(chem_q_vwm)}, ' rows of stream vwm chemistry data')
+log_info({nrow(n_q_vwm_month)}, ' rows of monthly vwm N chemistry data')
 # want at least biweekly sampling for 10 months of the year
 #log_info('performing freq check on stream vwm chemistry')
 
@@ -647,17 +649,18 @@ n_q_vwm_month <- n_q_data %>%
 # on a seasonal basis.
 n_q_vwm_seas <- n_q_data %>%
     # Calculate instantaneous C*Q.
-    mutate(c_q_instant = val_dailymean*q_Lsecha) %>%
+    mutate(c_q_instant = val_dailymean*val) %>%
     # And drop rows that yield NA values.
     drop_na(c_q_instant) %>%
     # Now impose groupings.
-    group_by(site_code, analyte_N, season_year, season) %>%
+    group_by(site_code, ws_area_ha, analyte_N, season_year, season) %>%
     # Calculate mean seasonal volume weighted concentrations.
     summarize(seasonal_vwm_mgL = (sum(c_q_instant,
-                                      na.rm = TRUE))/(sum(q_Lsecha,
+                                      na.rm = TRUE))/(sum(val,
                                                           na.rm = TRUE)),
               n_of_obs_chem = n()) %>%
-    ungroup()
+    ungroup() %>%
+    mutate(seasonal_vwm_mgLha = seasonal_vwm_mgL/ws_area_ha)
 
 log_info({nrow(n_q_vwm_seas)}, ' rows of seasonal vwm N chemistry data')
 
@@ -708,7 +711,28 @@ log_info({nrow(n_q_vwm_seas)}, ' rows of seasonal vwm N chemistry data')
 #     select(-month)
 
 ###### Annual means #####
+log_info('also append annual means for trend analysis')
 
+# And convert to volume-weighted mean concentrations,
+# on an annual basis.
+n_q_vwm_ann <- n_q_data %>%
+    # Calculate instantaneous C*Q.
+    mutate(c_q_instant = val_dailymean*val) %>%
+    # And drop rows that yield NA values.
+    drop_na(c_q_instant) %>%
+    # Now impose groupings.
+    group_by(site_code, ws_area_ha, analyte_N, water_year) %>%
+    # Calculate mean annual volume weighted concentrations.
+    summarize(annual_vwm_mgL = (sum(c_q_instant,
+                                    na.rm = TRUE))/(sum(val,
+                                                        na.rm = TRUE)),
+              n_of_obs_chem = n()) %>%
+    ungroup() %>%
+    mutate(annual_vwm_mgLha = annual_vwm_mgL/ws_area_ha)
+
+log_info({nrow(n_q_vwm_ann)}, ' rows of annual vwm N chemistry data')
+
+# end of nitrogen calculations
 
 doc_monthly_vwmeans <- chem_q_good %>%
     select(site_code, var, water_year, month, monthly_vwm_mgL) %>%
@@ -727,29 +751,6 @@ pH_monthly_vwmeans <- chem_q_good %>%
 
 #out_path <- here("data_working", "pH_monthly_VWM.rds")
 #saveRDS(pH_monthly_vwmeans, out_path)
-
-## Annual means #####
-
-
-log_info('also append annual means for trend analysis')
-
-# And convert to volume-weighted mean concentrations,
-# on an annual basis.
-n_q_vwm_ann <- n_q_data %>%
-    # Calculate instantaneous C*Q.
-    mutate(c_q_instant = val_dailymean*q_Lsecha) %>%
-    # And drop rows that yield NA values.
-    drop_na(c_q_instant) %>%
-    # Now impose groupings.
-    group_by(site_code, analyte_N, water_year) %>%
-    # Calculate mean annual volume weighted concentrations.
-    summarize(annual_vwm_mgL = (sum(c_q_instant,
-                                    na.rm = TRUE))/(sum(q_Lsecha,
-                                                        na.rm = TRUE)),
-              n_of_obs_chem = n()) %>%
-    ungroup()
-
-log_info({nrow(n_q_vwm_ann)}, ' rows of annual vwm N chemistry data')
 
 # n_vwmeans <- full_join(n_monthly_vwmeans, n_annual_vwmeans)
 
@@ -780,18 +781,6 @@ pH_vwmeans <- full_join(pH_monthly_vwmeans, pH_annual_vwmeans)
 
 #out_path <- here("data_working", "pH_annual_VWM.rds")
 #saveRDS(pH_vwmeans, out_path)
-
-# Quick plots to make sure these appear to populate correctly.
-#ggplot(n_vwmeans %>%
-#            select(site_code:NH4_N_11) %>%
-#            filter(site_code == "w6") %>%
-#            pivot_longer(cols = NH4_N_12:NH4_N_11, names_to = "var_month"),
-#        aes(x = water_year, y = value)) +
-#     geom_point() +
-#     geom_line() +
-#     theme_bw() +
-#     theme(legend.position = "none") +
-#     facet_wrap(.~var_month, scales = "free")
 
 #### DOC ####
 
