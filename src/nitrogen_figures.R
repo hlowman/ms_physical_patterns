@@ -4,7 +4,9 @@
 # The following script will create sequential
 # figures for use in Heili's 2024 AGU talk to
 # discuss MacroSheds as a project as well as
-# annual & monthly nitrogen trends
+# annual & monthly nitrogen trends.
+
+# It will also create figures for the N manuscript.
 
 #### Load packages ####
 library(here)
@@ -14,6 +16,7 @@ source(here('src', 'setup.R'))
 
 #### Load data ####
 
+# Datasets for AGU figures:
 # Annual
 # All sites for which we could calculate annual VWM
 n_annual_vwm <- readRDS("data_working/nitrogen_annual_VWM.rds")
@@ -31,6 +34,11 @@ n_monthly_vwm_filtered <- readRDS("data_working/nitrogen_monthly_VWM_good.rds")
 
 # As well as monthly trends.
 n_monthly_trends <- readRDS("data_working/nitrogen_monthly_trends.rds")
+
+# Datasets for manuscript figures:
+# Annual
+# All sites and analytes for which we could calculate annual VWMs
+N_VWM_annual <- readRDS("data_working/N_VWM_annual.rds")
 
 #### Figures ####
 
@@ -775,5 +783,136 @@ prod_trim_annual <- prod %>%
 #        height = 25,
 #        width = 15,
 #        units = "cm")
+
+#### Manuscript Figs ####
+
+##### Data Availability #####
+
+# Below, we need to figure out a way to display the
+# relative coverage of the different analytes, their
+# annual VWM concentrations, and the relative certainty
+# of these estimates (i.e., no. of observations per site).
+
+# Calculate means of VWM concentrations & number of obs.
+mean_N_VWM_annual <- N_VWM_annual %>%
+    group_by(site_code, analyte_N) %>%
+    summarize(mean_annual_VWM_mgLha = mean(annual_vwm_mgLha,
+                                           na.rm = TRUE),
+              mean_annual_obs = mean(n_of_obs_chem,
+                                     na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup()
+
+# Test figure.
+# Set color legend break points.
+my_breaks <- c(1, 10, 50)
+
+(summaryfig1 <- ggplot(mean_N_VWM_annual,
+                      aes(x = mean_annual_VWM_mgLha,
+                          y = analyte_N,
+                          fill = mean_annual_obs,
+                          size = total_years)) +
+    geom_jitter(width = 0.05, alpha = 0.9, shape = 21) +
+    scale_fill_gradientn(colors = c("white", "#FAB455",
+                                    "#69B9FA", "#59A3F8",
+                                    "#4B9FF7", "#045CB4", "black"),
+                          trans = "log",
+                         breaks = my_breaks, labels = my_breaks) +
+    scale_size_continuous(breaks = my_breaks) +
+    scale_x_log10() +
+    facet_grid(analyte_N~., scales = "free") +
+    labs(x = "Mean Annual Concentration (mg/L*ha)",
+         y = "Analyte",
+         fill = "Mean No. of Annual Observations",
+         size = "Record Length (yrs)") +
+    theme_bw() +
+    theme(strip.text.y = element_blank(),
+          legend.position = "top"))
+
+# ggsave(summaryfig1,
+#        filename = "figures/summaryfig_allN.jpeg",
+#        height = 20,
+#        width = 20,
+#        units = "cm")
+
+site_counts <- mean_N_VWM_annual %>%
+    count(analyte_N)
+
+(summaryfig2 <- ggplot(N_VWM_annual,
+                       aes(x = water_year,
+                           y = site_code)) +
+        geom_line() +
+        facet_grid(.~analyte_N, scales = "free") +
+        labs(x = "Year",
+             y = "Site") +
+        theme_bw() +
+        theme(axis.text.y = element_blank()))
+
+ts_counts <- N_VWM_annual %>%
+    count(analyte_N, water_year)
+
+(summaryfig3 <- ggplot(ts_counts,
+                       aes(x = water_year,
+                           y = n)) +
+        geom_line() +
+        facet_grid(.~analyte_N) +
+        labs(x = "Year",
+             y = "Site No.") +
+        theme_bw())
+
+# ggsave(summaryfig3,
+#        filename = "figures/summaryfig_ts_sitecounts.jpeg",
+#        height = 10,
+#        width = 30,
+#        units = "cm")
+
+# Calculate means of VWM concentrations & number of obs.
+# BUT FILTER DOWN TO 2010-2020
+mean_N_VWM_annual20 <- N_VWM_annual %>%
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021) %>%
+    group_by(site_code, analyte_N) %>%
+    summarize(mean_annual_VWM_mgLha = mean(annual_vwm_mgLha,
+                                           na.rm = TRUE),
+              mean_annual_obs = mean(n_of_obs_chem,
+                                     na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup()
+
+# Test figure.
+# Set color legend break points.
+color_breaks <- c(1, 10, 50)
+size_breaks <- c(1,5,10)
+
+(summaryfig4 <- ggplot(mean_N_VWM_annual20,
+                       aes(x = mean_annual_VWM_mgLha,
+                           y = analyte_N,
+                           fill = mean_annual_obs,
+                           size = total_years)) +
+        geom_jitter(width = 0.05, alpha = 0.9, shape = 21) +
+        scale_fill_gradientn(colors = c("white", "#FAB455",
+                                        "#69B9FA", "#59A3F8",
+                                        "#4B9FF7", "#045CB4", "black"),
+                             trans = "log",
+                             breaks = color_breaks, labels = color_breaks) +
+        scale_size_continuous(breaks = size_breaks) +
+        scale_x_log10() +
+        facet_grid(analyte_N~., scales = "free") +
+        labs(x = "Mean Annual Concentration (mg/L*ha)",
+             y = "Analyte",
+             fill = "Mean No. of Annual Observations",
+             size = "Record Length (yrs)") +
+        theme_bw() +
+        theme(strip.text.y = element_blank(),
+              legend.position = "top"))
+
+# ggsave(summaryfig4,
+#        filename = "figures/summaryfig_N_2010_to_2020.jpeg",
+#        height = 20,
+#        width = 20,
+#        units = "cm")
+
+site_counts20 <- mean_N_VWM_annual20 %>%
+    count(analyte_N)
 
 # End of script.
