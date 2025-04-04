@@ -543,7 +543,9 @@ chem_data <- ms_load_product(
    #                 "DOC","pH"), warn = F) %>%
     prodname = "stream_chemistry", warn = F) %>%
     # remove interpolated values
-    filter(ms_interp == 0)
+    filter(ms_interp == 0) %>%
+    # remove missing values
+    drop_na(val)
 
 # note - ms_calc_vwc has been deprecated from the most recent
 # version of the macrosheds package
@@ -570,11 +572,10 @@ q_trim <- q_data_scaled %>%
 n_data <- chem_data %>%
     # select for variables of interest
     # focusing on nitrate, ammonium, and total N
-    filter(var %in% c("NO3_NO2_N", "NO3_N",
-                      "NH4_N", "NH3_N", "NH3_NH4_N",
-                      "TDN", "TPN", "TN")) %>%
-    # remove NAs
-    drop_na(val)
+    filter(var %in% c("NO3_NO2_N", "NO3_N", "NO2_N",
+                      "NH3_NH4_N", "NH4_N", "NH3_N",
+                      "TDN", "TPN", "TN", "TIN",
+                      "TDKN", "TKN", "N2O")) # skipping "d15N_NO3"
 
 # Make uniform names for analytes
 n_data <- n_data %>%
@@ -583,6 +584,8 @@ n_data <- n_data %>%
                                             "NH3_NH4_N") ~ "NH3_N",
                                  var %in% c("NO3_N",
                                             "NO3_NO2_N") ~ "NO3_N",
+                                 var %in% c("TDKN",
+                                            "TKN") ~ "TKN",
                                  TRUE ~ var))
 
 # Calculate daily means
@@ -605,6 +608,10 @@ n_q_data <- n_q_data %>%
                               month(date) %in% c(6,7,8) ~ "Summer")) %>%
     mutate(season_year = case_when(month(date) == 9 ~ water_year + 1,
                                    TRUE ~ water_year))
+
+# Note, the value in the water_year column will be missing
+# if there's no discharge, but that's ok, since those values
+# won't be included in CQ calculations anyway.
 
 ###### Monthly means #####
 
@@ -732,7 +739,11 @@ n_q_vwm_ann <- n_q_data %>%
 
 log_info({nrow(n_q_vwm_ann)}, ' rows of annual vwm N chemistry data')
 
-# end of nitrogen calculations
+#### Export VWM N data ####
+
+saveRDS(n_q_vwm_month, "data_working/N_VWM_monthly.rds")
+saveRDS(n_q_vwm_seas, "data_working/N_VWM_seasonal.rds")
+saveRDS(n_q_vwm_ann, "data_working/N_VWM_annual.rds")
 
 doc_monthly_vwmeans <- chem_q_good %>%
     select(site_code, var, water_year, month, monthly_vwm_mgL) %>%
