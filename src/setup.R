@@ -192,6 +192,92 @@ output <- rbind(output, inner)
 return(output)
 }   # end function
 
+# writing new generic function that reduces long data frame to min. 10 years
+# of data with at least 60% coverage of a given parameter
+# not filtering by number of observations per unit of time currently
+# need to figure out how to notate confidence intervals on the back end
+gen_reduce_to_best_range <- function(data_in,
+                                     solute,
+                                     max_missing = 0.4) {
+
+    output <- head(data_in, n = 0) # sets up column names
+
+    max_missing <- max_missing # sets maximum allowable missingness
+    target_analyte <- solute # sets analyte of interest
+
+    for (h in unique(data_in$timestep)) { # flips through timesteps
+
+        target_timestep <- h
+
+    for (i in unique(data_in$site_code)){ # flips through sites
+
+        target_site <- i
+
+        data <- data_in %>%
+            filter(site_code == target_site, # selects for site of interest
+                   analyte == target_analyte, # selects analyte of interest
+                   timestep == target_timestep) %>% # selects for timestep of interest
+            distinct() %>% # removes duplicates
+            na.omit() # drops rows containing NAs (e.g., all McMurdo sites)
+
+        if(nrow(data) > 9){ # since trends need a minimum of 10 years
+
+            year_seq <- seq(min(data$water_year), max(data$water_year)) # makes list of years
+            df <- tibble(water_year = year_seq, is_present = year_seq %in% data$water_year)%>%
+                mutate(group = cumsum(lag(is_present == FALSE, default = FALSE)))
+            # makes column of all possible years, another column of whether it has data,
+            # and a third column that creates a new column to denote missing years as a group
+
+            # Initialize variables to track the best range
+            best_start <- NA
+            best_end <- NA
+            longest_length <- 0
+
+            # Loop through all possible starting and ending points
+            for (start_idx in seq_along(df$water_year)) {
+                for (end_idx in start_idx:length(df$water_year)) {
+
+                    # Extract the subrange of years
+                    subrange <- df[start_idx:end_idx, ]
+
+                    # Calculate the percentage of missing years
+                    total_years <- nrow(subrange)
+                    missing_years <- sum(!subrange$is_present) # sums FALSEs
+                    missing_pct <- missing_years / total_years
+
+                    # If the missing percentage is below the threshold
+                    # and the range is longer, update
+                    # else it will move on to the next time series length
+                    if (missing_pct <= max_missing && total_years > longest_length) {
+                        longest_length <- total_years
+                        best_start <- subrange$water_year[1]
+                        best_end <- subrange$water_year[nrow(subrange)]
+                    } # end if
+                } # end start index
+            } # end end index
+
+            inner <- data %>% # THIS IS WHAT CAUSED THE ISSUES ARGH!!
+                filter(water_year %in% best_start:best_end) # and select only WY in best range
+
+            output <- rbind(output, inner) # bind this result to the original column names
+
+        }else{ # if there is <= 9 years of data
+
+            inner <- head(data) %>%
+                add_case(site_code = target_site) # adds row of NAs
+
+            output <- rbind(output, inner) # keeps all records
+
+            } # end 10 year data check
+
+        } # end for loop for sites
+
+    } # end for loop for different timesteps
+
+    return(output)
+
+}   # end function
+
 ## TRENDS #####
 
 # detect trends does the actual sen's slope testing
