@@ -196,20 +196,18 @@ return(output)
 # of data with at least 60% coverage of a given parameter
 # not filtering by number of observations per unit of time currently
 # need to figure out how to notate confidence intervals on the back end
-gen_reduce_to_best_range <- function(data_in,
-                                     solute,
-                                     aggregation,
-                                     max_missing = 0.4) {
+gen_reduce_to_best_range <- function(data_in, # core data set
+                                     solute, # solute of interest
+                                     pair_data = 'NO', # whether other data should be cut to solute of interest
+                                     aggregation, # timestep of data aggregation
+                                     max_missing = 0.4) { # maximum missingness allowed in a time series
 
     output <- head(data_in, n = 0) # sets up column names
 
     max_missing <- max_missing # sets maximum allowable missingness
     target_analyte <- solute # sets analyte of interest
     target_aggregation <- aggregation # sets aggregation of interest
-
-    #for (h in unique(data_in$timestep)) { # flips through timesteps
-
-        #target_timestep <- h
+    target_pairing <- pair_data # sets pairing rule
 
     for (i in unique(data_in$site_code)){ # flips through sites
 
@@ -258,23 +256,32 @@ gen_reduce_to_best_range <- function(data_in,
                 } # end start index
             } # end end index
 
-            inner <- data %>% # THIS IS WHAT CAUSED THE ISSUES ARGH!!
-                filter(water_year %in% best_start:best_end) # and select only WY in best range
+            if(target_pairing == "NO"){ # This is if you only want one analyte's output.
+
+            inner <- data %>% # Pre-filtered to analyte of interest
+                filter(water_year %in% best_start:best_end) # and select only WY in best range.
+
+            }else{ # This is if you want other analytes trimmed to the superior one.
+
+            inner <- data_in %>% # Include all possible chem data,
+                filter(site_code == target_site, # select site of interest,
+                       timestep == target_aggregation, # select aggregation of interest,
+                       water_year %in% best_start:best_end) # and select only WY in best range.
+
+            }
 
             output <- rbind(output, inner) # bind this result to the original column names
 
         }else{ # if there is <= 9 years of data
 
-            inner <- head(data) %>%
-                add_case(site_code = target_site) # adds row of NAs
+            inner <- head(data) %>% # Pre-filtered to analyte of interest and
+                add_case(site_code = target_site) # adds row of NAs.
 
             output <- rbind(output, inner) # keeps all records
 
             } # end 10 year data check
 
         } # end for loop for sites
-
-    #} # end for loop for different timesteps
 
     return(output)
 
