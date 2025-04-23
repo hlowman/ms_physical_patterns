@@ -198,16 +198,18 @@ return(output)
 # need to figure out how to notate confidence intervals on the back end
 gen_reduce_to_best_range <- function(data_in,
                                      solute,
+                                     aggregation,
                                      max_missing = 0.4) {
 
     output <- head(data_in, n = 0) # sets up column names
 
     max_missing <- max_missing # sets maximum allowable missingness
     target_analyte <- solute # sets analyte of interest
+    target_aggregation <- aggregation # sets aggregation of interest
 
-    for (h in unique(data_in$timestep)) { # flips through timesteps
+    #for (h in unique(data_in$timestep)) { # flips through timesteps
 
-        target_timestep <- h
+        #target_timestep <- h
 
     for (i in unique(data_in$site_code)){ # flips through sites
 
@@ -216,7 +218,7 @@ gen_reduce_to_best_range <- function(data_in,
         data <- data_in %>%
             filter(site_code == target_site, # selects for site of interest
                    analyte == target_analyte, # selects analyte of interest
-                   timestep == target_timestep) %>% # selects for timestep of interest
+                   timestep == target_aggregation) %>% # selects for timestep of interest
             distinct() %>% # removes duplicates
             na.omit() # drops rows containing NAs (e.g., all McMurdo sites)
 
@@ -272,7 +274,7 @@ gen_reduce_to_best_range <- function(data_in,
 
         } # end for loop for sites
 
-    } # end for loop for different timesteps
+    #} # end for loop for different timesteps
 
     return(output)
 

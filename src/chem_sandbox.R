@@ -50,6 +50,8 @@ n_q_vwm <- full_join(n_q_vwm_ann, n_q_vwm_month)
 n_q_vwm <- full_join(n_q_vwm, n_q_vwm_seas)
 
 # Testing only pulling out TDN data.
-tdn_data <- gen_reduce_to_best_range(data_in = n_q_vwm, solute = 'TDN')
+tdn_data <- gen_reduce_to_best_range(data_in = n_q_vwm,
+                                     solute = 'TDN',
+                                     aggregation = 'June')
 
 # End of script.
