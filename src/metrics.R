@@ -534,13 +534,6 @@ precip_data <- ms_load_product(
 ##### read data #####
 chem_data <- ms_load_product(
     macrosheds_root = here(my_ms_dir),
-   # prodname = "stream_chemistry",
-   # filter_vars = c("NH4_N", "NO3_NO2_N", "TDN",
-   #                 "TPN", "NO3_N", "TN",
-   #                 "TIN", "NO2_N", "NH3_N",
-   #                 "TDKN", "TKN", "N2O",
-   #                 "NO3_NO2_N", "NH3_NH4_N",
-   #                 "DOC","pH"), warn = F) %>%
     prodname = "stream_chemistry", warn = F) %>%
     # remove interpolated values
     filter(ms_interp == 0) %>%
@@ -594,8 +587,22 @@ n_daily <- n_data %>%
     summarize(val_dailymean = mean(val, na.rm = TRUE)) %>%
     ungroup()
 
+# And create a new DIN category that sums together
+# if there is BOTH a NH4/NH3 record and a NO3 record
+n_daily_wide <- n_daily %>%
+    pivot_wider(names_from = analyte_N, values_from = val_dailymean) %>%
+    mutate(DIN = case_when(is.na(NH3_N) == FALSE &
+                               is.na(NO3_N) == FALSE ~ NH3_N + NO3_N,
+                           is.na(NH3_N) == TRUE |
+                               is.na(NO3_N) == TRUE ~ NA))
+
+n_daily_long <- n_daily_wide %>%
+    pivot_longer(cols = NH3_N:DIN) %>%
+    rename(analyte_N = name,
+           val_dailymean = value)
+
 # And join with daily discharge data
-n_q_data <- left_join(n_daily, q_trim)
+n_q_data <- left_join(n_daily_long, q_trim)
 
 # Since the fall season (Sep-Nov) overlaps the WY
 # designation, we've decided to roll back a month
@@ -634,21 +641,6 @@ n_q_vwm_month <- n_q_data %>%
 
 log_info({nrow(n_q_vwm_month)}, ' rows of monthly vwm N chemistry data')
 # want at least biweekly sampling for 10 months of the year
-#log_info('performing freq check on stream vwm chemistry')
-
-#freq_check_chem <- chem_q_vwm %>%
-#    mutate(site_wyear = paste0(site_code, '_', water_year)) %>%
-    # 2,971 site-years remaining at 184 sites (note, across all analytes)
-    # minimum 2 samples per month
-#    filter(n_days_of_obs_chem >= 1) %>%
-    # 2,855 site-years remaining at 182 sites (again across all analytes)
-    # This drops to 2,199 site-years at 164 sites if we bump to 4 samples/month
-#    group_by(site_code, water_year, site_wyear, var) %>%
- #   summarize(n = n()) %>%
-    # minimum 10 months per year
-#    filter(n >= 10)
-    # now 1,197 site-years remaining at 106 sites
-#log_info({nrow(n_q_vwm_month)}, ' rows of monthly vwm N chemistry data')
 
 ###### Seasonal means #####
 
@@ -670,52 +662,7 @@ n_q_vwm_seas <- n_q_data %>%
     mutate(seasonal_vwm_mgLha = seasonal_vwm_mgL/ws_area_ha)
 
 log_info({nrow(n_q_vwm_seas)}, ' rows of seasonal vwm N chemistry data')
-
-# log_info('performing freq check on stream N vwm chemistry')
-#
-# freq_check_chem <- chem_q_vwm %>%
-#     mutate(site_wyear = paste0(site_code, '_', water_year)) %>%
-#     # 2,971 site-years remaining at 184 sites (note, across all analytes)
-#     # minimum 2 samples per month
-#     filter(n_days_of_obs_chem >= 2) %>%
-#     # 2,855 site-years remaining at 182 sites (again across all analytes)
-#     # This drops to 2,199 site-years at 164 sites if we bump to 4 samples/month
-#     group_by(site_code, water_year, site_wyear, var) %>%
-#     summarize(n = n()) %>%
-#     # minimum 10 months per year
-#     filter(n >= 10)
-#     # now 1,197 site-years remaining at 106 sites
-#
-# chem_q_good <- chem_q_vwm %>%
-#     mutate(season = case_when(month %in% c(6,7,8) ~ "Summer",
-#                               month %in% c(12,1,2) ~ "Winter",
-#                               month %in% c(3,4,5) ~ "Spring",
-#                               month %in% c(9,10,11) ~ "Fall")) %>%
-#     right_join(., freq_check_chem,
-#                by = c('site_code',
-#                       'var',
-#                       'water_year')) %>%
-#     na.omit()
-#
-# log_info({nrow(chem_q_vwm) - nrow(chem_q_good)}, ' rows of stream vwm chem data removed during freq check')
-#
-# sites_lost <- chem_q_vwm %>%
-#     select(site_code) %>%
-#     distinct() %>%
-#     dplyr::filter(!site_code %in% unique(chem_q_good$site_code))
-#
-# if(length(sites_lost > 0)){
-#     log_warn({nrow(sites_lost)}, ' sites lost in stream vwm chem freq check')
-# }
-#
-# log_info('widen dataset for trend analysis')
-# n_monthly_vwmeans <- chem_q_good %>%
-#     select(site_code, var, water_year, month, monthly_vwm_mgL) %>%
-#     pivot_wider(
-#         names_from = var,
-#         values_from = monthly_vwm_mgL) %>%
-#     mutate(agg_code = as.character(as.integer(month))) %>%
-#     select(-month)
+# ideally want at least two samples per season (i.e., every 3 months)
 
 ###### Annual means #####
 log_info('also append annual means for trend analysis')
@@ -745,6 +692,10 @@ saveRDS(n_q_vwm_month, "data_working/N_VWM_monthly.rds")
 saveRDS(n_q_vwm_seas, "data_working/N_VWM_seasonal.rds")
 saveRDS(n_q_vwm_ann, "data_working/N_VWM_annual.rds")
 
+#### DOC ####
+
+##### Monthly means #####
+
 doc_monthly_vwmeans <- chem_q_good %>%
     select(site_code, var, water_year, month, monthly_vwm_mgL) %>%
     pivot_wider(
@@ -763,7 +714,7 @@ pH_monthly_vwmeans <- chem_q_good %>%
 #out_path <- here("data_working", "pH_monthly_VWM.rds")
 #saveRDS(pH_monthly_vwmeans, out_path)
 
-# n_vwmeans <- full_join(n_monthly_vwmeans, n_annual_vwmeans)
+##### Annual means #####
 
 doc_annual_vwmeans <- chem_q_good %>%
     group_by(site_code, var, water_year) %>%
@@ -793,11 +744,7 @@ pH_vwmeans <- full_join(pH_monthly_vwmeans, pH_annual_vwmeans)
 #out_path <- here("data_working", "pH_annual_VWM.rds")
 #saveRDS(pH_vwmeans, out_path)
 
-#### DOC ####
-
 ##### Season means #####
-
-##### Annual means #####
 
 # Check to see how things look: DOC
 # ggplot(chem_q_data %>%
