@@ -915,4 +915,425 @@ size_breaks <- c(1,5,10)
 site_counts20 <- mean_N_VWM_annual20 %>%
     count(analyte_N)
 
+##### Site Covariate Plots #####
+
+# Also going to make plots to investigate watershed and climate
+# characteristics with magnitude of nitrogen at each site.
+# Focusing in on 2010-2020 data to keep things comparable.
+
+# First need to make a site list.
+annual_sites <- unique(mean_N_VWM_annual20$site_code)
+
+# Load in raw climate data.
+clim_raw <- read_feather(here('data_raw',
+                              'ms',
+                              'v2',
+                              'spatial_timeseries_climate.feather'))
+
+# This takes a minute or two so be patient.
+clim <- clim_raw %>%
+    # adds water year column
+    mutate(year = year(date),
+           month = month(date),
+           water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+                                  TRUE ~ year)) %>%
+    # trims columns of interest
+    select(site_code, date, water_year, var, val) %>%
+    # pivots and aggregates daily data
+    pivot_wider(id_cols = c(site_code, date, water_year),
+                names_from = var, values_from = val, values_fn = mean) %>%
+    # adds month column
+    mutate(month = month(date))
+
+# Trims down climate data.
+clim_annual <- clim %>%
+    # select only for sites of interest
+    filter(site_code %in% annual_sites) %>%
+    # select for only timeframe of interest (2010-2020)
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021) %>%
+    # calculate annual metrics
+    group_by(site_code, water_year) %>%
+    summarize(mean_ann_temp = mean(temp_median, na.rm = TRUE),
+              sum_ann_ppt = sum(precip_median, na.rm = TRUE)) %>%
+    ungroup()
+
+# Further trims climate data
+clim_decadal <- clim_annual %>%
+    group_by(site_code) %>%
+    summarize(mean_mean_ann_temp = mean(mean_ann_temp, na.rm = TRUE),
+              mean_sum_ann_ppt = mean(sum_ann_ppt, na.rm = TRUE)) %>%
+    ungroup()
+
+# And join with N data.
+N_clim_data20 <- full_join(mean_N_VWM_annual20, clim_decadal)
+
+# Temperature
+(summaryfig_Temp <- ggplot(N_clim_data20,
+                       aes(x = mean_mean_ann_temp,
+                           y = mean_annual_VWM_mgLha)) +
+        geom_point(fill = "#D46F10", alpha = 0.9,
+                   size = 2, shape = 21) +
+        scale_y_log10() +
+        facet_wrap(vars(analyte_N)) +
+        labs(x = "Mean Annual Temperature (C)",
+             y = "Mean Annual Concentration (mg/L*ha)") +
+        theme_bw() +
+        theme(legend.position = "top"))
+
+# ggsave(summaryfig_Temp,
+#        filename = "figures/summaryfig_N_Temp_2010_to_2020.jpeg",
+#        height = 20,
+#        width = 20,
+#        units = "cm")
+
+# Precip
+(summaryfig_Ppt <- ggplot(N_clim_data20,
+                           aes(x = mean_sum_ann_ppt,
+                               y = mean_annual_VWM_mgLha)) +
+        geom_point(fill = "#4B8FF7", alpha = 0.9,
+                   size = 2, shape = 21) +
+        scale_y_log10() +
+        facet_wrap(vars(analyte_N)) +
+        labs(x = "Mean Annual Cumulative Precipitation (mm)",
+             y = "Mean Annual Concentration (mg/L*ha)") +
+        theme_bw() +
+        theme(legend.position = "top"))
+
+# ggsave(summaryfig_Ppt,
+#        filename = "figures/summaryfig_N_Ppt_2010_to_2020.jpeg",
+#        height = 20,
+#        width = 20,
+#        units = "cm")
+
+# N deposition
+# New dataset since deposition is already annualized
+clim_deponly <- clim_raw %>%
+    filter(var == "N_flux_mean") %>%
+    select(site_code, year, var, val) %>%
+    pivot_wider(id_cols = c(site_code, year),
+                names_from = var, values_from = val, values_fn = mean) %>%
+    filter(site_code %in% annual_sites) %>%
+    filter(year > 2009) %>%
+    filter(year < 2021)
+
+# Further trims deposition data
+dep_decadal <- clim_deponly %>%
+    group_by(site_code) %>%
+    summarize(mean_mean_ann_Ndep = mean(N_flux_mean, na.rm = TRUE)) %>%
+    ungroup()
+
+# And join with N data.
+N_dep_data20 <- full_join(mean_N_VWM_annual20, dep_decadal)
+
+(summaryfig_Ndep <- ggplot(N_dep_data20,
+                          aes(x = mean_mean_ann_Ndep,
+                              y = mean_annual_VWM_mgLha)) +
+        geom_point(fill = "#E29244", alpha = 0.9,
+                   size = 2, shape = 21) +
+        scale_y_log10() +
+        facet_wrap(vars(analyte_N)) +
+        labs(x = "Mean Annual Cumulative N Deposition (kg/ha)",
+             y = "Mean Annual Concentration (mg/L*ha)") +
+        theme_bw() +
+        theme(legend.position = "top"))
+#
+# ggsave(summaryfig_Ndep,
+#        filename = "figures/summaryfig_N_Ndep_2010_to_2020.jpeg",
+#        height = 20,
+#        width = 20,
+#        units = "cm")
+
+# GPP
+prod_raw <- read_feather(here('data_raw',
+                              'ms',
+                              'v2',
+                              'spatial_timeseries_vegetation.feather'))
+
+# Filter productivity dataset for sites of interest
+prod <- prod_raw %>%
+    mutate(year = year(date),
+           month = month(date),
+           water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
+                                  TRUE ~ year)) %>%
+    select(site_code, date, water_year, var, val) %>%
+    pivot_wider(id_cols = c(site_code, date, water_year),
+                names_from = var, values_from = val, values_fn = mean) %>%
+    mutate(month = month(date))
+
+# Trims down productivity data.
+prod_annual <- prod %>%
+    filter(site_code %in% annual_sites) %>%
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021) %>%
+    group_by(site_code, water_year) %>%
+    summarize(sum_ann_prod = sum(gpp_CONUS_30m_median, na.rm = TRUE)) %>%
+    ungroup()
+
+# Further trims productivity data
+prod_decadal <- prod_annual %>%
+    group_by(site_code) %>%
+    summarize(mean_sum_ann_prod = mean(sum_ann_prod, na.rm = TRUE)) %>%
+    ungroup()
+
+# And join with N data.
+N_gpp_data20 <- full_join(mean_N_VWM_annual20, prod_decadal)
+
+(summaryfig_GPP<- ggplot(N_gpp_data20,
+                           aes(x = mean_sum_ann_prod,
+                               y = mean_annual_VWM_mgLha)) +
+        geom_point(fill = "#368000", alpha = 0.9,
+                   size = 2, shape = 21) +
+        scale_y_log10() +
+        facet_wrap(vars(analyte_N)) +
+        labs(x = "Mean Cumulative Annual GPP (kg C/m<sup>2</sup>)",
+             y = "Mean Annual Concentration (mg/L*ha)") +
+        theme_bw() +
+        theme(axis.title.x = element_markdown(),
+              legend.position = "top"))
+
+# ggsave(summaryfig_GPP,
+#        filename = "figures/summaryfig_N_GPP_2010_to_2020.jpeg",
+#        height = 20,
+#        width = 20,
+#        units = "cm")
+
+# Overall attributes
+
+# Calculated total wetland cover.
+ms_ws_select <- ms_ws_attr %>%
+    mutate(nlcd_wetland = nlcd_water + nlcd_wetland_herb + nlcd_wetland_wood,
+           nlcd_dev = nlcd_dev_hi + nlcd_dev_med + nlcd_dev_low + nlcd_dev_open) %>%
+    select(network, domain, site_code, area, slope_mean, elev_mean,
+           nlcd_dev, nlcd_wetland)
+
+# Join watershed attributes with N data.
+N_ws_data20 <- full_join(mean_N_VWM_annual20, ms_ws_select)
+
+# Realizing it likely makes more sense to plot overall distribution
+# of attributes rather than by analyte, so going to work on that below.
+
+# Aggregate all datasets together.
+N_data20 <- dep_decadal %>% filter(site_code %in% annual_sites)
+N_data20 <- full_join(N_data20, prod_decadal)
+N_data20 <- full_join(N_data20, clim_decadal)
+N_data20 <- full_join(N_data20, ms_ws_select)
+N_data20 <- N_data20 %>%
+    mutate(group = "MacroSheds")
+
+(deppanel <- ggplot(N_data20,
+                       aes(x = mean_mean_ann_Ndep,
+                           y = group)) +
+        geom_jitter(fill = "#E29244", alpha = 0.9, shape = 21,
+                    width = 0.05, size = 2) +
+        labs(x = "Mean Annual Cumulative N Deposition (kg/ha)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(deppanelv2 <- ggplot(N_data20,
+                    aes(x = mean_mean_ann_Ndep)) +
+        geom_density(fill = "#E29244", alpha = 0.7) +
+        labs(x = "Annual Cumulative N Dep. (kg/ha)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(temppanel <- ggplot(N_data20,
+                    aes(x = mean_mean_ann_temp,
+                        y = group)) +
+        geom_jitter(fill = "#D46F10", alpha = 0.9, shape = 21,
+                    width = 0.05, size = 2) +
+        labs(x = "Mean Annual Temperature (C)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(temppanelv2 <- ggplot(N_data20,
+                     aes(x = mean_mean_ann_temp)) +
+        geom_density(fill = "#D46F10", alpha = 0.7) +
+        labs(x = "Annual Temperature (C)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(gpppanel <- ggplot(N_data20,
+                     aes(x = mean_sum_ann_prod,
+                         y = group)) +
+        geom_jitter(fill = "#4CA49E", alpha = 0.9, shape = 21,
+                    width = 0.05, size = 2) +
+        labs(x = "Mean Cumulative Annual GPP (kg C/m<sup>2</sup>)") +
+        theme_bw() +
+        theme(axis.title.x = element_markdown(),
+              axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(gpppanelv2 <- ggplot(N_data20,
+                    aes(x = mean_sum_ann_prod)) +
+        geom_density(fill = "#4CA49E", alpha = 0.7) +
+        labs(x = "Cumulative Annual GPP (kg C/m<sup>2</sup>)") +
+        theme_bw() +
+        theme(axis.title.x = element_markdown(),
+              axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(pptpanel <- ggplot(N_data20,
+                     aes(x = mean_sum_ann_ppt,
+                         y = group)) +
+         geom_jitter(fill =  "#69B9FA", alpha = 0.9, shape = 21,
+                     width = 0.05, size = 2) +
+         labs(x = "Mean Cumulative Annual PPT (mm)") +
+         theme_bw() +
+         theme(axis.title.y=element_blank(),
+               axis.text.y=element_blank(),
+               axis.ticks.y=element_blank()))
+
+(pptpanelv2 <- ggplot(N_data20,
+                    aes(x = mean_sum_ann_ppt)) +
+        geom_density(fill =  "#69B9FA", alpha = 0.7) +
+        labs(x = "Cumulative Annual PPT (mm)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(sizepanel <- ggplot(N_data20,
+                    aes(x = area,
+                        y = group)) +
+        geom_jitter(fill =  "#59A3F8", alpha = 0.9, shape = 21,
+                    width = 0.05, size = 2) +
+        scale_x_log10() +
+        labs(x = "Watershed Area (ha)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(sizepanelv2 <- ggplot(N_data20,
+                     aes(x = area)) +
+        geom_density(fill =  "#59A3F8", alpha = 0.7) +
+        scale_x_log10() +
+        labs(x = "Watershed Area (ha)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(slopepanel <- ggplot(N_data20,
+                     aes(x = slope_mean,
+                         y = group)) +
+        geom_jitter(fill =  "#4B8FF7", alpha = 0.9, shape = 21,
+                    width = 0.05, size = 2) +
+        labs(x = "Mean Watershed Slope (degrees)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(slopepanelv2 <- ggplot(N_data20,
+                      aes(x = slope_mean)) +
+        geom_density(fill =  "#4B8FF7", alpha = 0.7) +
+        labs(x = "Watershed Slope (degrees)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(elevpanel <- ggplot(N_data20,
+                      aes(x = elev_mean,
+                          y = group)) +
+        geom_jitter(fill =  "#5A7ECB", alpha = 0.9, shape = 21,
+                    width = 0.05, size = 2) +
+        labs(x = "Mean Watershed Elevation (m)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(elevpanelv2 <- ggplot(N_data20,
+                     aes(x = elev_mean)) +
+        geom_density(fill =  "#5A7ECB", alpha = 0.7) +
+        labs(x = "Watershed Elevation (m)") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(wetlandpanel <- ggplot(N_data20,
+                     aes(x = nlcd_wetland,
+                         y = group)) +
+        geom_jitter(fill =  "#6B6D9F", alpha = 0.9, shape = 21,
+                    width = 0.05, size = 2) +
+        scale_x_log10() +
+        labs(x = "% Wetland Cover") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(wetlandpanelv2 <- ggplot(N_data20,
+                        aes(x = nlcd_wetland)) +
+        geom_density(fill =  "#6B6D9F", alpha = 0.7) +
+        scale_x_log10() +
+        labs(x = "% Wetland Cover") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(devpanel <- ggplot(N_data20,
+                        aes(x = nlcd_dev,
+                            y = group)) +
+        geom_jitter(fill =  "#1E2F46", alpha = 0.9, shape = 21,
+                    width = 0.05, size = 2) +
+        scale_x_log10() +
+        labs(x = "% Developed") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(devpanelv2 <- ggplot(N_data20,
+                    aes(x = nlcd_dev)) +
+        geom_density(fill =  "#1E2F46", alpha = 0.7) +
+        scale_x_log10() +
+        labs(x = "% Developed") +
+        theme_bw() +
+        theme(axis.title.y=element_blank(),
+              axis.text.y=element_blank(),
+              axis.ticks.y=element_blank()))
+
+(ws_attributes <- deppanel /
+    temppanel/
+    gpppanel/
+    pptpanel/
+    sizepanel/
+    slopepanel/
+    elevpanel/
+    wetlandpanel/
+    devpanel)
+
+(ws_attributes_v2 <- (deppanelv2 + temppanelv2 + pptpanelv2)/
+        (gpppanelv2 + wetlandpanelv2 + devpanelv2)/
+        (sizepanelv2 + slopepanelv2 + elevpanelv2))
+
+
+# ggsave(ws_attributes,
+#        filename = "figures/summaryfig_attributes_2010_to_2020.jpeg",
+#        height = 20,
+#        width = 20,
+#        units = "cm")
+
+# ggsave(ws_attributes_v2,
+#        filename = "figures/summaryfig_attributes_dens_2010_to_2020.jpeg",
+#        height = 14,
+#        width = 20,
+#        units = "cm")
+
 # End of script.
