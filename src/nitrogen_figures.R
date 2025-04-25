@@ -35,10 +35,16 @@ n_monthly_vwm_filtered <- readRDS("data_working/nitrogen_monthly_VWM_good.rds")
 # As well as monthly trends.
 n_monthly_trends <- readRDS("data_working/nitrogen_monthly_trends.rds")
 
-# Datasets for manuscript figures:
+# Datasets for MANUSCRIPT figures:
 # Annual
 # All sites and analytes for which we could calculate annual VWMs
 N_VWM_annual <- readRDS("data_working/N_VWM_annual.rds")
+
+# NO3 annual trends
+no3_trends_ann <- readRDS("data_working/no3_trends_annual.rds")
+
+# Climate trends (from mega_zipper_data.R script)
+clim_trends <- read_csv("data_working/trends/full_prisim_climate.csv")
 
 #### Figures ####
 
@@ -786,7 +792,7 @@ prod_trim_annual <- prod %>%
 
 #### Manuscript Figs ####
 
-##### Data Availability #####
+##### Data Coverage #####
 
 # Below, we need to figure out a way to display the
 # relative coverage of the different analytes, their
@@ -915,7 +921,7 @@ size_breaks <- c(1,5,10)
 site_counts20 <- mean_N_VWM_annual20 %>%
     count(analyte_N)
 
-##### Site Covariate Plots #####
+##### Site Attributes #####
 
 # Also going to make plots to investigate watershed and climate
 # characteristics with magnitude of nitrogen at each site.
@@ -1333,6 +1339,132 @@ N_data20 <- N_data20 %>%
 # ggsave(ws_attributes_v2,
 #        filename = "figures/summaryfig_attributes_dens_2010_to_2020.jpeg",
 #        height = 14,
+#        width = 20,
+#        units = "cm")
+
+##### N vs. Climate #####
+
+# Join NO3 and climate trends
+no3_clim_trends_ann <- full_join(no3_trends_ann, clim_trends)
+
+# Trim to variables of interest
+no3_clim_trends_ann_wide <- no3_clim_trends_ann %>%
+    select(site_code, var, trend) %>%
+    pivot_wider(names_from = var,
+                values_from = trend)
+
+# And join with trend flags and number of obs. data
+no3_confidence <- no3_trends_ann %>%
+    select(site_code, flag, mean_ann_records)
+
+no3_clim_trends_ann_wide <- full_join(no3_clim_trends_ann_wide,
+                                      no3_confidence) %>%
+    mutate(group = factor(case_when(flag %in% c("increasing", "decreasing",
+                                         "non-significant") ~ flag,
+                             TRUE ~ "insufficient data"),
+                          levels = c("decreasing",
+                                     "increasing",
+                                     "non-significant",
+                                     "insufficient data"))) %>%
+    mutate(infill = case_when(group %in% c("insufficient data",
+                                           "non-significant")~ NA,
+                              TRUE ~ mean_ann_records))
+
+# NO3 V TEMP - removed MCDN
+(figNO3_temp <- ggplot(no3_clim_trends_ann_wide,
+                           aes(x = temp_mean,
+                               y = NO3_N)) +
+        geom_point(size = 6,
+                   aes(alpha = mean_ann_records)) +
+        ylim(-0.0015, 0.0015) +
+        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
+        labs(x = "Mean Annual Temperature Trend",
+             y = "Mean Annual NO3 Trend",
+             alpha = "Mean Annual Obs.") +
+        theme_bw())
+
+# NO3 V PPT - removed MCDN
+(figNO3_ppt <- ggplot(no3_clim_trends_ann_wide,
+                       aes(x = precip_mean,
+                           y = NO3_N)) +
+        geom_point(size = 6,
+                   aes(alpha = mean_ann_records)) +
+        ylim(-0.0015, 0.0015) +
+        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
+        labs(x = "Mean Annual Precipitation Trend",
+             y = "Mean Annual NO3 Trend",
+             alpha = "Mean Annual Obs.") +
+        theme_bw())
+
+# NO3 V GPP - removed MCDN
+(figNO3_gpp <- ggplot(no3_clim_trends_ann_wide,
+                      aes(x = gpp_CONUS_30m_median,
+                          y = NO3_N)) +
+        geom_point(size = 6,
+                   aes(alpha = mean_ann_records)) +
+        ylim(-0.0015, 0.0015) +
+        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
+        labs(x = "Mean Annual GPP Trend",
+             y = "Mean Annual NO3 Trend",
+             alpha = "Mean Annual Obs.") +
+        theme_bw())
+
+# NO3 V obs - removed MCDN
+(figNO3_obs <- ggplot(no3_clim_trends_ann_wide,
+                      aes(x = mean_ann_records,
+                          y = NO3_N)) +
+        geom_point(size = 6,
+                   aes(alpha = mean_ann_records)) +
+        #ylim(-0.0015, 0.0015) +
+        xlim(0, 100) +
+        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
+        labs(x = "Mean Annual Obs.",
+             y = "Mean Annual NO3 Trend",
+             alpha = "Mean Annual Obs.") +
+        theme_bw())
+
+# PRECIP V TEMP
+(figNO3_ppt_temp <- ggplot(no3_clim_trends_ann_wide,
+                          aes(x = temp_mean,
+                              y = precip_mean)) +
+    geom_point(size = 6,
+               aes(shape = group,
+                   color = group,
+                   alpha = infill)) +
+    scale_shape_manual(values = c(20, 20, 21, 4)) +
+    scale_color_manual(values = c("purple","cyan4","darkorange", "grey80")) +
+    scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
+    labs(x = "Mean Annual Temperature Trend",
+         y = "Mean Annual Precipitation Trend",
+         shape = "NO3 Trend",
+         color = "NO3 Trend",
+         alpha = "Mean Annual Obs.") +
+    theme_bw() +
+    theme(legend.position = "none"))
+
+# GPP V TEMP
+(figNO3_gpp_temp <- ggplot(no3_clim_trends_ann_wide,
+                           aes(x = temp_mean,
+                               y = gpp_CONUS_30m_median)) +
+        geom_point(size = 6,
+                   aes(shape = group,
+                       color = group,
+                       alpha = infill)) +
+        scale_shape_manual(values = c(20, 20, 21, 4)) +
+        scale_color_manual(values = c("purple","cyan4","darkorange", "grey80")) +
+        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
+        labs(x = "Mean Annual Temperature Trend",
+             y = "Mean Annual GPP Trend",
+             shape = "NO3 Trend",
+             color = "NO3 Trend",
+             alpha = "Mean Annual Obs.") +
+        theme_bw())
+
+(figNO3_all <- figNO3_ppt_temp + figNO3_gpp_temp)
+
+# ggsave(figNO3_all,
+#        filename = "figures/panelfig_no3_clim_trends.jpeg",
+#        height = 8,
 #        width = 20,
 #        units = "cm")
 
