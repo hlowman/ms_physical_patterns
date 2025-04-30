@@ -5,20 +5,21 @@ library(here)
 library(RColorBrewer)
 source(here('src', 'setup.R'))
 
+# data made in data_groups.R
 ms_groups <- read_csv(here('data_working', 'site_groupings_by_prsim_trend.csv')) %>%
-    select(site_code, grouping) %>%
+    select(site_code, grouping, coarse_grouping) %>%
     mutate(source = 'ms')
-camels_groups <- read_csv(here('data_working', 'camels_groups.csv'))%>%
-    select(site_code, grouping) %>%
-    mutate(source = 'camels')
+# camels_groups <- read_csv(here('data_working', 'camels_groups.csv'))%>%
+#     select(site_code, grouping) %>%
+#     mutate(source = 'camels')
+
 grid_groups <- read_csv(here('data_working', 'grid_groups.csv'))%>%
-    select(site_code, grouping) %>%
+    select(site_code, grouping, coarse_grouping) %>%
     mutate(source = 'grid')
 
-groups <- rbind(ms_groups, camels_groups) %>%
-    rbind(., grid_groups)
+groups <- rbind(ms_groups, grid_groups)
 
-ggplot(groups, aes(x= grouping)) +
+ggplot(groups, aes(y = coarse_grouping)) +
     geom_bar()+
     facet_wrap(~source,
                ncol = 1, scales = 'free_y')+
