@@ -60,3 +60,4 @@ prism_site_run_trends <- detect_trends(prism_site_run_trends_data)
 # export
 #write_csv(prism_site_run_trends , here('data_working', 'trends', 'longest_site_run_prisim.csv'))
 write_csv(prism_site_run_trends , here('data_working', 'trends', 'best_run_prisim.csv'))
+

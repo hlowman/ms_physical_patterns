@@ -9,12 +9,12 @@ source(here('src', 'setup.R'))
 
 
 # trends
-trends <- read_csv(here('data_working', 'site_groupings_by_prsim_trend.csv')) %>%
-    filter(agg_code == 'annual')
+trends <- read_csv(here('data_working', 'site_groupings_by_prsim_trend.csv'))
 sums <- ms_load_product(my_ms_dir,
                                   prodname = "ws_attr_timeseries:all",
                                   warn = FALSE)
-metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds'))
+metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds'))%>%
+    filter(agg_code == 'annual')
 
 # ms_download_ws_attr(ms_root, "time series", timeout = 10000, skip_existing = TRUE)
 p <- ms_load_product(my_ms_dir,
@@ -118,7 +118,6 @@ d_all <- d %>%
     filter(ws_status == "non-experimental") %>%
     left_join(., trends, by = 'site_code')
 
-ggplot()
 
 # * caveat! you'll find that p/pet is another common aridity index. GPT has all sorts
 # of explanations for why CAMELS uses pet/p instead, including that it fits better
@@ -385,5 +384,41 @@ d %>%
     geom_line()+
     geom_hline(yintercept = 1, color = 'red', linewidth = 2)+
     #geom_smooth(method = 'lm')+
+    theme_few()+
+    facet_wrap(~var, ncol = 1)
+
+# santa barbra has decreasing flow
+d %>%
+    filter(site_code == 'ER_RUS1',
+           year > 1999) %>%
+    ggplot(.,aes(x = aridity_index, y = evaporative_index, color = year))+
+    geom_abline(slope = 1, color = 'red', linewidth = 2)+
+    geom_hline(yintercept = 1, color = 'blue', linewidth = 2)+
+    geom_vline(xintercept = 1, color = 'blue', linewidth = 2)+
+    geom_point()+
+    geom_label_repel(aes(label = year, vjust = 1))+
+    theme_few(base_size = 20)+
+    #scale_color_manual(values = c('red', 'blue', 'grey'))+
+    geom_segment(color="black",
+                 aes(
+                     xend=c(tail(aridity_index, n=-1), NA),
+                     yend=c(tail(evaporative_index, n=-1), NA)
+                 ),
+                 arrow=arrow(length=unit(0.3,"cm"))
+    )+
+    scale_color_viridis()+
+    labs(color = 'Year',
+         title = 'ER_RUS1')
+
+d %>%
+    filter(site_code == 'ER_RUS1',
+           year > 1999) %>%
+    mutate(ratio = (evaporative_index/aridity_index)) %>%
+    select(year, aridity_index, evaporative_index, ratio) %>%
+    pivot_longer(cols = -year, names_to = 'var', values_to = 'val') %>%
+    ggplot(aes(x = year, y = val))+
+    geom_point()+
+    geom_line()+
+    geom_hline(yintercept = 1, color = 'red', linewidth = 2)+
     theme_few()+
     facet_wrap(~var, ncol = 1)
