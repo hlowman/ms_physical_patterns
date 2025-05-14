@@ -636,8 +636,7 @@ n_q_vwm_month <- n_q_data %>%
                                       na.rm = TRUE))/(sum(val,
                                                           na.rm = TRUE)),
               n_of_obs_chem = n()) %>%
-    ungroup() %>%
-    mutate(monthly_vwm_mgLha = monthly_vwm_mgL/ws_area_ha)
+    ungroup()
 
 log_info({nrow(n_q_vwm_month)}, ' rows of monthly vwm N chemistry data')
 # want at least biweekly sampling for 10 months of the year
@@ -658,8 +657,7 @@ n_q_vwm_seas <- n_q_data %>%
                                       na.rm = TRUE))/(sum(val,
                                                           na.rm = TRUE)),
               n_of_obs_chem = n()) %>%
-    ungroup() %>%
-    mutate(seasonal_vwm_mgLha = seasonal_vwm_mgL/ws_area_ha)
+    ungroup()
 
 log_info({nrow(n_q_vwm_seas)}, ' rows of seasonal vwm N chemistry data')
 # ideally want at least two samples per season (i.e., every 3 months)
@@ -681,8 +679,7 @@ n_q_vwm_ann <- n_q_data %>%
                                     na.rm = TRUE))/(sum(val,
                                                         na.rm = TRUE)),
               n_of_obs_chem = n()) %>%
-    ungroup() %>%
-    mutate(annual_vwm_mgLha = annual_vwm_mgL/ws_area_ha)
+    ungroup()
 
 log_info({nrow(n_q_vwm_ann)}, ' rows of annual vwm N chemistry data')
 

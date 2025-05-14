@@ -19,34 +19,46 @@ source(here('src', 'setup.R'))
 # Datasets for AGU figures:
 # Annual
 # All sites for which we could calculate annual VWM
-n_annual_vwm <- readRDS("data_working/nitrogen_annual_VWM.rds")
+# n_annual_vwm <- readRDS("data_working/nitrogen_annual_VWM.rds")
 
 # Sites that were actually used in annual-scale trend analyses
-n_annual_vwm_filtered <- readRDS("data_working/nitrogen_annual_VWM_good.rds")
+# n_annual_vwm_filtered <- readRDS("data_working/nitrogen_annual_VWM_good.rds")
 
 # And annual trends that were calculated.
-n_annual_trends <- readRDS("data_working/nitrogen_annual_trends.rds")
+# n_annual_trends <- readRDS("data_working/nitrogen_annual_trends.rds")
 
 # Including monthly data.
-n_monthly_vwm <- readRDS("data_working/nitrogen_monthly_VWM.rds")
+# n_monthly_vwm <- readRDS("data_working/nitrogen_monthly_VWM.rds")
 
-n_monthly_vwm_filtered <- readRDS("data_working/nitrogen_monthly_VWM_good.rds")
+# n_monthly_vwm_filtered <- readRDS("data_working/nitrogen_monthly_VWM_good.rds")
 
 # As well as monthly trends.
-n_monthly_trends <- readRDS("data_working/nitrogen_monthly_trends.rds")
+# n_monthly_trends <- readRDS("data_working/nitrogen_monthly_trends.rds")
 
 # Datasets for MANUSCRIPT figures:
 # Annual
 # All sites and analytes for which we could calculate annual VWMs
 N_VWM_annual <- readRDS("data_working/N_VWM_annual.rds")
 
+# All sites and analytes for which we could calculate seasonal VWMs
+N_VWM_seasonal <- readRDS("data_working/N_VWM_seasonal.rds")
+
 # NO3 annual trends
 no3_trends_ann <- readRDS("data_working/no3_trends_annual.rds")
+
+# NH3 annual trends
+nh3_trends_ann <- readRDS("data_working/nh3_trends_annual.rds")
+
+# TDN annual trends
+tdn_trends_ann <- readRDS("data_working/tdn_trends_annual.rds")
+
+# N Deposition annual trends
+ndep_trends_ann <- readRDS("data_working/ndep_trends_annual.rds")
 
 # Climate trends (from mega_zipper_data.R script)
 clim_trends <- read_csv("data_working/trends/full_prisim_climate.csv")
 
-#### Figures ####
+#### AGU Figures ####
 
 ##### HB only #####
 
@@ -802,7 +814,7 @@ prod_trim_annual <- prod %>%
 # Calculate means of VWM concentrations & number of obs.
 mean_N_VWM_annual <- N_VWM_annual %>%
     group_by(site_code, analyte_N) %>%
-    summarize(mean_annual_VWM_mgLha = mean(annual_vwm_mgLha,
+    summarize(mean_annual_VWM_mgL = mean(annual_vwm_mgL,
                                            na.rm = TRUE),
               mean_annual_obs = mean(n_of_obs_chem,
                                      na.rm = TRUE),
@@ -814,7 +826,7 @@ mean_N_VWM_annual <- N_VWM_annual %>%
 my_breaks <- c(1, 10, 50)
 
 (summaryfig1 <- ggplot(mean_N_VWM_annual,
-                      aes(x = mean_annual_VWM_mgLha,
+                      aes(x = mean_annual_VWM_mgL,
                           y = analyte_N,
                           fill = mean_annual_obs,
                           size = total_years)) +
@@ -827,7 +839,7 @@ my_breaks <- c(1, 10, 50)
     scale_size_continuous(breaks = my_breaks) +
     scale_x_log10() +
     facet_grid(analyte_N~., scales = "free") +
-    labs(x = "Mean Annual Concentration (mg/L*ha)",
+    labs(x = "Mean Annual Concentration (mg/L)",
          y = "Analyte",
          fill = "Mean No. of Annual Observations",
          size = "Record Length (yrs)") +
@@ -873,41 +885,66 @@ ts_counts <- N_VWM_annual %>%
 #        units = "cm")
 
 # Calculate means of VWM concentrations & number of obs.
-# BUT FILTER DOWN TO 2010-2020
+# BUT FILTER DOWN TO 2010-2020 [INCLUSIVE]
+# AND REMOVE EXPERIMENTAL SITES
+# for better comparison in the summary figure.
 mean_N_VWM_annual20 <- N_VWM_annual %>%
     filter(water_year > 2009) %>%
     filter(water_year < 2021) %>%
     group_by(site_code, analyte_N) %>%
-    summarize(mean_annual_VWM_mgLha = mean(annual_vwm_mgLha,
+    summarize(mean_annual_VWM_mgL = mean(annual_vwm_mgL,
                                            na.rm = TRUE),
               mean_annual_obs = mean(n_of_obs_chem,
                                      na.rm = TRUE),
               total_years = as.numeric(n())) %>%
     ungroup()
 
+# Join with site info so that we can filter out experimental sites.
+mean_N_VWM_annual20 <- left_join(mean_N_VWM_annual20, ms_site_data)
+
+mean_N_VWM_annual20_nonexp <- mean_N_VWM_annual20 %>%
+    filter(ws_status == "non-experimental")
+
 # Test figure.
 # Set color legend break points.
 color_breaks <- c(1, 10, 50)
 size_breaks <- c(1,5,10)
 
-(summaryfig4 <- ggplot(mean_N_VWM_annual20,
-                       aes(x = mean_annual_VWM_mgLha,
-                           y = analyte_N,
-                           fill = mean_annual_obs,
-                           size = total_years)) +
-        geom_jitter(width = 0.05, alpha = 0.9, shape = 21) +
+# Count number of sites per analyte
+site_counts20 <- mean_N_VWM_annual20_nonexp %>%
+    count(analyte_N)
+
+# And create list with which to add in count annotations
+dat_text <- data.frame(
+    label = c("n = 116", "n = 20", "n = 116", "n = 46", "n = 142",
+              "n = 84", "n = 10", "n = 1", "n = 60", "n = 31"),
+    analyte_N = c("DIN", "N2O", "NH3_N", "NO2_N", "NO3_N",
+                  "TDN", "TIN", "TKN", "TN", "TPN"))
+
+# Note, the log transformation on the x-axis only removes
+# one site's data for one analyte - ONO2 for NH3_N.
+(summaryfig4 <- ggplot(mean_N_VWM_annual20_nonexp) +
+        geom_jitter(aes(x = mean_annual_VWM_mgL,
+                        y = analyte_N,
+                        fill = mean_annual_obs,
+                        size = total_years),
+                    width = 0.05, alpha = 0.9, shape = 21) +
         scale_fill_gradientn(colors = c("white", "#FAB455",
                                         "#69B9FA", "#59A3F8",
                                         "#4B9FF7", "#045CB4", "black"),
                              trans = "log",
-                             breaks = color_breaks, labels = color_breaks) +
+                             breaks = color_breaks,
+                             labels = color_breaks) +
         scale_size_continuous(breaks = size_breaks) +
-        scale_x_log10() +
+        scale_x_log10(labels = scales::comma,
+                      breaks = c(0.001, 0.01, 0.1, 1, 10)) +
         facet_grid(analyte_N~., scales = "free") +
-        labs(x = "Mean Annual Concentration (mg/L*ha)",
+        labs(x = "Mean Annual Concentration (mg/L)",
              y = "Analyte",
              fill = "Mean No. of Annual Observations",
              size = "Record Length (yrs)") +
+        geom_text(data = dat_text,
+                  mapping = aes(x = 20, y = analyte_N, label = label)) +
         theme_bw() +
         theme(strip.text.y = element_blank(),
               legend.position = "top"))
@@ -918,8 +955,96 @@ size_breaks <- c(1,5,10)
 #        width = 20,
 #        units = "cm")
 
-site_counts20 <- mean_N_VWM_annual20 %>%
-    count(analyte_N)
+# Now, I also need to create a summary figure of sorts for
+# seasonal data, so will do so using a similar style as above.
+
+# Calculate means of VWM concentrations & number of obs.
+# BUT FILTER DOWN TO 2010-2020 [INCLUSIVE]
+# AND REMOVE EXPERIMENTAL SITES
+# for better comparison in the summary figure.
+mean_N_VWM_seasonal20 <- N_VWM_seasonal %>%
+    filter(season_year > 2009) %>%
+    filter(season_year < 2021) %>%
+    group_by(site_code, season, analyte_N) %>%
+    summarize(mean_seasonal_VWM_mgL = mean(seasonal_vwm_mgL,
+                                         na.rm = TRUE),
+              mean_seasonal_obs = mean(n_of_obs_chem,
+                                     na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup() %>%
+    mutate(season = factor(season, levels = c("Spring",
+                                              "Summer",
+                                              "Fall",
+                                              "Winter")))
+
+# Join with site info so that we can filter out experimental sites.
+mean_N_VWM_seasonal20 <- left_join(mean_N_VWM_seasonal20, ms_site_data)
+
+mean_N_VWM_seasonal20_nonexp <- mean_N_VWM_seasonal20 %>%
+    filter(ws_status == "non-experimental")
+
+# Test figure.
+# Set color legend break points.
+color_breaks <- c(1, 3, 12)
+size_breaks <- c(1,5,10)
+
+# Count number of sites per analyte
+site_counts20_seas <- mean_N_VWM_seasonal20_nonexp %>%
+    count(analyte_N, season)
+
+# And create list with which to add in count annotations
+dat_text_seas <- data.frame(
+    position = c(10, 10, 10, 10,
+                 0.0002, 0.0002, 0.0002, 0.0002,
+                 0.0002, 0.0002, 0.0002, 0.0002),
+    label = c("n = 87", "n = 85", "n = 97", "n = 90",
+              "n = 113", "n = 115", "n = 129", "n = 119",
+              "n = 73", "n = 73", "n = 82", "n = 64"),
+    season = c("Spring", "Summer", "Fall", "Winter",
+               "Spring", "Summer", "Fall", "Winter",
+               "Spring", "Summer", "Fall", "Winter"),
+    analyte_N = c("NH3_N", "NH3_N", "NH3_N", "NH3_N",
+                  "NO3_N", "NO3_N", "NO3_N", "NO3_N",
+                  "TDN", "TDN", "TDN", "TDN"))
+
+# Note, the log transformation on the x-axis only removes
+# one site's data for one analyte - ONO2 for NH3_N.
+(summaryfig5 <- ggplot(mean_N_VWM_seasonal20_nonexp %>%
+                           filter(analyte_N %in% c("NO3_N",
+                                                   "NH3_N",
+                                                   "TDN")) %>%
+                           # remove 3 outliers that caused axis stretch
+                           filter(mean_seasonal_VWM_mgL > 0.0000001)) +
+        geom_jitter(aes(x = mean_seasonal_VWM_mgL,
+                        y = season,
+                        fill = mean_seasonal_obs,
+                        size = total_years),
+                    height = 0.1, alpha = 0.9, shape = 21) +
+        scale_fill_gradientn(colors = c("white", "#FAB455",
+                                        "#69B9FA", #"#59A3F8",
+                                        "#4B9FF7", "#045CB4", "black"),
+                             trans = "log",
+                             breaks = color_breaks,
+                             labels = color_breaks) +
+        scale_size_continuous(breaks = size_breaks) +
+        scale_x_log10(labels = scales::comma,
+                      breaks = c(0.001, 0.01, 0.1, 1, 10)) +
+        facet_grid(analyte_N~., scales = "free") +
+        labs(x = "Mean Seasonal Concentration (mg/L)",
+             y = "Season",
+             fill = "Mean No. of Seasonal Observations",
+             size = "Record Length (yrs)") +
+        geom_text(data = dat_text_seas,
+                  mapping = aes(x = position, y = season, label = label)) +
+        theme_bw() +
+        theme(strip.background = element_rect(colour="NA", fill="NA"),
+              legend.position = "top"))
+
+# ggsave(summaryfig5,
+#        filename = "figures/summaryfig_N_season_2010_to_2020.jpeg",
+#        height = 20,
+#        width = 20,
+#        units = "cm")
 
 ##### Site Attributes #####
 
@@ -927,8 +1052,21 @@ site_counts20 <- mean_N_VWM_annual20 %>%
 # characteristics with magnitude of nitrogen at each site.
 # Focusing in on 2010-2020 data to keep things comparable.
 
-# First need to make a site list.
-annual_sites <- unique(mean_N_VWM_annual20$site_code)
+# First need to make a guiding site list.
+# List of sites included in the 2010-2020 dataset
+annual_sites20 <- unique(mean_N_VWM_annual20_nonexp$site_code)
+
+mean_N_VWM_annual <- left_join(mean_N_VWM_annual, ms_site_data)
+
+mean_N_VWM_annual_nonexp <- mean_N_VWM_annual %>%
+    filter(ws_status == "non-experimental")
+
+# And a list of sites included in the *full* dataset
+annual_sites <- unique(mean_N_VWM_annual_nonexp$site_code)
+
+all_sites <- as.data.frame(annual_sites) %>%
+    mutate(timeframe = case_when(annual_sites %in% annual_sites20 ~ "recent",
+                                 TRUE ~ "full"))
 
 # Load in raw climate data.
 clim_raw <- read_feather(here('data_raw',
@@ -955,13 +1093,22 @@ clim <- clim_raw %>%
 clim_annual <- clim %>%
     # select only for sites of interest
     filter(site_code %in% annual_sites) %>%
+    # calculate annual metrics
+    group_by(site_code, water_year) %>%
+    summarize(mean_ann_temp = mean(temp_median, na.rm = TRUE),
+              sum_ann_ppt = sum(precip_median, na.rm = TRUE)) %>%
+    ungroup()
+
+clim_annual20 <- clim %>%
+    # select only for sites of interest
+    filter(site_code %in% annual_sites20) %>%
     # select for only timeframe of interest (2010-2020)
     filter(water_year > 2009) %>%
     filter(water_year < 2021) %>%
     # calculate annual metrics
     group_by(site_code, water_year) %>%
-    summarize(mean_ann_temp = mean(temp_median, na.rm = TRUE),
-              sum_ann_ppt = sum(precip_median, na.rm = TRUE)) %>%
+    summarize(mean_ann_temp20 = mean(temp_median, na.rm = TRUE),
+              sum_ann_ppt20 = sum(precip_median, na.rm = TRUE)) %>%
     ungroup()
 
 # Further trims climate data
@@ -971,46 +1118,15 @@ clim_decadal <- clim_annual %>%
               mean_sum_ann_ppt = mean(sum_ann_ppt, na.rm = TRUE)) %>%
     ungroup()
 
+clim_decadal20 <- clim_annual20 %>%
+    group_by(site_code) %>%
+    summarize(mean_mean_ann_temp20 = mean(mean_ann_temp20, na.rm = TRUE),
+              mean_sum_ann_ppt20 = mean(sum_ann_ppt20, na.rm = TRUE)) %>%
+    ungroup()
+
 # And join with N data.
-N_clim_data20 <- full_join(mean_N_VWM_annual20, clim_decadal)
-
-# Temperature
-(summaryfig_Temp <- ggplot(N_clim_data20,
-                       aes(x = mean_mean_ann_temp,
-                           y = mean_annual_VWM_mgLha)) +
-        geom_point(fill = "#D46F10", alpha = 0.9,
-                   size = 2, shape = 21) +
-        scale_y_log10() +
-        facet_wrap(vars(analyte_N)) +
-        labs(x = "Mean Annual Temperature (C)",
-             y = "Mean Annual Concentration (mg/L*ha)") +
-        theme_bw() +
-        theme(legend.position = "top"))
-
-# ggsave(summaryfig_Temp,
-#        filename = "figures/summaryfig_N_Temp_2010_to_2020.jpeg",
-#        height = 20,
-#        width = 20,
-#        units = "cm")
-
-# Precip
-(summaryfig_Ppt <- ggplot(N_clim_data20,
-                           aes(x = mean_sum_ann_ppt,
-                               y = mean_annual_VWM_mgLha)) +
-        geom_point(fill = "#4B8FF7", alpha = 0.9,
-                   size = 2, shape = 21) +
-        scale_y_log10() +
-        facet_wrap(vars(analyte_N)) +
-        labs(x = "Mean Annual Cumulative Precipitation (mm)",
-             y = "Mean Annual Concentration (mg/L*ha)") +
-        theme_bw() +
-        theme(legend.position = "top"))
-
-# ggsave(summaryfig_Ppt,
-#        filename = "figures/summaryfig_N_Ppt_2010_to_2020.jpeg",
-#        height = 20,
-#        width = 20,
-#        units = "cm")
+N_clim_data <- full_join(mean_N_VWM_annual_nonexp, clim_decadal)
+N_clim_data20 <- full_join(mean_N_VWM_annual20_nonexp, clim_decadal20)
 
 # N deposition
 # New dataset since deposition is already annualized
@@ -1019,7 +1135,14 @@ clim_deponly <- clim_raw %>%
     select(site_code, year, var, val) %>%
     pivot_wider(id_cols = c(site_code, year),
                 names_from = var, values_from = val, values_fn = mean) %>%
-    filter(site_code %in% annual_sites) %>%
+    filter(site_code %in% annual_sites)
+
+clim_deponly20 <- clim_raw %>%
+    filter(var == "N_flux_mean") %>%
+    select(site_code, year, var, val) %>%
+    pivot_wider(id_cols = c(site_code, year),
+                names_from = var, values_from = val, values_fn = mean) %>%
+    filter(site_code %in% annual_sites20) %>%
     filter(year > 2009) %>%
     filter(year < 2021)
 
@@ -1029,26 +1152,14 @@ dep_decadal <- clim_deponly %>%
     summarize(mean_mean_ann_Ndep = mean(N_flux_mean, na.rm = TRUE)) %>%
     ungroup()
 
-# And join with N data.
-N_dep_data20 <- full_join(mean_N_VWM_annual20, dep_decadal)
+dep_decadal20 <- clim_deponly20 %>%
+    group_by(site_code) %>%
+    summarize(mean_mean_ann_Ndep20 = mean(N_flux_mean, na.rm = TRUE)) %>%
+    ungroup()
 
-(summaryfig_Ndep <- ggplot(N_dep_data20,
-                          aes(x = mean_mean_ann_Ndep,
-                              y = mean_annual_VWM_mgLha)) +
-        geom_point(fill = "#E29244", alpha = 0.9,
-                   size = 2, shape = 21) +
-        scale_y_log10() +
-        facet_wrap(vars(analyte_N)) +
-        labs(x = "Mean Annual Cumulative N Deposition (kg/ha)",
-             y = "Mean Annual Concentration (mg/L*ha)") +
-        theme_bw() +
-        theme(legend.position = "top"))
-#
-# ggsave(summaryfig_Ndep,
-#        filename = "figures/summaryfig_N_Ndep_2010_to_2020.jpeg",
-#        height = 20,
-#        width = 20,
-#        units = "cm")
+# And join with N data.
+N_dep_data <- full_join(mean_N_VWM_annual_nonexp, dep_decadal)
+N_dep_data20 <- full_join(mean_N_VWM_annual20_nonexp, dep_decadal20)
 
 # GPP
 prod_raw <- read_feather(here('data_raw',
@@ -1070,10 +1181,16 @@ prod <- prod_raw %>%
 # Trims down productivity data.
 prod_annual <- prod %>%
     filter(site_code %in% annual_sites) %>%
+    group_by(site_code, water_year) %>%
+    summarize(sum_ann_prod = sum(gpp_CONUS_30m_median, na.rm = TRUE)) %>%
+    ungroup()
+
+prod_annual20 <- prod %>%
+    filter(site_code %in% annual_sites20) %>%
     filter(water_year > 2009) %>%
     filter(water_year < 2021) %>%
     group_by(site_code, water_year) %>%
-    summarize(sum_ann_prod = sum(gpp_CONUS_30m_median, na.rm = TRUE)) %>%
+    summarize(sum_ann_prod20 = sum(gpp_CONUS_30m_median, na.rm = TRUE)) %>%
     ungroup()
 
 # Further trims productivity data
@@ -1082,27 +1199,14 @@ prod_decadal <- prod_annual %>%
     summarize(mean_sum_ann_prod = mean(sum_ann_prod, na.rm = TRUE)) %>%
     ungroup()
 
+prod_decadal20 <- prod_annual20 %>%
+    group_by(site_code) %>%
+    summarize(mean_sum_ann_prod20 = mean(sum_ann_prod20, na.rm = TRUE)) %>%
+    ungroup()
+
 # And join with N data.
-N_gpp_data20 <- full_join(mean_N_VWM_annual20, prod_decadal)
-
-(summaryfig_GPP<- ggplot(N_gpp_data20,
-                           aes(x = mean_sum_ann_prod,
-                               y = mean_annual_VWM_mgLha)) +
-        geom_point(fill = "#368000", alpha = 0.9,
-                   size = 2, shape = 21) +
-        scale_y_log10() +
-        facet_wrap(vars(analyte_N)) +
-        labs(x = "Mean Cumulative Annual GPP (kg C/m<sup>2</sup>)",
-             y = "Mean Annual Concentration (mg/L*ha)") +
-        theme_bw() +
-        theme(axis.title.x = element_markdown(),
-              legend.position = "top"))
-
-# ggsave(summaryfig_GPP,
-#        filename = "figures/summaryfig_N_GPP_2010_to_2020.jpeg",
-#        height = 20,
-#        width = 20,
-#        units = "cm")
+N_gpp_data <- full_join(mean_N_VWM_annual, prod_decadal)
+N_gpp_data20 <- full_join(mean_N_VWM_annual20, prod_decadal20)
 
 # Overall attributes
 
@@ -1113,239 +1217,160 @@ ms_ws_select <- ms_ws_attr %>%
     select(network, domain, site_code, area, slope_mean, elev_mean,
            nlcd_dev, nlcd_wetland)
 
-# Join watershed attributes with N data.
-N_ws_data20 <- full_join(mean_N_VWM_annual20, ms_ws_select)
-
 # Realizing it likely makes more sense to plot overall distribution
 # of attributes rather than by analyte, so going to work on that below.
 
 # Aggregate all datasets together.
-N_data20 <- dep_decadal %>% filter(site_code %in% annual_sites)
-N_data20 <- full_join(N_data20, prod_decadal)
-N_data20 <- full_join(N_data20, clim_decadal)
-N_data20 <- full_join(N_data20, ms_ws_select)
-N_data20 <- N_data20 %>%
-    mutate(group = "MacroSheds")
+# Need to start with the most complete dataset - ws attributes.
+N_data <- ms_ws_select %>% filter(site_code %in% annual_sites)
+N_data <- left_join(N_data, dep_decadal)
+N_data <- left_join(N_data, prod_decadal)
+N_data <- left_join(N_data, clim_decadal)
 
-(deppanel <- ggplot(N_data20,
-                       aes(x = mean_mean_ann_Ndep,
-                           y = group)) +
-        geom_jitter(fill = "#E29244", alpha = 0.9, shape = 21,
-                    width = 0.05, size = 2) +
-        labs(x = "Mean Annual Cumulative N Deposition (kg/ha)") +
-        theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
+N_data20 <- ms_ws_select %>% filter(site_code %in% annual_sites20)
+N_data20 <- left_join(N_data20, dep_decadal20)
+N_data20 <- left_join(N_data20, prod_decadal20)
+N_data20 <- left_join(N_data20, clim_decadal20)
 
-(deppanelv2 <- ggplot(N_data20,
-                    aes(x = mean_mean_ann_Ndep)) +
-        geom_density(fill = "#E29244", alpha = 0.7) +
-        labs(x = "Annual Cumulative N Dep. (kg/ha)") +
-        theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
+(deppanel <- ggplot(N_data) +
+        # historical histogram
+        geom_density(aes(x = mean_mean_ann_Ndep),
+                     color = "NA",
+                     fill = "#E29244", alpha = 0.5) +
+        # 2010-2020 histogram
+        geom_density(data = N_data20,
+                     mapping = aes(x = mean_mean_ann_Ndep20),
+                     color = "#E29244", linewidth = 2) +
+        labs(x = "Cumulative Annual N Deposition (kg/ha)",
+             y = "Density") +
+        theme_bw())
 
-(temppanel <- ggplot(N_data20,
-                    aes(x = mean_mean_ann_temp,
-                        y = group)) +
-        geom_jitter(fill = "#D46F10", alpha = 0.9, shape = 21,
-                    width = 0.05, size = 2) +
+(temppanel <- ggplot(N_data) +
+        # historical histogram
+        geom_density(aes(x = mean_mean_ann_temp),
+                     color = "NA",
+                     fill = "#D46F10", alpha = 0.5) +
+        # 2010-2020 histogram
+        geom_density(data = N_data20,
+                     mapping = aes(x = mean_mean_ann_temp20),
+                     color = "#D46F10", linewidth = 2) +
         labs(x = "Mean Annual Temperature (C)") +
         theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
+        theme(axis.title.y=element_blank()))
 
-(temppanelv2 <- ggplot(N_data20,
-                     aes(x = mean_mean_ann_temp)) +
-        geom_density(fill = "#D46F10", alpha = 0.7) +
-        labs(x = "Annual Temperature (C)") +
+(gpppanel <- ggplot(N_data) +
+        # historical histogram
+        geom_density(aes(x = mean_sum_ann_prod),
+                     color = "NA",
+                     fill = "#4CA49E", alpha = 0.5) +
+        # 2010-2020 histogram
+        geom_density(data = N_data20,
+                     mapping = aes(x = mean_sum_ann_prod20),
+                     color = "#4CA49E", linewidth = 2) +
+        labs(x = "Cumulative Annual GPP (kg C/m<sup>2</sup>)",
+             y = "Density") +
         theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
+        theme(axis.title.x = element_markdown()))
 
-(gpppanel <- ggplot(N_data20,
-                     aes(x = mean_sum_ann_prod,
-                         y = group)) +
-        geom_jitter(fill = "#4CA49E", alpha = 0.9, shape = 21,
-                    width = 0.05, size = 2) +
-        labs(x = "Mean Cumulative Annual GPP (kg C/m<sup>2</sup>)") +
+(pptpanel <- ggplot(N_data) +
+        # historical histogram
+        geom_density(aes(x = mean_sum_ann_ppt),
+                     color = "NA",
+                     fill =  "#69B9FA", alpha = 0.5) +
+        # 2010-2020 histogram
+        geom_density(data = N_data20,
+                     mapping = aes(x = mean_sum_ann_ppt20),
+                     color = "#69B9FA", linewidth = 2) +
+        labs(x = "Cumulative Annual Precipitation (mm)") +
         theme_bw() +
-        theme(axis.title.x = element_markdown(),
-              axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
+        theme(axis.title.y=element_blank()))
 
-(gpppanelv2 <- ggplot(N_data20,
-                    aes(x = mean_sum_ann_prod)) +
-        geom_density(fill = "#4CA49E", alpha = 0.7) +
-        labs(x = "Cumulative Annual GPP (kg C/m<sup>2</sup>)") +
-        theme_bw() +
-        theme(axis.title.x = element_markdown(),
-              axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
-
-(pptpanel <- ggplot(N_data20,
-                     aes(x = mean_sum_ann_ppt,
-                         y = group)) +
-         geom_jitter(fill =  "#69B9FA", alpha = 0.9, shape = 21,
-                     width = 0.05, size = 2) +
-         labs(x = "Mean Cumulative Annual PPT (mm)") +
-         theme_bw() +
-         theme(axis.title.y=element_blank(),
-               axis.text.y=element_blank(),
-               axis.ticks.y=element_blank()))
-
-(pptpanelv2 <- ggplot(N_data20,
-                    aes(x = mean_sum_ann_ppt)) +
-        geom_density(fill =  "#69B9FA", alpha = 0.7) +
-        labs(x = "Cumulative Annual PPT (mm)") +
-        theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
-
-(sizepanel <- ggplot(N_data20,
-                    aes(x = area,
-                        y = group)) +
-        geom_jitter(fill =  "#59A3F8", alpha = 0.9, shape = 21,
-                    width = 0.05, size = 2) +
+(sizepanel <- ggplot(N_data) +
+        # historical histogram
+        geom_density(aes(x = area),
+                     color = "NA",
+                     fill =  "#59A3F8", alpha = 0.5) +
+        # 2010-2020 histogram
+        geom_density(data = N_data20,
+                     mapping = aes(x = area),
+                     color = "#59A3F8", linewidth = 2) +
         scale_x_log10() +
-        labs(x = "Watershed Area (ha)") +
-        theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
+        labs(x = "Watershed Area (ha)",
+             y = "Density") +
+        theme_bw())
 
-(sizepanelv2 <- ggplot(N_data20,
-                     aes(x = area)) +
-        geom_density(fill =  "#59A3F8", alpha = 0.7) +
-        scale_x_log10() +
-        labs(x = "Watershed Area (ha)") +
-        theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
-
-(slopepanel <- ggplot(N_data20,
-                     aes(x = slope_mean,
-                         y = group)) +
-        geom_jitter(fill =  "#4B8FF7", alpha = 0.9, shape = 21,
-                    width = 0.05, size = 2) +
-        labs(x = "Mean Watershed Slope (degrees)") +
-        theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
-
-(slopepanelv2 <- ggplot(N_data20,
-                      aes(x = slope_mean)) +
-        geom_density(fill =  "#4B8FF7", alpha = 0.7) +
+(slopepanel <- ggplot(N_data) +
+        # historical histogram
+        geom_density(aes(x = slope_mean),
+                     color = "NA",
+                     fill =  "#4B8FF7", alpha = 0.5) +
+        # 2010-2020 histogram
+        geom_density(data = N_data20,
+                     mapping = aes(x = slope_mean),
+                     color = "#4B8FF7", linewidth = 2) +
         labs(x = "Watershed Slope (degrees)") +
         theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
+        theme(axis.title.y=element_blank()))
 
-(elevpanel <- ggplot(N_data20,
-                      aes(x = elev_mean,
-                          y = group)) +
-        geom_jitter(fill =  "#5A7ECB", alpha = 0.9, shape = 21,
-                    width = 0.05, size = 2) +
-        labs(x = "Mean Watershed Elevation (m)") +
-        theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
-
-(elevpanelv2 <- ggplot(N_data20,
-                     aes(x = elev_mean)) +
-        geom_density(fill =  "#5A7ECB", alpha = 0.7) +
+(elevpanel <- ggplot(N_data) +
+        # historical histogram
+        geom_density(aes(x = elev_mean),
+                     na.rm = TRUE,
+                     color = "NA",
+                     fill = "#5A7ECB", alpha = 0.5) +
+        # 2010-2020 histogram
+        geom_density(data = N_data20,
+                     mapping = aes(x = elev_mean),
+                     color = "#5A7ECB", linewidth = 2) +
         labs(x = "Watershed Elevation (m)") +
         theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
+        theme(axis.title.y=element_blank()))
 
-(wetlandpanel <- ggplot(N_data20,
-                     aes(x = nlcd_wetland,
-                         y = group)) +
-        geom_jitter(fill =  "#6B6D9F", alpha = 0.9, shape = 21,
-                    width = 0.05, size = 2) +
+(wetlandpanel <- ggplot(N_data) +
+        # historical histogram
+        geom_density(aes(x = nlcd_wetland),
+                     color = "NA",
+                     fill =  "#6B6D9F", alpha = 0.5) +
+        # 2010-2020 histogram
+        geom_density(data = N_data20,
+                     mapping = aes(x = nlcd_wetland),
+                     color = "#6B6D9F", linewidth = 2) +
         scale_x_log10() +
-        labs(x = "% Wetland Cover") +
+        labs(x = "% Wetland Land Cover") +
         theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
+        theme(axis.title.y=element_blank()))
 
-(wetlandpanelv2 <- ggplot(N_data20,
-                        aes(x = nlcd_wetland)) +
-        geom_density(fill =  "#6B6D9F", alpha = 0.7) +
+(devpanel <- ggplot(N_data) +
+        # historical histogram
+        geom_density(aes(x = nlcd_dev),
+                     color = "NA",
+                     fill =  "#1E2F46", alpha = 0.5) +
+        # 2010-2020 histogram
+        geom_density(data = N_data20,
+                     mapping = aes(x = nlcd_dev),
+                     color = "#1E2F46", linewidth = 2) +
         scale_x_log10() +
-        labs(x = "% Wetland Cover") +
+        labs(x = "% Developed Land Cover") +
         theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
+        theme(axis.title.y=element_blank()))
 
-(devpanel <- ggplot(N_data20,
-                        aes(x = nlcd_dev,
-                            y = group)) +
-        geom_jitter(fill =  "#1E2F46", alpha = 0.9, shape = 21,
-                    width = 0.05, size = 2) +
-        scale_x_log10() +
-        labs(x = "% Developed") +
-        theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
-
-(devpanelv2 <- ggplot(N_data20,
-                    aes(x = nlcd_dev)) +
-        geom_density(fill =  "#1E2F46", alpha = 0.7) +
-        scale_x_log10() +
-        labs(x = "% Developed") +
-        theme_bw() +
-        theme(axis.title.y=element_blank(),
-              axis.text.y=element_blank(),
-              axis.ticks.y=element_blank()))
-
-(ws_attributes <- deppanel /
-    temppanel/
-    gpppanel/
-    pptpanel/
-    sizepanel/
-    slopepanel/
-    elevpanel/
-    wetlandpanel/
-    devpanel)
-
-(ws_attributes_v2 <- (deppanelv2 + temppanelv2 + pptpanelv2)/
-        (gpppanelv2 + wetlandpanelv2 + devpanelv2)/
-        (sizepanelv2 + slopepanelv2 + elevpanelv2))
-
+(ws_attributes <- (deppanel + temppanel + pptpanel)/
+        (gpppanel + wetlandpanel + devpanel)/
+        (sizepanel + slopepanel + elevpanel))
 
 # ggsave(ws_attributes,
-#        filename = "figures/summaryfig_attributes_2010_to_2020.jpeg",
-#        height = 20,
-#        width = 20,
-#        units = "cm")
-
-# ggsave(ws_attributes_v2,
-#        filename = "figures/summaryfig_attributes_dens_2010_to_2020.jpeg",
-#        height = 14,
-#        width = 20,
+#        filename = "figures/summaryfig_attributes_dens_hist_v_recent.jpeg",
+#        height = 16,
+#        width = 24,
 #        units = "cm")
 
 ##### N vs. Climate #####
 
+# Join climate and deposition trends
+dep_clim_trends_ann <- rbind(ndep_trends_ann, clim_trends)
+
 # Join NO3 and climate trends
-no3_clim_trends_ann <- full_join(no3_trends_ann, clim_trends)
+no3_clim_trends_ann <- full_join(no3_trends_ann, dep_clim_trends_ann)
 
 # Trim to variables of interest
 no3_clim_trends_ann_wide <- no3_clim_trends_ann %>%
@@ -1366,9 +1391,23 @@ no3_clim_trends_ann_wide <- full_join(no3_clim_trends_ann_wide,
                                      "increasing",
                                      "non-significant",
                                      "insufficient data"))) %>%
-    mutate(infill = case_when(group %in% c("insufficient data",
-                                           "non-significant")~ NA,
-                              TRUE ~ mean_ann_records))
+    mutate(freq = case_when(group %in% c("insufficient data",
+                                           "non-significant") ~ NA,
+                              mean_ann_records <= 10 ~ "monthly",
+                              mean_ann_records > 10 &
+                                  mean_ann_records <= 50 ~ "weekly",
+                              mean_ann_records > 50 ~ "subweekly")) %>%
+    mutate(infill = factor(case_when(group == "decreasing" & freq == "subweekly" ~ "-, subweekly",
+                                     group == "decreasing" & freq == "weekly" ~ "-, weekly",
+                                     group == "decreasing" & freq == "monthly" ~ "-, monthly",
+                                     group == "increasing" & freq == "subweekly" ~ "+, subweekly",
+                                     group == "increasing" & freq == "weekly" ~ "+, weekly",
+                                     group == "increasing" & freq == "monthly" ~ "+, monthly",
+                                     group == "non-significant" ~ "no trend",
+                                     TRUE ~ "insufficient data"),
+                           levels = c("-, subweekly","-, weekly","-, monthly",
+                                      "no trend","+, monthly","+, weekly","+, subweekly",
+                                      "insufficient data")))
 
 # NO3 V TEMP - removed MCDN
 (figNO3_temp <- ggplot(no3_clim_trends_ann_wide,
@@ -1427,45 +1466,82 @@ no3_clim_trends_ann_wide <- full_join(no3_clim_trends_ann_wide,
 (figNO3_ppt_temp <- ggplot(no3_clim_trends_ann_wide,
                           aes(x = temp_mean,
                               y = precip_mean)) +
+    geom_hline(yintercept = 0, color = "gray20") +
+    geom_vline(xintercept = 0, color = "gray20") +
     geom_point(size = 6,
+               alpha = 0.7,
                aes(shape = group,
-                   color = group,
-                   alpha = infill)) +
-    scale_shape_manual(values = c(20, 20, 21, 4)) +
-    scale_color_manual(values = c("purple","cyan4","darkorange", "grey80")) +
-    scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
+                   color = infill)) +
+    scale_shape_manual(values = c(20, 20, 20, 4),
+                       guide = "none") +
+    scale_color_manual(values = c("blue", "royalblue1",
+                                  #"cadetblue3",
+                                  "gray46",
+                                  #"lightsalmon1",
+                                  "coral1",
+                                  #"firebrick2",
+                                  "gray76"),
+                       guide = "none") +
     labs(x = "Mean Annual Temperature Trend",
          y = "Mean Annual Precipitation Trend",
-         shape = "NO3 Trend",
-         color = "NO3 Trend",
-         alpha = "Mean Annual Obs.") +
-    theme_bw() +
-    theme(legend.position = "none"))
+         #shape = "Trend & Sampling Frequency",
+         color = "Trend & Sampling Frequency") +
+    theme_bw())
 
 # GPP V TEMP
 (figNO3_gpp_temp <- ggplot(no3_clim_trends_ann_wide,
                            aes(x = temp_mean,
                                y = gpp_CONUS_30m_median)) +
+        geom_hline(yintercept = 0, color = "gray20") +
+        geom_vline(xintercept = 0, color = "gray20") +
         geom_point(size = 6,
+                   alpha = 0.7,
                    aes(shape = group,
-                       color = group,
-                       alpha = infill)) +
-        scale_shape_manual(values = c(20, 20, 21, 4)) +
-        scale_color_manual(values = c("purple","cyan4","darkorange", "grey80")) +
-        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
+                       color = infill)) +
+        scale_shape_manual(values = c(20, 20, 20, 4),
+                           guide = "none") +
+        scale_color_manual(values = c("blue", "royalblue1",
+                                      #"cadetblue3",
+                                      "gray46",
+                                      #"lightsalmon1",
+                                      "coral1",
+                                      #"firebrick2",
+                                      "gray76"),
+                           guide = "none") +
         labs(x = "Mean Annual Temperature Trend",
-             y = "Mean Annual GPP Trend",
-             shape = "NO3 Trend",
-             color = "NO3 Trend",
-             alpha = "Mean Annual Obs.") +
+             y = "Mean Annual GPP Trend") +
         theme_bw())
 
-(figNO3_all <- figNO3_ppt_temp + figNO3_gpp_temp)
+# DEP V TEMP
+(figNO3_dep_temp <- ggplot(no3_clim_trends_ann_wide,
+                           aes(x = temp_mean,
+                               y = N_flux_mean)) +
+        geom_hline(yintercept = 0, color = "gray20") +
+        geom_vline(xintercept = 0, color = "gray20") +
+        geom_point(size = 6,
+                   alpha = 0.7,
+                   aes(shape = group,
+                       color = infill)) +
+        scale_shape_manual(values = c(20, 20, 20, 4),
+                           guide = "none") +
+        scale_color_manual(values = c("blue", "royalblue1",
+                                      #"cadetblue3",
+                                      "gray46",
+                                      #"lightsalmon1",
+                                      "coral1",
+                                      #"firebrick2",
+                                      "gray76")) +
+        labs(x = "Mean Annual Temperature Trend",
+             y = "Mean Annual N Deposition Trend",
+             color = "NO3 Trend & Sampling Frequency") +
+        theme_bw())
+
+(figNO3_all <- figNO3_ppt_temp + figNO3_gpp_temp + figNO3_dep_temp)
 
 # ggsave(figNO3_all,
-#        filename = "figures/panelfig_no3_clim_trends.jpeg",
+#        filename = "figures/panelfig_no3_clim_dep_trends.jpeg",
 #        height = 8,
-#        width = 20,
+#        width = 30,
 #        units = "cm")
 
 # End of script.
