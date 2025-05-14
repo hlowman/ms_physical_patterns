@@ -2,8 +2,7 @@
 
 #### README ####
 # The following script will estimate trends
-# for nitrogen data. It will also create
-# accompanying data visualizations.
+# for nitrogen data.
 
 #### Load packages ####
 library(here)
@@ -11,125 +10,88 @@ source(here('src', 'setup.R'))
 
 #### Load data ####
 
-# Annual volume weighted means
-n_annual <- readRDS("data_working/nitrogen_annual_VWM_good.rds")
+# Load VWM nitrogen datasets.
+n_vwm_month <- readRDS("data_working/N_VWM_monthly.rds")
+n_vwm_seas <- readRDS("data_working/N_VWM_seasonal.rds")
+n_vwm_ann <- readRDS("data_working/N_VWM_annual.rds")
 
-# Monthly volume weighted means
-n_monthly <- readRDS("data_working/nitrogen_monthly_VWM_good.rds")
+# Tidy column names.
+n_vwm_month <- n_vwm_month %>%
+    rename(analyte = analyte_N,
+           vwm_mgL = monthly_vwm_mgL,
+           vwm_mgLha = monthly_vwm_mgLha) %>%
+    mutate(timestep = case_when(month == 1 ~ "January",
+                                month == 2 ~ "February",
+                                month == 3 ~ "March",
+                                month == 4 ~ "April",
+                                month == 5 ~ "May",
+                                month == 6 ~ "June",
+                                month == 7 ~ "July",
+                                month == 8 ~ "August",
+                                month == 9 ~ "September",
+                                month == 10 ~ "October",
+                                month == 11 ~ "November",
+                                month == 12 ~ "December")) %>%
+    select(-month)
 
-# Discharge
-q_data <- ms_load_product(
-    macrosheds_root = here(my_ms_dir),
-    prodname = "discharge",
-    warn = F
-)
+n_vwm_seas <- n_vwm_seas %>%
+    rename(analyte = analyte_N,
+           water_year = season_year,
+           timestep = season,
+           vwm_mgL = seasonal_vwm_mgL,
+           vwm_mgLha = seasonal_vwm_mgLha)
 
-#### Trends ####
+n_vwm_ann <- n_vwm_ann %>%
+    rename(analyte = analyte_N,
+           vwm_mgL = annual_vwm_mgL,
+           vwm_mgLha = annual_vwm_mgLha) %>%
+    mutate(timestep = "Annual")
+
+# Join all VWM nitrogen data together.
+n_vwm <- full_join(n_vwm_ann, n_vwm_month)
+n_vwm <- full_join(n_vwm, n_vwm_seas)
+
+# Trim all nitrogen data to only calculate trends post 1980.
+n_vwm80 <- n_vwm %>%
+    filter(water_year > 1979)
+
+#### NO3 ####
 
 ##### Annual #####
 
+# Reduce to best range.
+no3_vwm_ann <- gen_reduce_to_best_range(data_in = n_vwm80,
+                                        solute = 'NO3_N',
+                                        aggregation = 'Annual')
+
 # Renaming a column to work with the function below.
-n_annual <- n_annual %>%
+no3_vwm_ann <- no3_vwm_ann %>%
     rename(var = analyte) %>%
-    rename(val = annual_vwm_mgL)
+    rename(val = vwm_mgLha) %>%
+    drop_na(var)
 
-# Now, within each dataframe, calculate and combine sens slope results.
-# Repurposing the "detect_trends" function here from the setup script.
-detect_trends <- function(df_in){
-
-    com_long <- df_in
-
-    #  make trend dataset for entire record
-    out_frame <- tibble(site_code = as.character(),
-                        var = as.character(),
-                        start = as.integer(),
-                        end = as.integer(),
-                        median = as.integer(),
-                        trend = as.integer(),
-                        p = as.integer(),
-                        code = as.character())
-
-    for(i in unique(com_long$site_code)){
-
-        target_site <- filter(com_long, site_code == i)
-
-            for(j in unique(target_site$var)){
-
-                target_solute <- filter(target_site, var == j)  %>%
-                    arrange(water_year) %>%
-                    distinct() %>%
-                    na.omit()
-
-                    start <- min(target_solute$water_year)
-                    end <- max(target_solute$water_year)
-                    median <- median(target_solute$val)
-                    n <- nrow(target_solute)
-
-                    slope_data <- target_solute %>%
-                        select(val) %>%
-                        as.ts()
-
-                    # assigns water years to rownames to properly index
-                    rownames(slope_data) <- target_solute$water_year
-                    test <- sens.slope(slope_data)
-                    trend <- test[[1]]
-                    p <- test[[3]]
-
-                    inner <- tibble(site_code = i,
-                                    var = j,
-                                    start = start,
-                                    end = end,
-                                    median = median,
-                                    n = n,
-                                    trend = trend,
-                                    p = p
-                    )
-
-                    # bind out
-                    out_frame <- rbind(out_frame, inner)
-
-            }# end solute loop
-
-    } #end site loop
-
-    return(out_frame)
-
-} #end function
-
-n_annual_trends <- detect_trends(n_annual)
+# Detect trends.
+no3_trends_ann <- detect_trends(no3_vwm_ann)
 
 # Add columns for identification.
-n_annual_trends <- n_annual_trends %>%
-    mutate(sig = case_when(p < 0.05 ~ 1,
-                           TRUE ~ 0)) %>%
-    mutate(group = factor(case_when(sig == 1 & trend > 0 ~ "sig. increasing",
-                                    sig == 0 & trend > 0 ~ "ns. increasing",
-                                    sig == 1 & trend < 0 ~ "sig. decreasing",
-                                    sig == 0 & trend < 0 ~ "ns. decreasing",
-                                    TRUE ~ "no trend"),
-                          levels = c("sig. increasing", "ns. increasing",
-                                     "no trend",
-                                     "ns. decreasing", "sig. decreasing")))
+no3_trends_ann <- no3_trends_ann %>%
+    mutate(flag = case_when(sign(trend_upper)!= sign(trend_lower) ~ 'non-significant',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) > 0 ~ 'increasing',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) < 0 ~ 'decreasing',
+                            sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat',
+                            trend == NA ~ 'insufficient data'))
 
-# Export for use in making figures.
-# saveRDS(n_annual_trends, "data_working/nitrogen_annual_trends.rds")
-
-n_annual_trends_summary <- n_annual_trends %>%
-    count(var, group) %>%
+# Calculate average number of records per year per site.
+no3_records <- no3_vwm_ann %>%
+    group_by(site_code) %>%
+    summarize(mean_ann_records = mean(n_of_obs_chem)) %>%
     ungroup()
 
-(fig_annual <- ggplot(n_annual_trends_summary,
-                       aes(x = var, y = n, fill = group)) +
-        scale_fill_manual(values = c("red", "gray", "blue")) +
-        geom_bar(position = "stack", stat = "identity") +
-        labs(x = "Analyte", y = "Site Count", fill = "Trend") +
-        theme_bw())
+# And join with primary data frame.
+no3_trends_ann <- left_join(no3_trends_ann, no3_records)
 
-# ggsave(fig_annual,
-#        filename = "figures/n_vwm_annual_trends.jpg",
-#        width = 12,
-#        height = 8,
-#        units = "cm")
+# Export for use in making figures.
+# saveRDS(no3_trends_ann, "data_working/no3_trends_annual.rds")
 
 ##### Monthly #####
 
