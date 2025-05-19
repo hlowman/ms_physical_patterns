@@ -43,6 +43,9 @@ N_VWM_annual <- readRDS("data_working/N_VWM_annual.rds")
 # All sites and analytes for which we could calculate seasonal VWMs
 N_VWM_seasonal <- readRDS("data_working/N_VWM_seasonal.rds")
 
+# All sites and analytes for which we could fit annual CQ models.
+N_CQ_annual <- readRDS("data_working/N_CQ_annual.rds")
+
 # NO3 annual trends
 no3_trends_ann <- readRDS("data_working/no3_trends_annual.rds")
 
@@ -1364,6 +1367,77 @@ N_data20 <- left_join(N_data20, clim_decadal20)
 #        width = 24,
 #        units = "cm")
 
+##### CQ #####
+
+# Select for most recent 10 years of data to be comparable to other
+# summary figures.
+mean_N_CQ_annual20 <- N_CQ_annual %>%
+    filter(water_year > 2009) %>%
+    filter(water_year > 2021) %>%
+    # And site-years with two or fewer observations
+    filter(n_of_obs > 2) %>%
+    group_by(site_code, analyte_N) %>%
+    summarize(mean_annual_CQ_slope = mean(annual_cq_slope),
+              mean_annual_CQ_int = mean(annual_cq_int),
+              mean_annual_obs = mean(n_of_obs),
+              total_years = as.numeric(n())) %>%
+    ungroup()
+
+# And join with site data to filter out experimental sites.
+mean_N_CQ_annual20 <- left_join(mean_N_CQ_annual20, ms_site_data)
+
+mean_N_CQ_annual20_nonexp <- mean_N_CQ_annual20 %>%
+    filter(ws_status == "non-experimental")
+
+(summaryfig6 <- ggplot(mean_N_CQ_annual20_nonexp %>%
+                           filter(analyte_N %in% c("NO3_N",
+                                                   "NH3_N",
+                                                   "TDN"))) +
+        geom_histogram(aes(x = mean_annual_CQ_slope,
+                           fill = ..x..),
+                       color = "black", bins = 30) +
+        geom_vline(xintercept = 0, linetype = "dashed") +
+        ylim(0, 13) +
+        xlim(-1,1) +
+        scale_fill_gradient2(low = "#045CB4",
+                             mid = "white",
+                             high = "#FAB455",
+                             midpoint = 0) +
+        facet_grid(analyte_N~., scales = "free") +
+        labs(x = "Mean Annual C-Q Slope", y = "Site Count") +
+        theme_bw() +
+        theme(strip.background = element_rect(colour="NA", fill="NA"),
+              strip.text = element_blank(),
+              legend.position = "none"))
+
+(summaryfig6b <- ggplot(mean_N_CQ_annual20_nonexp %>%
+                           filter(analyte_N %in% c("NO3_N",
+                                                   "NH3_N",
+                                                   "TDN"))) +
+        geom_histogram(aes(x = mean_annual_CQ_int,
+                           fill = ..x..),
+                       color = "black", bins = 30) +
+        geom_vline(xintercept = 0, linetype = "dashed") +
+        ylim(0, 13) +
+        xlim(-10, 10) +
+        scale_fill_gradient2(low = "#045CB4",
+                             mid = "white",
+                             high = "#FAB455",
+                             midpoint = 0) +
+        facet_grid(analyte_N~., scales = "free") +
+        labs(x = "Mean Annual C-Q Intercept", y = "Site Count") +
+        theme_bw() +
+        theme(strip.background = element_rect(colour="NA", fill="NA"),
+              legend.position = "none"))
+
+(cq_fig <- (summaryfig6 + summaryfig6b))
+
+# ggsave(cq_fig,
+#        filename = "figures/summaryfig_cq_slope_intercept_2010_to_2020.jpeg",
+#        height = 16,
+#        width = 16,
+#        units = "cm")
+
 ##### N vs. Climate #####
 
 # Join climate and deposition trends
@@ -1408,6 +1482,10 @@ no3_clim_trends_ann_wide <- full_join(no3_clim_trends_ann_wide,
                            levels = c("-, subweekly","-, weekly","-, monthly",
                                       "no trend","+, monthly","+, weekly","+, subweekly",
                                       "insufficient data")))
+
+# Join with site level data.
+no3_clim_trends_ann_wide <- left_join(no3_clim_trends_ann_wide,
+                                      ms_site_data)
 
 # NO3 V TEMP - removed MCDN
 (figNO3_temp <- ggplot(no3_clim_trends_ann_wide,
@@ -1462,49 +1540,70 @@ no3_clim_trends_ann_wide <- full_join(no3_clim_trends_ann_wide,
              alpha = "Mean Annual Obs.") +
         theme_bw())
 
+# Need to order dataset properly before plotting.
+no3_clim_trends_ann_wide_ed <- no3_clim_trends_ann_wide %>%
+    filter(ws_status == "non-experimental") %>%
+    arrange(NO3_N) %>%
+    arrange(desc(group))
+
 # PRECIP V TEMP
-(figNO3_ppt_temp <- ggplot(no3_clim_trends_ann_wide,
+(figNO3_ppt_temp <- ggplot(no3_clim_trends_ann_wide_ed,
                           aes(x = temp_mean,
                               y = precip_mean)) +
     geom_hline(yintercept = 0, color = "gray20") +
     geom_vline(xintercept = 0, color = "gray20") +
-    geom_point(size = 6,
-               alpha = 0.7,
+    geom_point(alpha = 0.7,
                aes(shape = group,
-                   color = infill)) +
-    scale_shape_manual(values = c(20, 20, 20, 4),
+                   color = group,
+                   size = group)) +
+    xlim(-0.06, 0.06) +
+    ylim(-0.04, 0.04) +
+    annotate("text", x = -0.042, y = 0.04, label = "Cooling, Wetting") +
+    annotate("text", x = -0.042, y = -0.04, label = "Cooling, Drying") +
+    annotate("text", x = 0.042, y = 0.04, label = "Warming, Wetting") +
+    annotate("text", x = 0.042, y = -0.04, label = "Warming, Drying") +
+    scale_shape_manual(values = c(20, 20, 4),
                        guide = "none") +
-    scale_color_manual(values = c("blue", "royalblue1",
+    scale_size_manual(values = c(6, 4, 2),
+                       guide = "none") +
+    scale_color_manual(values = c("blue", #"royalblue1",
                                   #"cadetblue3",
                                   "gray46",
                                   #"lightsalmon1",
-                                  "coral1",
+                                  # "coral1",
                                   #"firebrick2",
                                   "gray76"),
                        guide = "none") +
     labs(x = "Mean Annual Temperature Trend",
          y = "Mean Annual Precipitation Trend",
-         #shape = "Trend & Sampling Frequency",
          color = "Trend & Sampling Frequency") +
     theme_bw())
 
 # GPP V TEMP
-(figNO3_gpp_temp <- ggplot(no3_clim_trends_ann_wide,
+(figNO3_gpp_temp <- ggplot(no3_clim_trends_ann_wide_ed,
                            aes(x = temp_mean,
                                y = gpp_CONUS_30m_median)) +
         geom_hline(yintercept = 0, color = "gray20") +
         geom_vline(xintercept = 0, color = "gray20") +
-        geom_point(size = 6,
-                   alpha = 0.7,
+        geom_point(alpha = 0.7,
                    aes(shape = group,
-                       color = infill)) +
-        scale_shape_manual(values = c(20, 20, 20, 4),
+                       color = group,
+                       size = group)) +
+        xlim(-0.06, 0.06) +
+        ylim(-0.001, 0.001) +
+        annotate("text", x = -0.04, y = 0.001, label = "Cooling, Greening") +
+        annotate("text",x = -0.04, y = -0.001, label = "Cooling, Browning") +
+        annotate("text",x = 0.04, y = 0.001, label = "Warming, Greening") +
+        annotate("text",x = 0.04, y = -0.001, label = "Warming, Browning") +
+        scale_shape_manual(values = c(20, 20, 4),
                            guide = "none") +
-        scale_color_manual(values = c("blue", "royalblue1",
+        scale_size_manual(values = c(6, 4, 2),
+                           guide = "none") +
+        scale_color_manual(values = c("blue", #"royalblue1",
                                       #"cadetblue3",
                                       "gray46",
                                       #"lightsalmon1",
-                                      "coral1",
+                                      #"coral1",
                                       #"firebrick2",
                                       "gray76"),
                            guide = "none") +
@@ -1513,35 +1612,43 @@ no3_clim_trends_ann_wide <- full_join(no3_clim_trends_ann_wide,
         theme_bw())
 
 # DEP V TEMP
-(figNO3_dep_temp <- ggplot(no3_clim_trends_ann_wide,
+(figNO3_dep_temp <- ggplot(no3_clim_trends_ann_wide_ed,
                            aes(x = temp_mean,
                                y = N_flux_mean)) +
         geom_hline(yintercept = 0, color = "gray20") +
         geom_vline(xintercept = 0, color = "gray20") +
-        geom_point(size = 6,
-                   alpha = 0.7,
+        geom_point(alpha = 0.7,
                    aes(shape = group,
-                       color = infill)) +
-        scale_shape_manual(values = c(20, 20, 20, 4),
-                           guide = "none") +
-        scale_color_manual(values = c("blue", "royalblue1",
+                       color = group,
+                       size = group)) +
+        xlim(-0.06, 0.06) +
+        ylim(-0.12, 0.12) +
+        annotate("text", x = -0.035, y = 0.12, label = "Cooling, Eutrophic") +
+        annotate("text",x = -0.035, y = -0.12, label = "Cooling, Oligotrophic") +
+        annotate("text",x = 0.035, y = 0.12, label = "Warming, Eutrophic") +
+        annotate("text",x = 0.035, y = -0.12, label = "Warming, Oligotrophic") +
+        scale_shape_manual(values = c(20, 20, 4)) +
+        scale_size_manual(values = c(6, 4, 2)) +
+        scale_color_manual(values = c("blue", #"royalblue1",
                                       #"cadetblue3",
                                       "gray46",
                                       #"lightsalmon1",
-                                      "coral1",
+                                      # "coral1",
                                       #"firebrick2",
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual N Deposition Trend",
-             color = "NO3 Trend & Sampling Frequency") +
+             color = "NO3 Trend",
+             shape = "NO3 Trend",
+             size = "NO3 Trend") +
         theme_bw())
 
 (figNO3_all <- figNO3_ppt_temp + figNO3_gpp_temp + figNO3_dep_temp)
 
 # ggsave(figNO3_all,
 #        filename = "figures/panelfig_no3_clim_dep_trends.jpeg",
-#        height = 8,
-#        width = 30,
+#        height = 10,
+#        width = 40,
 #        units = "cm")
 
 # End of script.

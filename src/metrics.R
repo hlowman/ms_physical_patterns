@@ -683,11 +683,37 @@ n_q_vwm_ann <- n_q_data %>%
 
 log_info({nrow(n_q_vwm_ann)}, ' rows of annual vwm N chemistry data')
 
-#### Export VWM N data ####
+###### CQ slopes & ints ######
+
+# Create dataset of annual CQ slopes.
+n_q_cq_ann <- n_q_data %>%
+    # Remove missing data.
+    drop_na(val_dailymean) %>%
+    drop_na(val) %>%
+    filter(val_dailymean > 0) %>%
+    filter(val > 0) %>%
+    # Group by year.
+    group_by(site_code, analyte_N, water_year) %>%
+    # Calculate CQ slope.
+    summarize(annual_cq_slope = coef(lm(log(val_dailymean) ~ log(val)))[2],
+              annual_cq_int = coef(lm(log(val_dailymean) ~ log(val)))[1],
+              n_of_obs = n()) %>%
+    ungroup()
+
+ggplot(n_q_data %>%
+           filter(analyte_N == "NO3_N") %>%
+           filter(site_code == "GREEN4"),
+       aes(x = val, y = val_dailymean,
+           group = water_year, color = water_year)) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE)
+
+##### Export VWM N data #####
 
 saveRDS(n_q_vwm_month, "data_working/N_VWM_monthly.rds")
 saveRDS(n_q_vwm_seas, "data_working/N_VWM_seasonal.rds")
 saveRDS(n_q_vwm_ann, "data_working/N_VWM_annual.rds")
+saveRDS(n_q_cq_ann, "data_working/N_CQ_annual.rds")
 
 #### DOC ####
 
