@@ -18,11 +18,19 @@ n_vwm_month <- readRDS("data_working/N_VWM_monthly.rds")
 n_vwm_seas <- readRDS("data_working/N_VWM_seasonal.rds")
 n_vwm_ann <- readRDS("data_working/N_VWM_annual.rds")
 
+#### Prep data ####
+
+# The baseline number of non-experimental sites we have to work with.
+nonexp_sites <- n_vwm_ann %>%
+    left_join(ms_site_data) %>%
+    filter(ws_status == "non-experimental")
+
+length(unique(nonexp_sites$site_code)) # 161 sites
+
 # Tidy column names.
 n_vwm_month <- n_vwm_month %>%
     rename(analyte = analyte_N,
-           vwm_mgL = monthly_vwm_mgL,
-           vwm_mgLha = monthly_vwm_mgLha) %>%
+           vwm_mgL = monthly_vwm_mgL) %>%
     mutate(timestep = case_when(month == 1 ~ "January",
                                 month == 2 ~ "February",
                                 month == 3 ~ "March",
@@ -41,13 +49,11 @@ n_vwm_seas <- n_vwm_seas %>%
     rename(analyte = analyte_N,
            water_year = season_year,
            timestep = season,
-           vwm_mgL = seasonal_vwm_mgL,
-           vwm_mgLha = seasonal_vwm_mgLha)
+           vwm_mgL = seasonal_vwm_mgL)
 
 n_vwm_ann <- n_vwm_ann %>%
     rename(analyte = analyte_N,
-           vwm_mgL = annual_vwm_mgL,
-           vwm_mgLha = annual_vwm_mgLha) %>%
+           vwm_mgL = annual_vwm_mgL) %>%
     mutate(timestep = "Annual")
 
 # Join all VWM nitrogen data together.
@@ -58,7 +64,11 @@ n_vwm <- full_join(n_vwm, n_vwm_seas)
 n_vwm80 <- n_vwm %>%
     filter(water_year > 1979)
 
-# And only include timesteps with a minimum of 10 observations.
+# Timesteps with a minimum of 2 observations.
+n_vwm80_2 <- n_vwm80 %>%
+    filter(n_of_obs_chem > 1)
+
+# Timesteps with a minimum of 10 observations.
 n_vwm80_10 <- n_vwm80 %>%
     filter(n_of_obs_chem > 9)
 
@@ -110,25 +120,59 @@ n_mos_yrs_trim <- n_month_counts %>%
     filter(flag_months >= 8) %>%
     select(site_code, analyte, water_year, flag_months)
 
-n_vwm80_trim <- right_join(n_vwm80, n_mos_yrs_trim)
+n_vwm80_trim <- right_join(n_vwm80_10, n_mos_yrs_trim)
+
+# Key for use below:
+# n_vwm80 = dataset including all sites
+# n_vwm80_2 = dataset including only sites with 2 or more obs/year
+# n_vwm80_10 = dataset including only sites with 10 or more obs/year
+# n_vwm80_trim = dataset with 10 or more obs/year AND spanning 8 or more mos/year
+
+# Keep in mind the number of sites above will decrease due to this
+# filtering, so need to reference the original n_vwm80 dataset to
+# ensure correct counting of number of sites with insufficient data.
 
 #### NO3 ####
 
 ##### Annual #####
 
-# Reduce to best range.
+# Reduce to best range (still including experimental sites).
 no3_vwm_ann <- gen_reduce_to_best_range(data_in = n_vwm80_trim,
                                         solute = 'NO3_N',
-                                        aggregation = 'Annual')
+                                        aggregation = 'Annual') # 152 sites total
+no3_vwm_ann10 <- gen_reduce_to_best_range(data_in = n_vwm80_10,
+                                        solute = 'NO3_N',
+                                        aggregation = 'Annual') # 179 sites total
+no3_vwm_ann2 <- gen_reduce_to_best_range(data_in = n_vwm80_2,
+                                        solute = 'NO3_N',
+                                        aggregation = 'Annual') # 200 sites total
+no3_vwm_ann_full <- gen_reduce_to_best_range(data_in = n_vwm80,
+                                        solute = 'NO3_N',
+                                        aggregation = 'Annual') # 201 sites total
 
 # Renaming a column to work with the function below.
 no3_vwm_ann <- no3_vwm_ann %>%
     rename(var = analyte) %>%
-    rename(val = vwm_mgLha) %>%
+    rename(val = vwm_mgL) %>%
+    drop_na(var)
+no3_vwm_ann10 <- no3_vwm_ann10 %>%
+    rename(var = analyte) %>%
+    rename(val = vwm_mgL) %>%
+    drop_na(var)
+no3_vwm_ann2 <- no3_vwm_ann2 %>%
+    rename(var = analyte) %>%
+    rename(val = vwm_mgL) %>%
+    drop_na(var)
+no3_vwm_ann_full <- no3_vwm_ann_full %>%
+    rename(var = analyte) %>%
+    rename(val = vwm_mgL) %>%
     drop_na(var)
 
 # Detect trends.
 no3_trends_ann <- detect_trends(no3_vwm_ann)
+no3_trends_ann10 <- detect_trends(no3_vwm_ann10)
+no3_trends_ann2 <- detect_trends(no3_vwm_ann2)
+no3_trends_ann_full <- detect_trends(no3_vwm_ann_full)
 
 # Add columns for identification.
 no3_trends_ann <- no3_trends_ann %>%
@@ -138,17 +182,61 @@ no3_trends_ann <- no3_trends_ann %>%
                             sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat',
                             trend == NA ~ 'insufficient data'))
 
+no3_trends_ann10 <- no3_trends_ann10 %>%
+    mutate(flag = case_when(sign(trend_upper)!= sign(trend_lower) ~ 'non-significant',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) > 0 ~ 'increasing',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) < 0 ~ 'decreasing',
+                            sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat',
+                            trend == NA ~ 'insufficient data'))
+
+no3_trends_ann2 <- no3_trends_ann2 %>%
+    mutate(flag = case_when(sign(trend_upper)!= sign(trend_lower) ~ 'non-significant',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) > 0 ~ 'increasing',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) < 0 ~ 'decreasing',
+                            sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat',
+                            trend == NA ~ 'insufficient data'))
+
+no3_trends_ann_full <- no3_trends_ann_full %>%
+    mutate(flag = case_when(sign(trend_upper)!= sign(trend_lower) ~ 'non-significant',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) > 0 ~ 'increasing',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) < 0 ~ 'decreasing',
+                            sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat',
+                            trend == NA ~ 'insufficient data'))
+
+# Sensitivity analysis based on dataset used.
+all_data_counts_no3_trim <- no3_trends_ann %>%
+    left_join(ms_site_data) %>%
+    filter(ws_status == "non-experimental") %>%
+    count(flag)
+all_data_counts_no3_10 <- no3_trends_ann10 %>%
+    left_join(ms_site_data) %>%
+    filter(ws_status == "non-experimental") %>%
+    count(flag)
+all_data_counts_no3_2 <- no3_trends_ann2 %>%
+    left_join(ms_site_data) %>%
+    filter(ws_status == "non-experimental") %>%
+    count(flag)
+all_data_counts_no3 <- no3_trends_ann_full %>%
+    left_join(ms_site_data) %>%
+    filter(ws_status == "non-experimental") %>%
+    count(flag)
+
 # Calculate average number of records per year per site.
-no3_records <- no3_vwm_ann %>%
+# This also helps to add back in sites that may have been
+# lost in the filtering process and need to be properly
+# shown in the plots as having insufficient data.
+# Note, this is adding in experimental sites too, but these
+# will be filtered back out before plotting.
+no3_records <- n_vwm_ann %>%
     group_by(site_code) %>%
-    summarize(mean_ann_records = mean(n_of_obs_chem)) %>%
+    summarize(mean_ann_records = case_when(mean(n_of_obs_chem) > 0 ~
+                                               mean(n_of_obs_chem),
+                                           TRUE ~ NA))%>%
     ungroup()
 
 # And join with primary data frame.
-no3_trends_ann <- left_join(no3_trends_ann, no3_records)
-
-all_data_counts_no3_trim <- no3_trends_ann %>%
-    count(flag)
+no3_trends_ann <- full_join(no3_trends_ann, no3_records) %>%
+    mutate(var = "NO3_N")
 
 # Export for use in making figures.
 saveRDS(no3_trends_ann, "data_working/no3_trends_annual.rds")
@@ -165,7 +253,7 @@ nh3_vwm_ann <- gen_reduce_to_best_range(data_in = n_vwm80_trim,
 # Renaming a column to work with the function below.
 nh3_vwm_ann <- nh3_vwm_ann %>%
     rename(var = analyte) %>%
-    rename(val = vwm_mgLha) %>%
+    rename(val = vwm_mgL) %>%
     drop_na(var)
 
 # Detect trends.
@@ -206,7 +294,7 @@ tdn_vwm_ann <- gen_reduce_to_best_range(data_in = n_vwm80_trim,
 # Renaming a column to work with the function below.
 tdn_vwm_ann <- tdn_vwm_ann %>%
     rename(var = analyte) %>%
-    rename(val = vwm_mgLha) %>%
+    rename(val = vwm_mgL) %>%
     drop_na(var)
 
 # Detect trends.

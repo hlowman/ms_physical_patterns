@@ -682,6 +682,7 @@ n_q_vwm_ann <- n_q_data %>%
     ungroup()
 
 log_info({nrow(n_q_vwm_ann)}, ' rows of annual vwm N chemistry data')
+# ideally want 10 obs per year, with a min. of 8 months represented
 
 ###### CQ slopes & ints ######
 

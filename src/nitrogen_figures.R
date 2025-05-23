@@ -805,7 +805,7 @@ prod_trim_annual <- prod %>%
 #        width = 15,
 #        units = "cm")
 
-#### Manuscript Figs ####
+#### Manuscript Figures ####
 
 ##### Data Coverage #####
 
@@ -1446,6 +1446,17 @@ dep_clim_trends_ann <- rbind(ndep_trends_ann, clim_trends)
 # Join NO3 and climate trends
 no3_clim_trends_ann <- full_join(no3_trends_ann, dep_clim_trends_ann)
 
+# Quick check of overlaps
+no3_sites <- no3_trends_ann %>% select(site_code) %>% unique()
+clim_sites <- dep_clim_trends_ann %>% select(site_code) %>% unique()
+inner <- inner_join(no3_sites, clim_sites) # 148 sites max overlap
+only_no3 <- no3_sites %>%
+    filter(!site_code %in% inner$site_code) # 53 sites only with NO3 data
+# i.e., the PR, Krycklan, McMurdo, Toolik, etc. sites
+only_clim <- clim_sites %>%
+    filter(!site_code %in% inner$site_code) # 18 sites with only climate data
+# i.e., sites part of other regions but missing N data
+
 # Trim to variables of interest
 no3_clim_trends_ann_wide <- no3_clim_trends_ann %>%
     select(site_code, var, trend) %>%
@@ -1486,59 +1497,6 @@ no3_clim_trends_ann_wide <- full_join(no3_clim_trends_ann_wide,
 # Join with site level data.
 no3_clim_trends_ann_wide <- left_join(no3_clim_trends_ann_wide,
                                       ms_site_data)
-
-# NO3 V TEMP - removed MCDN
-(figNO3_temp <- ggplot(no3_clim_trends_ann_wide,
-                           aes(x = temp_mean,
-                               y = NO3_N)) +
-        geom_point(size = 6,
-                   aes(alpha = mean_ann_records)) +
-        ylim(-0.0015, 0.0015) +
-        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
-        labs(x = "Mean Annual Temperature Trend",
-             y = "Mean Annual NO3 Trend",
-             alpha = "Mean Annual Obs.") +
-        theme_bw())
-
-# NO3 V PPT - removed MCDN
-(figNO3_ppt <- ggplot(no3_clim_trends_ann_wide,
-                       aes(x = precip_mean,
-                           y = NO3_N)) +
-        geom_point(size = 6,
-                   aes(alpha = mean_ann_records)) +
-        ylim(-0.0015, 0.0015) +
-        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
-        labs(x = "Mean Annual Precipitation Trend",
-             y = "Mean Annual NO3 Trend",
-             alpha = "Mean Annual Obs.") +
-        theme_bw())
-
-# NO3 V GPP - removed MCDN
-(figNO3_gpp <- ggplot(no3_clim_trends_ann_wide,
-                      aes(x = gpp_CONUS_30m_median,
-                          y = NO3_N)) +
-        geom_point(size = 6,
-                   aes(alpha = mean_ann_records)) +
-        ylim(-0.0015, 0.0015) +
-        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
-        labs(x = "Mean Annual GPP Trend",
-             y = "Mean Annual NO3 Trend",
-             alpha = "Mean Annual Obs.") +
-        theme_bw())
-
-# NO3 V obs - removed MCDN
-(figNO3_obs <- ggplot(no3_clim_trends_ann_wide,
-                      aes(x = mean_ann_records,
-                          y = NO3_N)) +
-        geom_point(size = 6,
-                   aes(alpha = mean_ann_records)) +
-        #ylim(-0.0015, 0.0015) +
-        xlim(0, 100) +
-        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
-        labs(x = "Mean Annual Obs.",
-             y = "Mean Annual NO3 Trend",
-             alpha = "Mean Annual Obs.") +
-        theme_bw())
 
 # Need to order dataset properly before plotting.
 no3_clim_trends_ann_wide_ed <- no3_clim_trends_ann_wide %>%
@@ -1595,21 +1553,22 @@ no3_clim_trends_ann_wide_ed <- no3_clim_trends_ann_wide %>%
         annotate("text",x = -0.04, y = -0.001, label = "Cooling, Browning") +
         annotate("text",x = 0.04, y = 0.001, label = "Warming, Greening") +
         annotate("text",x = 0.04, y = -0.001, label = "Warming, Browning") +
-        scale_shape_manual(values = c(20, 20, 4),
-                           guide = "none") +
-        scale_size_manual(values = c(6, 4, 2),
-                           guide = "none") +
+        scale_shape_manual(values = c(20, 20, 4)) +
+        scale_size_manual(values = c(6, 4, 2)) +
         scale_color_manual(values = c("blue", #"royalblue1",
                                       #"cadetblue3",
                                       "gray46",
                                       #"lightsalmon1",
                                       #"coral1",
                                       #"firebrick2",
-                                      "gray76"),
-                           guide = "none") +
+                                      "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
-             y = "Mean Annual GPP Trend") +
-        theme_bw())
+             y = "Mean Annual N Deposition Trend",
+             color = "NO3 Trend",
+             shape = "NO3 Trend",
+             size = "NO3 Trend") +
+        theme_bw() +
+        theme(legend.position = "bottom"))
 
 # DEP V TEMP
 (figNO3_dep_temp <- ggplot(no3_clim_trends_ann_wide_ed,
@@ -1627,27 +1586,26 @@ no3_clim_trends_ann_wide_ed <- no3_clim_trends_ann_wide %>%
         annotate("text",x = -0.035, y = -0.12, label = "Cooling, Oligotrophic") +
         annotate("text",x = 0.035, y = 0.12, label = "Warming, Eutrophic") +
         annotate("text",x = 0.035, y = -0.12, label = "Warming, Oligotrophic") +
-        scale_shape_manual(values = c(20, 20, 4)) +
-        scale_size_manual(values = c(6, 4, 2)) +
+        scale_shape_manual(values = c(20, 20, 4), guide = "none") +
+        scale_size_manual(values = c(6, 4, 2), guide = "none") +
         scale_color_manual(values = c("blue", #"royalblue1",
                                       #"cadetblue3",
                                       "gray46",
                                       #"lightsalmon1",
                                       # "coral1",
                                       #"firebrick2",
-                                      "gray76")) +
+                                      "gray76"),
+                           guide = "none") +
         labs(x = "Mean Annual Temperature Trend",
-             y = "Mean Annual N Deposition Trend",
-             color = "NO3 Trend",
-             shape = "NO3 Trend",
-             size = "NO3 Trend") +
+             y = "Mean Annual N Deposition Trend") +
         theme_bw())
 
-(figNO3_all <- figNO3_ppt_temp + figNO3_gpp_temp + figNO3_dep_temp)
+(figNO3_all <- figNO3_ppt_temp + figNO3_gpp_temp + figNO3_dep_temp +
+        plot_annotation(tag_levels = "a"))
 
 # ggsave(figNO3_all,
 #        filename = "figures/panelfig_no3_clim_dep_trends.jpeg",
-#        height = 10,
+#        height = 14,
 #        width = 40,
 #        units = "cm")
 
