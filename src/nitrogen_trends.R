@@ -10,6 +10,9 @@ source(here('src', 'setup.R'))
 
 #### Load data ####
 
+# Load in climate data (for N deposition).
+clim_raw <- read_feather(here('data_raw/ms/v2/spatial_timeseries_climate.feather'))
+
 # Load VWM nitrogen datasets.
 n_vwm_month <- readRDS("data_working/N_VWM_monthly.rds")
 n_vwm_seas <- readRDS("data_working/N_VWM_seasonal.rds")
@@ -55,12 +58,66 @@ n_vwm <- full_join(n_vwm, n_vwm_seas)
 n_vwm80 <- n_vwm %>%
     filter(water_year > 1979)
 
+# And only include timesteps with a minimum of 10 observations.
+n_vwm80_10 <- n_vwm80 %>%
+    filter(n_of_obs_chem > 9)
+
+# Also, making a more restrictive filter for minimum 1 obs. in
+# 8 months of a given year, using the monthly data.
+n_month_counts <- n_vwm %>%
+    filter(timestep %in% c("January", "February", "March", "April",
+                           "May", "June", "July", "August",
+                           "September", "October", "November", "December")) %>%
+    select(site_code, analyte, water_year, timestep, n_of_obs_chem) %>%
+    pivot_wider(values_from = n_of_obs_chem,
+                names_from = timestep) %>%
+    # reordering just for ease of viewing
+    select(site_code, analyte, water_year, January, February, March, April,
+           May, June, July, August, September, October, November, December) %>%
+    # now to add appropriate flags
+    mutate(flag_10 = case_when(October >= 1 ~ 1,
+                               TRUE ~ 0),
+           flag_11 = case_when(November >= 1 ~ 1,
+                               TRUE ~ 0),
+           flag_12 = case_when(December >= 1 ~ 1,
+                               TRUE ~ 0),
+           flag_1 = case_when(January >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_2 = case_when(February >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_3 = case_when(March >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_4 = case_when(April >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_5 = case_when(May >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_6 = case_when(June >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_7 = case_when(July >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_8 = case_when(August >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_9 = case_when(September >= 1 ~ 1,
+                              TRUE ~ 0)) %>%
+    mutate(flag_months = flag_10 + flag_11 + flag_12 +
+               flag_1 + flag_2 + flag_3 +
+               flag_4 + flag_5 + flag_6 +
+               flag_7 + flag_8 + flag_9)
+
+# And only include timesteps with a minimum of 8 months
+# of observations per water year.
+n_mos_yrs_trim <- n_month_counts %>%
+    filter(flag_months >= 8) %>%
+    select(site_code, analyte, water_year, flag_months)
+
+n_vwm80_trim <- right_join(n_vwm80, n_mos_yrs_trim)
+
 #### NO3 ####
 
 ##### Annual #####
 
 # Reduce to best range.
-no3_vwm_ann <- gen_reduce_to_best_range(data_in = n_vwm80,
+no3_vwm_ann <- gen_reduce_to_best_range(data_in = n_vwm80_trim,
                                         solute = 'NO3_N',
                                         aggregation = 'Annual')
 
@@ -90,126 +147,124 @@ no3_records <- no3_vwm_ann %>%
 # And join with primary data frame.
 no3_trends_ann <- left_join(no3_trends_ann, no3_records)
 
+all_data_counts_no3_trim <- no3_trends_ann %>%
+    count(flag)
+
 # Export for use in making figures.
-# saveRDS(no3_trends_ann, "data_working/no3_trends_annual.rds")
+saveRDS(no3_trends_ann, "data_working/no3_trends_annual.rds")
 
-##### Monthly #####
+#### NH4 ####
 
-# Formatting columns to work with the function below.
-n_monthly <- n_monthly %>%
+##### Annual #####
+
+# Reduce to best range.
+nh3_vwm_ann <- gen_reduce_to_best_range(data_in = n_vwm80_trim,
+                                        solute = 'NH3_N',
+                                        aggregation = 'Annual')
+
+# Renaming a column to work with the function below.
+nh3_vwm_ann <- nh3_vwm_ann %>%
     rename(var = analyte) %>%
-    rename(val = monthly_vwm_mgL) %>%
-    mutate(water_year = case_when(month %in% c(10, 11, 12) ~ year+1,
-                                  TRUE ~ year))
+    rename(val = vwm_mgLha) %>%
+    drop_na(var)
 
-# Re-repurposing the "detect_trends" function here from the setup script.
-detect_monthly_trends <- function(df_in){
-
-    com_long <- df_in
-
-    #  make trend dataset for entire record
-    out_frame <- tibble(site_code = as.character(),
-                        var = as.character(),
-                        month = as.integer(),
-                        start = as.integer(),
-                        end = as.integer(),
-                        trend = as.integer(),
-                        p = as.integer(),
-                        code = as.character())
-
-    for(i in unique(com_long$site_code)){ # for each site
-
-        target_site <- filter(com_long, site_code == i)
-
-        for(j in unique(target_site$var)){ # and each analyte
-
-            target_solute <- filter(target_site, var == j)
-
-                for(k in unique(target_solute$month)){ # and each month
-
-                    target_month <- filter(target_solute, month == k) %>%
-                        arrange(water_year) %>%
-                        distinct() %>%
-                        na.omit()
-
-                    start <- min(target_month$water_year)
-                    end <- max(target_month$water_year)
-                    n <- nrow(target_month)
-
-                    slope_data <- target_month %>%
-                        select(val) %>%
-                        as.ts()
-
-                    # assigns water years to rownames to properly index
-                    rownames(slope_data) <- target_month$water_year
-                    test <- sens.slope(slope_data)
-                    trend <- test[[1]]
-                    p <- test[[3]]
-
-                    inner <- tibble(site_code = i,
-                                    var = j,
-                                    month = k,
-                                    start = start,
-                                    end = end,
-                                    n = n,
-                                    trend = trend,
-                                    p = p
-                    )
-
-                    # bind out
-                    out_frame <- rbind(out_frame, inner)
-
-                } # end month loop
-
-            } # end solute loop
-
-        } # end site loop
-
-    return(out_frame)
-
-} # end function
-
-# Calculate monthly trends using sen slope.
-n_monthly_trends <- detect_monthly_trends(n_monthly)
+# Detect trends.
+nh3_trends_ann <- detect_trends(nh3_vwm_ann)
 
 # Add columns for identification.
-n_monthly_trends <- n_monthly_trends %>%
-    mutate(sig = case_when(p < 0.05 ~ 1,
-                           TRUE ~ 0)) %>%
-    mutate(group = factor(case_when(sig == 1 & trend > 0 ~ "sig. increasing",
-                                    sig == 0 & trend > 0 ~ "ns. increasing",
-                                    sig == 1 & trend < 0 ~ "sig. decreasing",
-                                    sig == 0 & trend < 0 ~ "ns. decreasing",
-                                    TRUE ~ "no trend"),
-                          levels = c("sig. increasing", "ns. increasing",
-                                     "no trend",
-                                     "ns. decreasing", "sig. decreasing")))
+nh3_trends_ann <- nh3_trends_ann %>%
+    mutate(flag = case_when(sign(trend_upper)!= sign(trend_lower) ~ 'non-significant',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) > 0 ~ 'increasing',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) < 0 ~ 'decreasing',
+                            sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat',
+                            trend == NA ~ 'insufficient data'))
 
-# Export for use in making figures.
-# saveRDS(n_monthly_trends, "data_working/nitrogen_monthly_trends.rds")
-
-n_monthly_trends_summary <- n_monthly_trends %>%
-    count(var, month, group) %>%
+# Calculate average number of records per year per site.
+nh3_records <- nh3_vwm_ann %>%
+    group_by(site_code) %>%
+    summarize(mean_ann_records = mean(n_of_obs_chem)) %>%
     ungroup()
 
-(fig_monthly <- ggplot(n_monthly_trends_summary %>%
-           filter(var %in% c("nitrate_N", "ammonia_N",
-                                 "TDN", "TN")),
-       aes(x = month, y = n, fill = group)) +
-    scale_x_continuous(breaks = c(2,4,6,8,10,12)) +
-    scale_fill_manual(values = c("red", "darksalmon", "gray59", "cadetblue3", "blue")) +
-    geom_bar(position = "stack", stat = "identity") +
-    labs(x = "Month", y = "Site Count", fill = "Trend") +
-    facet_wrap(var~., scales = "free") +
-    theme_bw())
+# And join with primary data frame.
+nh3_trends_ann <- left_join(nh3_trends_ann, nh3_records)
 
-# ggsave(fig_monthly,
-#        filename = "figures/n_vwm_monthly_trends.jpg",
-#        width = 20,
-#        height = 10,
-#        units = "cm")
+all_data_counts_nh3_trim <- nh3_trends_ann %>%
+    count(flag)
 
-#### Seasonality ####
+# Export for use in making figures.
+saveRDS(nh3_trends_ann, "data_working/nh3_trends_annual.rds")
+
+#### TDN ####
+
+##### Annual #####
+
+# Reduce to best range.
+tdn_vwm_ann <- gen_reduce_to_best_range(data_in = n_vwm80_trim,
+                                        solute = 'TDN',
+                                        aggregation = 'Annual')
+
+# Renaming a column to work with the function below.
+tdn_vwm_ann <- tdn_vwm_ann %>%
+    rename(var = analyte) %>%
+    rename(val = vwm_mgLha) %>%
+    drop_na(var)
+
+# Detect trends.
+tdn_trends_ann <- detect_trends(tdn_vwm_ann)
+
+# Add columns for identification.
+tdn_trends_ann <- tdn_trends_ann %>%
+    mutate(flag = case_when(sign(trend_upper)!= sign(trend_lower) ~ 'non-significant',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) > 0 ~ 'increasing',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) < 0 ~ 'decreasing',
+                            sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat',
+                            trend == NA ~ 'insufficient data'))
+
+# Calculate average number of records per year per site.
+tdn_records <- tdn_vwm_ann %>%
+    group_by(site_code) %>%
+    summarize(mean_ann_records = mean(n_of_obs_chem)) %>%
+    ungroup()
+
+# And join with primary data frame.
+tdn_trends_ann <- left_join(tdn_trends_ann, tdn_records)
+
+all_data_counts_tdn_trim <- tdn_trends_ann %>%
+    count(flag)
+
+# Export for use in making figures.
+saveRDS(tdn_trends_ann, "data_working/tdn_trends_annual.rds")
+
+#### N Deposition ####
+
+##### Annual #####
+
+# Need to select for annualized deposition values.
+clim_dep <- clim_raw %>%
+    filter(var == "N_flux_mean") %>%
+    rename("analyte" = "var",
+           "water_year" = "year") %>%
+    mutate(timestep = "Annual") %>%
+    select(-date) # Remove this otherwise the function below trims ALL rows with NAs
+
+# These data start in 1985, so not doing any additional trimming here.
+# Reduce to best range.
+ndep_ann <- gen_reduce_to_best_range(data_in = clim_dep,
+                                     solute = 'N_flux_mean',
+                                     aggregation = 'Annual')
+
+# Renaming a column to work with the function below.
+ndep_ann <- ndep_ann %>%
+    rename(var = analyte) %>%
+    drop_na(var)
+
+# Detect trends.
+ndep_trends_ann <- detect_trends(ndep_ann)
+
+# Export for use in making figures.
+saveRDS(ndep_trends_ann, "data_working/ndep_trends_annual.rds")
+
+#### Old Seasonal Data Exploration Below ####
 
 # Also curious to examine seasonal/monthly means over the full record
 # for all sites.

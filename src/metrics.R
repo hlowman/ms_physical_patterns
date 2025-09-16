@@ -636,8 +636,7 @@ n_q_vwm_month <- n_q_data %>%
                                       na.rm = TRUE))/(sum(val,
                                                           na.rm = TRUE)),
               n_of_obs_chem = n()) %>%
-    ungroup() %>%
-    mutate(monthly_vwm_mgLha = monthly_vwm_mgL/ws_area_ha)
+    ungroup()
 
 log_info({nrow(n_q_vwm_month)}, ' rows of monthly vwm N chemistry data')
 # want at least biweekly sampling for 10 months of the year
@@ -658,8 +657,7 @@ n_q_vwm_seas <- n_q_data %>%
                                       na.rm = TRUE))/(sum(val,
                                                           na.rm = TRUE)),
               n_of_obs_chem = n()) %>%
-    ungroup() %>%
-    mutate(seasonal_vwm_mgLha = seasonal_vwm_mgL/ws_area_ha)
+    ungroup()
 
 log_info({nrow(n_q_vwm_seas)}, ' rows of seasonal vwm N chemistry data')
 # ideally want at least two samples per season (i.e., every 3 months)
@@ -681,16 +679,41 @@ n_q_vwm_ann <- n_q_data %>%
                                     na.rm = TRUE))/(sum(val,
                                                         na.rm = TRUE)),
               n_of_obs_chem = n()) %>%
-    ungroup() %>%
-    mutate(annual_vwm_mgLha = annual_vwm_mgL/ws_area_ha)
+    ungroup()
 
 log_info({nrow(n_q_vwm_ann)}, ' rows of annual vwm N chemistry data')
 
-#### Export VWM N data ####
+###### CQ slopes & ints ######
+
+# Create dataset of annual CQ slopes.
+n_q_cq_ann <- n_q_data %>%
+    # Remove missing data.
+    drop_na(val_dailymean) %>%
+    drop_na(val) %>%
+    filter(val_dailymean > 0) %>%
+    filter(val > 0) %>%
+    # Group by year.
+    group_by(site_code, analyte_N, water_year) %>%
+    # Calculate CQ slope.
+    summarize(annual_cq_slope = coef(lm(log(val_dailymean) ~ log(val)))[2],
+              annual_cq_int = coef(lm(log(val_dailymean) ~ log(val)))[1],
+              n_of_obs = n()) %>%
+    ungroup()
+
+ggplot(n_q_data %>%
+           filter(analyte_N == "NO3_N") %>%
+           filter(site_code == "GREEN4"),
+       aes(x = val, y = val_dailymean,
+           group = water_year, color = water_year)) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE)
+
+##### Export VWM N data #####
 
 saveRDS(n_q_vwm_month, "data_working/N_VWM_monthly.rds")
 saveRDS(n_q_vwm_seas, "data_working/N_VWM_seasonal.rds")
 saveRDS(n_q_vwm_ann, "data_working/N_VWM_annual.rds")
+saveRDS(n_q_cq_ann, "data_working/N_CQ_annual.rds")
 
 #### DOC ####
 
