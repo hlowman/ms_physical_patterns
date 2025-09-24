@@ -40,6 +40,9 @@ source(here('src', 'setup.R'))
 # All sites and analytes for which we could calculate annual VWMs
 N_VWM_annual <- readRDS("data_working/N_VWM_annual.rds")
 
+# All sites and analytes for which we could calculate monthly VWMs
+N_VWM_monthly <- readRDS("data_working/N_VWM_monthly.rds")
+
 # All sites and analytes for which we could calculate seasonal VWMs
 N_VWM_seasonal <- readRDS("data_working/N_VWM_seasonal.rds")
 
@@ -60,6 +63,9 @@ ndep_trends_ann <- readRDS("data_working/ndep_trends_annual.rds")
 
 # Climate trends (from mega_zipper_data.R script)
 clim_trends <- read_csv("data_working/trends/full_prisim_climate.csv")
+
+# Discharge metrics
+q_metrics <- readRDS("data_working/discharge_metrics_siteyear.rds")
 
 #### AGU Figures ####
 
@@ -1054,6 +1060,143 @@ dat_text_seas <- data.frame(
 #        width = 20,
 #        units = "cm")
 
+##### Peak Months #####
+
+# Using a similar workflow as above, I am going to create a paneled
+# figure showing peak months for Q and N analytes.
+
+# First, I need to calculate monthly averages
+mean_N_VWM_monthly20 <- N_VWM_monthly %>%
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021) %>%
+    group_by(site_code, analyte_N, month) %>%
+    summarize(mean_monthly_VWM_mgL = mean(monthly_vwm_mgL,
+                                         na.rm = TRUE),
+              mean_monthly_obs = mean(n_of_obs_chem,
+                                     na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup()
+
+# Join with site info so that we can filter out experimental sites.
+mean_N_VWM_monthly20 <- left_join(mean_N_VWM_monthly20, ms_site_data)
+
+mean_N_VWM_monthly20_nonexp <- mean_N_VWM_monthly20 %>%
+    filter(ws_status == "non-experimental")
+
+# Also, to impose at least a minimal filter on these data I am going to
+# make a list of sites with a minimum of 3 months of data for 6 years in
+# this time frame.
+
+# Taking the average of months represented and years in records.
+mean_times <- mean_N_VWM_monthly20_nonexp %>%
+    filter(analyte_N %in% c("NO3_N", "NH3_N", "TDN")) %>%
+    group_by(site_code, analyte_N) %>%
+    summarize(total_months = n(),
+              avg_years = mean(total_years)) %>%
+    ungroup()
+
+keep_sites <- mean_times %>%
+    mutate(keep = case_when(total_months > 2 &
+                                avg_years >= 6 ~ "YES",
+                            TRUE ~ "NO")) %>%
+    filter(keep == "YES") %>%
+    select(site_code, analyte_N)
+
+# And trim down original monthly VWM data to match the above list.
+mean_N_VWM_monthly20_nonexp_keep <- left_join(keep_sites,
+                                              mean_N_VWM_monthly20_nonexp)
+
+# Also, need to bring in Q data to do the same.
+q_monthly <- q_metrics %>%
+    filter(agg_code %in% c("1", "2", "3", "4", "5", "6",
+                           "7", "8", "9", "10", "11", "12"))
+
+# calculate monthly averages
+# First, I need to calculate monthly averages
+mean_q_monthly20 <- q_monthly %>%
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021) %>%
+    group_by(site_code, month) %>%
+    summarize(mean_monthly_q = mean(q_mean, na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup() %>%
+    filter(total_years > 6) %>%
+    filter(!is.nan(mean_monthly_q)) %>%
+    filter(!is.na(month))
+
+# And find peak discharge months.
+peak_q_months <- mean_q_monthly20 %>%
+    group_by(site_code) %>%
+    slice_max(mean_monthly_q) %>%
+    mutate(analyte_N = "Q")
+
+# Calculate peak months.
+peak_months <- mean_N_VWM_monthly20_nonexp_keep %>%
+    group_by(site_code, analyte_N) %>%
+    slice_max(mean_monthly_VWM_mgL) %>%
+    # and join with Q data above
+    full_join(peak_q_months) %>%
+    # reorder analytes %>%
+    mutate(analyte = factor(analyte_N,
+                            levels = c("Q",
+                                       "NO3_N",
+                                       "NH3_N",
+                                       "TDN"))) %>%
+    ungroup()
+
+# Peak months figure
+(q_peaks <- ggplot(peak_months %>%
+                       filter(analyte == "Q"), aes(x = month)) +
+    geom_bar(stat = "count", fill = "#4B8FF7") +
+    labs(x = "Month", y = "Count", title = "Q") +
+    scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                       limits = c(1,12)) +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5)))
+
+(no3_peaks <- ggplot(peak_months %>%
+                       filter(analyte == "NO3_N"), aes(x = month)) +
+        geom_bar(stat = "count", fill = "#E7A655") +
+        labs(x = "Month", y = "Count", title = "Nitrate") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(1,12)) +
+        scale_y_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10),
+                           limits = c(0,10)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+(nh3_peaks <- ggplot(peak_months %>%
+                         filter(analyte == "NH3_N"), aes(x = month)) +
+        geom_bar(stat = "count", fill = "#E38377") +
+        labs(x = "Month", y = "Count", title = "Ammonium") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(1,12)) +
+        scale_y_continuous(breaks = c(1,2,3,4,5,6),
+                           limits = c(0,6)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+(tdn_peaks <- ggplot(peak_months %>%
+                         filter(analyte == "TDN"), aes(x = month)) +
+        geom_bar(stat = "count", fill = "#6D4847") +
+        labs(x = "Month", y = "Count", title = "Total Dissolved Nitrogen") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(1,12)) +
+        scale_y_continuous(breaks = c(1,2,3,4,5,6),
+                           limits = c(0,6)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+# And combine them into a single figure.
+(peaks_all <- (q_peaks / no3_peaks / nh3_peaks / tdn_peaks))
+
+# And export figure.
+# ggsave(peaks_all,
+#        filename = "figures/peak_months_N_2010_to_2020.jpeg",
+#        height = 20,
+#        width = 10,
+#        units = "cm")
+
 ##### Site Attributes #####
 
 # Also going to make plots to investigate watershed and climate
@@ -1677,11 +1820,11 @@ dat_corr_dep <- data.frame(
                     (corr11 / corr12 / corr13 / corr14 / corr15)))
 
 # And export figure.
-ggsave(corr_all,
-       filename = "figures/correlationfig_N_2010_to_2020.jpeg",
-       height = 25,
-       width = 40,
-       units = "cm")
+# ggsave(corr_all,
+#        filename = "figures/correlationfig_N_2010_to_2020.jpeg",
+#        height = 25,
+#        width = 40,
+#        units = "cm")
 
 ##### CQ #####
 
