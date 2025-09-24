@@ -1,6 +1,12 @@
 # Nitrogen data read-in script
 
 #### README ####
+
+# NOTE - THIS IS AN OLD SCRIPT. THE 'metrics.R'
+# SCRIPT IS THE ONE TO USE GOING FORWARD TO
+# GENERATE ANNUAL, SEASONAL, AND MONTHLY VWM
+# N METRICS.
+
 # The following script will read in and prepare
 # the nitrogen data for trend analyses. Primarily,
 # it will convert concentrations to volume-weighted
