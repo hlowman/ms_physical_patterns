@@ -6,12 +6,12 @@
 # discuss MacroSheds as a project as well as
 # annual & monthly nitrogen trends.
 
-# It will also create figures for the N manuscript.
+# It will also create figures for Heili's poster
+# at the 2025 Gordon Research Conference and
+# ultimately the N manuscript.
 
 #### Load packages ####
 library(here)
-library(ggtext)
-library(scales)
 source(here('src', 'setup.R'))
 
 #### Load data ####
@@ -40,11 +40,23 @@ source(here('src', 'setup.R'))
 # All sites and analytes for which we could calculate annual VWMs
 N_VWM_annual <- readRDS("data_working/N_VWM_annual.rds")
 
+# All sites and analytes for which we could calculate monthly VWMs
+N_VWM_monthly <- readRDS("data_working/N_VWM_monthly.rds")
+
 # All sites and analytes for which we could calculate seasonal VWMs
 N_VWM_seasonal <- readRDS("data_working/N_VWM_seasonal.rds")
 
 # All sites and analytes for which we could fit annual CQ models.
 N_CQ_annual <- readRDS("data_working/N_CQ_annual.rds")
+
+# And seasonal CQ models.
+N_CQ_seasonal <- readRDS("data_working/N_CQ_seasonal.rds")
+
+# And seasonal CQ models for the most recent decade.
+N_CQ_seasonal20 <- readRDS("data_working/N_CQ_seasonal20.rds")
+
+# And decadal CQ models.
+N_CQ_decadal <- readRDS("data_working/N_CQ_decadal.rds")
 
 # NO3 annual trends
 no3_trends_ann <- readRDS("data_working/no3_trends_annual.rds")
@@ -60,6 +72,9 @@ ndep_trends_ann <- readRDS("data_working/ndep_trends_annual.rds")
 
 # Climate trends (from mega_zipper_data.R script)
 clim_trends <- read_csv("data_working/trends/full_prisim_climate.csv")
+
+# Discharge metrics
+q_metrics <- readRDS("data_working/discharge_metrics_siteyear.rds")
 
 #### AGU Figures ####
 
@@ -805,7 +820,7 @@ prod_trim_annual <- prod %>%
 #        width = 15,
 #        units = "cm")
 
-#### Manuscript Figs ####
+#### Manuscript Figures ####
 
 ##### Data Coverage #####
 
@@ -824,10 +839,10 @@ mean_N_VWM_annual <- N_VWM_annual %>%
               total_years = as.numeric(n())) %>%
     ungroup()
 
-# Test figure.
 # Set color legend break points.
 my_breaks <- c(1, 10, 50)
 
+# This is an initial version of summary figure in the manuscript.
 (summaryfig1 <- ggplot(mean_N_VWM_annual,
                       aes(x = mean_annual_VWM_mgL,
                           y = analyte_N,
@@ -856,6 +871,7 @@ my_breaks <- c(1, 10, 50)
 #        width = 20,
 #        units = "cm")
 
+# Also, wanted to create a data coverage figure for reference.
 site_counts <- mean_N_VWM_annual %>%
     count(analyte_N)
 
@@ -869,6 +885,8 @@ site_counts <- mean_N_VWM_annual %>%
         theme_bw() +
         theme(axis.text.y = element_blank()))
 
+# This figure gives a better idea as to data density
+# within a given time frame.
 ts_counts <- N_VWM_annual %>%
     count(analyte_N, water_year)
 
@@ -908,7 +926,6 @@ mean_N_VWM_annual20 <- left_join(mean_N_VWM_annual20, ms_site_data)
 mean_N_VWM_annual20_nonexp <- mean_N_VWM_annual20 %>%
     filter(ws_status == "non-experimental")
 
-# Test figure.
 # Set color legend break points.
 color_breaks <- c(1, 10, 50)
 size_breaks <- c(1,5,10)
@@ -923,6 +940,9 @@ dat_text <- data.frame(
               "n = 84", "n = 10", "n = 1", "n = 60", "n = 31"),
     analyte_N = c("DIN", "N2O", "NH3_N", "NO2_N", "NO3_N",
                   "TDN", "TIN", "TKN", "TN", "TPN"))
+
+# This is the figure included in the manuscript as the
+# first data summary figure.
 
 # Note, the log transformation on the x-axis only removes
 # one site's data for one analyte - ONO2 for NH3_N.
@@ -955,10 +975,10 @@ dat_text <- data.frame(
 # ggsave(summaryfig4,
 #        filename = "figures/summaryfig_N_2010_to_2020.jpeg",
 #        height = 20,
-#        width = 20,
+#        width = 24,
 #        units = "cm")
 
-# Now, I also need to create a summary figure of sorts for
+# Now, I also want to create a summary figure of sorts for
 # seasonal data, so will do so using a similar style as above.
 
 # Calculate means of VWM concentrations & number of obs.
@@ -1049,6 +1069,143 @@ dat_text_seas <- data.frame(
 #        width = 20,
 #        units = "cm")
 
+##### Peak Months #####
+
+# Using a similar workflow as above, I am going to create a paneled
+# figure showing peak months for Q and N analytes.
+
+# First, I need to calculate monthly averages
+mean_N_VWM_monthly20 <- N_VWM_monthly %>%
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021) %>%
+    group_by(site_code, analyte_N, month) %>%
+    summarize(mean_monthly_VWM_mgL = mean(monthly_vwm_mgL,
+                                         na.rm = TRUE),
+              mean_monthly_obs = mean(n_of_obs_chem,
+                                     na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup()
+
+# Join with site info so that we can filter out experimental sites.
+mean_N_VWM_monthly20 <- left_join(mean_N_VWM_monthly20, ms_site_data)
+
+mean_N_VWM_monthly20_nonexp <- mean_N_VWM_monthly20 %>%
+    filter(ws_status == "non-experimental")
+
+# Also, to impose at least a minimal filter on these data I am going to
+# make a list of sites with a minimum of 3 months of data for 6 years in
+# this time frame.
+
+# Taking the average of months represented and years in records.
+mean_times <- mean_N_VWM_monthly20_nonexp %>%
+    filter(analyte_N %in% c("NO3_N", "NH3_N", "TDN")) %>%
+    group_by(site_code, analyte_N) %>%
+    summarize(total_months = n(),
+              avg_years = mean(total_years)) %>%
+    ungroup()
+
+keep_sites <- mean_times %>%
+    mutate(keep = case_when(total_months > 2 &
+                                avg_years >= 6 ~ "YES",
+                            TRUE ~ "NO")) %>%
+    filter(keep == "YES") %>%
+    select(site_code, analyte_N)
+
+# And trim down original monthly VWM data to match the above list.
+mean_N_VWM_monthly20_nonexp_keep <- left_join(keep_sites,
+                                              mean_N_VWM_monthly20_nonexp)
+
+# Also, need to bring in Q data to do the same.
+q_monthly <- q_metrics %>%
+    filter(agg_code %in% c("1", "2", "3", "4", "5", "6",
+                           "7", "8", "9", "10", "11", "12"))
+
+# calculate monthly averages
+# First, I need to calculate monthly averages
+mean_q_monthly20 <- q_monthly %>%
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021) %>%
+    group_by(site_code, month) %>%
+    summarize(mean_monthly_q = mean(q_mean, na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup() %>%
+    filter(total_years > 6) %>%
+    filter(!is.nan(mean_monthly_q)) %>%
+    filter(!is.na(month))
+
+# And find peak discharge months.
+peak_q_months <- mean_q_monthly20 %>%
+    group_by(site_code) %>%
+    slice_max(mean_monthly_q) %>%
+    mutate(analyte_N = "Q")
+
+# Calculate peak months.
+peak_months <- mean_N_VWM_monthly20_nonexp_keep %>%
+    group_by(site_code, analyte_N) %>%
+    slice_max(mean_monthly_VWM_mgL) %>%
+    # and join with Q data above
+    full_join(peak_q_months) %>%
+    # reorder analytes %>%
+    mutate(analyte = factor(analyte_N,
+                            levels = c("Q",
+                                       "NO3_N",
+                                       "NH3_N",
+                                       "TDN"))) %>%
+    ungroup()
+
+# Peak months figure
+(q_peaks <- ggplot(peak_months %>%
+                       filter(analyte == "Q"), aes(x = month)) +
+    geom_bar(stat = "count", fill = "#4B8FF7") +
+    labs(x = "Month", y = "Count", title = "Q") +
+    scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                       limits = c(1,12)) +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5)))
+
+(no3_peaks <- ggplot(peak_months %>%
+                       filter(analyte == "NO3_N"), aes(x = month)) +
+        geom_bar(stat = "count", fill = "#E7A655") +
+        labs(x = "Month", y = "Count", title = "Nitrate") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(1,12)) +
+        scale_y_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10),
+                           limits = c(0,10)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+(nh3_peaks <- ggplot(peak_months %>%
+                         filter(analyte == "NH3_N"), aes(x = month)) +
+        geom_bar(stat = "count", fill = "#E38377") +
+        labs(x = "Month", y = "Count", title = "Ammonium") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(1,12)) +
+        scale_y_continuous(breaks = c(1,2,3,4,5,6),
+                           limits = c(0,6)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+(tdn_peaks <- ggplot(peak_months %>%
+                         filter(analyte == "TDN"), aes(x = month)) +
+        geom_bar(stat = "count", fill = "#6D4847") +
+        labs(x = "Month", y = "Count", title = "Total Dissolved Nitrogen") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(1,12)) +
+        scale_y_continuous(breaks = c(1,2,3,4,5,6),
+                           limits = c(0,6)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+# And combine them into a single figure.
+(peaks_all <- (q_peaks / no3_peaks / nh3_peaks / tdn_peaks))
+
+# And export figure.
+# ggsave(peaks_all,
+#        filename = "figures/peak_months_N_2010_to_2020.jpeg",
+#        height = 20,
+#        width = 10,
+#        units = "cm")
+
 ##### Site Attributes #####
 
 # Also going to make plots to investigate watershed and climate
@@ -1076,8 +1233,8 @@ clim_raw <- read_feather(here('data_raw',
                               'ms',
                               'v2',
                               'spatial_timeseries_climate.feather'))
+# This takes a bit, so be patient.
 
-# This takes a minute or two so be patient.
 clim <- clim_raw %>%
     # adds water year column
     mutate(year = year(date),
@@ -1092,7 +1249,8 @@ clim <- clim_raw %>%
     # adds month column
     mutate(month = month(date))
 
-# Trims down climate data.
+# Aggregate climate data annually.
+# Full dataset
 clim_annual <- clim %>%
     # select only for sites of interest
     filter(site_code %in% annual_sites) %>%
@@ -1102,6 +1260,7 @@ clim_annual <- clim %>%
               sum_ann_ppt = sum(precip_median, na.rm = TRUE)) %>%
     ungroup()
 
+# Only 2010-2020
 clim_annual20 <- clim %>%
     # select only for sites of interest
     filter(site_code %in% annual_sites20) %>%
@@ -1114,13 +1273,15 @@ clim_annual20 <- clim %>%
               sum_ann_ppt20 = sum(precip_median, na.rm = TRUE)) %>%
     ungroup()
 
-# Further trims climate data
+# Further aggregates climate data to site-level.
+# Full dataset
 clim_decadal <- clim_annual %>%
     group_by(site_code) %>%
     summarize(mean_mean_ann_temp = mean(mean_ann_temp, na.rm = TRUE),
               mean_sum_ann_ppt = mean(sum_ann_ppt, na.rm = TRUE)) %>%
     ungroup()
 
+# Only 2010-2020
 clim_decadal20 <- clim_annual20 %>%
     group_by(site_code) %>%
     summarize(mean_mean_ann_temp20 = mean(mean_ann_temp20, na.rm = TRUE),
@@ -1133,6 +1294,7 @@ N_clim_data20 <- full_join(mean_N_VWM_annual20_nonexp, clim_decadal20)
 
 # N deposition
 # New dataset since deposition is already annualized
+# Full dataset
 clim_deponly <- clim_raw %>%
     filter(var == "N_flux_mean") %>%
     select(site_code, year, var, val) %>%
@@ -1140,6 +1302,7 @@ clim_deponly <- clim_raw %>%
                 names_from = var, values_from = val, values_fn = mean) %>%
     filter(site_code %in% annual_sites)
 
+# Only 2010-2020
 clim_deponly20 <- clim_raw %>%
     filter(var == "N_flux_mean") %>%
     select(site_code, year, var, val) %>%
@@ -1149,12 +1312,14 @@ clim_deponly20 <- clim_raw %>%
     filter(year > 2009) %>%
     filter(year < 2021)
 
-# Further trims deposition data
+# Further aggregates deposition data at site-level.
+# Full dataset
 dep_decadal <- clim_deponly %>%
     group_by(site_code) %>%
     summarize(mean_mean_ann_Ndep = mean(N_flux_mean, na.rm = TRUE)) %>%
     ungroup()
 
+# Only 2010-2020
 dep_decadal20 <- clim_deponly20 %>%
     group_by(site_code) %>%
     summarize(mean_mean_ann_Ndep20 = mean(N_flux_mean, na.rm = TRUE)) %>%
@@ -1164,7 +1329,7 @@ dep_decadal20 <- clim_deponly20 %>%
 N_dep_data <- full_join(mean_N_VWM_annual_nonexp, dep_decadal)
 N_dep_data20 <- full_join(mean_N_VWM_annual20_nonexp, dep_decadal20)
 
-# GPP
+# Adding GPP to the list of available WS attributes
 prod_raw <- read_feather(here('data_raw',
                               'ms',
                               'v2',
@@ -1181,13 +1346,15 @@ prod <- prod_raw %>%
                 names_from = var, values_from = val, values_fn = mean) %>%
     mutate(month = month(date))
 
-# Trims down productivity data.
+# Annually aggregate productivity data.
+# Full dataset
 prod_annual <- prod %>%
     filter(site_code %in% annual_sites) %>%
     group_by(site_code, water_year) %>%
     summarize(sum_ann_prod = sum(gpp_CONUS_30m_median, na.rm = TRUE)) %>%
     ungroup()
 
+# Only 2010-2020
 prod_annual20 <- prod %>%
     filter(site_code %in% annual_sites20) %>%
     filter(water_year > 2009) %>%
@@ -1196,12 +1363,14 @@ prod_annual20 <- prod %>%
     summarize(sum_ann_prod20 = sum(gpp_CONUS_30m_median, na.rm = TRUE)) %>%
     ungroup()
 
-# Further trims productivity data
+# Further aggregates productivity data at the site-level
+# Full dataset
 prod_decadal <- prod_annual %>%
     group_by(site_code) %>%
     summarize(mean_sum_ann_prod = mean(sum_ann_prod, na.rm = TRUE)) %>%
     ungroup()
 
+# Only 2010-2020
 prod_decadal20 <- prod_annual20 %>%
     group_by(site_code) %>%
     summarize(mean_sum_ann_prod20 = mean(sum_ann_prod20, na.rm = TRUE)) %>%
@@ -1211,12 +1380,14 @@ prod_decadal20 <- prod_annual20 %>%
 N_gpp_data <- full_join(mean_N_VWM_annual, prod_decadal)
 N_gpp_data20 <- full_join(mean_N_VWM_annual20, prod_decadal20)
 
-# Overall attributes
+# Overall WS attributes
 
 # Calculated total wetland cover.
-ms_ws_select <- ms_ws_attr %>%
+ms_ws_attr <- ms_ws_attr %>%
     mutate(nlcd_wetland = nlcd_water + nlcd_wetland_herb + nlcd_wetland_wood,
-           nlcd_dev = nlcd_dev_hi + nlcd_dev_med + nlcd_dev_low + nlcd_dev_open) %>%
+           nlcd_dev = nlcd_dev_hi + nlcd_dev_med + nlcd_dev_low + nlcd_dev_open)
+
+ms_ws_select <- ms_ws_attr %>%
     select(network, domain, site_code, area, slope_mean, elev_mean,
            nlcd_dev, nlcd_wetland)
 
@@ -1367,75 +1538,418 @@ N_data20 <- left_join(N_data20, clim_decadal20)
 #        width = 24,
 #        units = "cm")
 
+# Making a larger correlation plot that is more inclusive of
+# site-level attributes and comparing to annual N concentrations.
+
+# First, need to create the base dataset using 2010-2020 data only
+# and excluding experimental sites.
+# Combine N dataset with calculated attributes & climate indices.
+N_corr_dat <- left_join(mean_N_VWM_annual20_nonexp, ms_ws_attr)
+N_corr_dat <- left_join(N_corr_dat, dep_decadal20)
+N_corr_dat <- left_join(N_corr_dat, prod_decadal20)
+N_corr_dat <- left_join(N_corr_dat, clim_decadal20)
+
+# And we'll trim this down to the three most common analytes
+# as well as the columns of interest.
+N_corr_dat_trim <- N_corr_dat %>%
+    filter(analyte_N %in% c("NO3_N", "NH3_N", "TDN")) %>%
+    select(site_code, analyte_N, mean_annual_VWM_mgL, mean_annual_obs,
+           latitude, longitude, ws_area_ha, slope_mean, elev_mean,
+           aspect_mean, nlcd_wetland, nlcd_dev, mean_mean_ann_Ndep20,
+           mean_sum_ann_prod20, mean_mean_ann_temp20, mean_sum_ann_ppt20,
+           first_record, last_record)
+
+# And then pivot it for easy plot creation.
+N_corr_dat_trim_long <- N_corr_dat_trim %>%
+    select(-first_record,-last_record) %>%
+    pivot_longer(cols = mean_annual_obs:mean_sum_ann_ppt20,
+                 names_to = "var", values_to = "val")
+
+# Now, to make a plot.
+(corr <- ggplot(N_corr_dat_trim_long,
+                 aes(x = val,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point() +
+        labs(y = "VWM (mg/L)") +
+        facet_grid(var~analyte_N, scales = "free") +
+        theme_bw()) # well, that didn't work, so individual plots it is...
+
+# First, I'm going to calculate correlations between all of these
+# data.
+corr_values <- N_corr_dat_trim %>%
+    group_by(analyte_N) %>%
+    summarize(corr_obs = cor(mean_annual_obs, mean_annual_VWM_mgL),
+              corr_lat = cor(latitude, mean_annual_VWM_mgL),
+              corr_lon = cor(longitude, mean_annual_VWM_mgL),
+              corr_area = cor(ws_area_ha, mean_annual_VWM_mgL,
+                              use = "pairwise.complete.obs"),
+              corr_slope = cor(slope_mean, mean_annual_VWM_mgL,
+                               use = "pairwise.complete.obs"),
+              corr_elev = cor(elev_mean, mean_annual_VWM_mgL,
+                              use = "pairwise.complete.obs"),
+              corr_aspect = cor(aspect_mean, mean_annual_VWM_mgL,
+                                use = "pairwise.complete.obs"),
+              corr_wet = cor(nlcd_wetland, mean_annual_VWM_mgL,
+                             use = "pairwise.complete.obs"),
+              corr_dev = cor(nlcd_dev, mean_annual_VWM_mgL,
+                             use = "pairwise.complete.obs"),
+              corr_temp = cor(mean_mean_ann_temp20, mean_annual_VWM_mgL,
+                              use = "pairwise.complete.obs"),
+              corr_ppt = cor(mean_sum_ann_ppt20, mean_annual_VWM_mgL,
+                             use = "pairwise.complete.obs"),
+              corr_gpp = cor(mean_sum_ann_prod20, mean_annual_VWM_mgL,
+                             use = "pairwise.complete.obs"),
+              corr_dep = cor(mean_mean_ann_Ndep20, mean_annual_VWM_mgL,
+                             use = "pairwise.complete.obs")) %>%
+    ungroup()
+# Will include corr values on plots below if >0.3.
+
+# Building individual plots to combine later.
+(corr1 <- ggplot(N_corr_dat_trim,
+                 aes(x = first_record,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        labs(x = "Date of 1st Record", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw())
+
+(corr2 <- ggplot(N_corr_dat_trim,
+                 aes(x = last_record,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        labs(x = "Date of Last Record", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank()))
+
+(corr3 <- ggplot(N_corr_dat_trim,
+                 aes(x = mean_annual_obs,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        labs(x = "Mean Annual Obs.", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank()))
+
+(corr4 <- ggplot(N_corr_dat_trim,
+                 aes(x = latitude,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        labs(x = "Latitude", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank()))
+
+(corr5 <- ggplot(N_corr_dat_trim,
+                 aes(x = longitude,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        labs(x = "Longitude", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank()))
+
+(corr6 <- ggplot(N_corr_dat_trim,
+                 aes(x = ws_area_ha,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        scale_x_log10() +
+        labs(x = "Area (ha)", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(axis.title.y = element_blank()))
+
+(corr7 <- ggplot(N_corr_dat_trim,
+                 aes(x = slope_mean,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        labs(x = "Mean Slope", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank(),
+              axis.title.y = element_blank()))
+
+(corr8 <- ggplot(N_corr_dat_trim,
+                 aes(x = elev_mean,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        labs(x = "Mean Elevation", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank(),
+              axis.title.y = element_blank()))
+
+(corr9 <- ggplot(N_corr_dat_trim,
+                 aes(x = aspect_mean,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        labs(x = "Mean Aspect", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank(),
+              axis.title.y = element_blank()))
+
+(corr10 <- ggplot(N_corr_dat_trim,
+                 aes(x = nlcd_wetland,
+                     y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        labs(x = "% Wetland", y = "VWM (mg/L)") +
+        scale_x_log10() +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank(),
+              axis.title.y = element_blank()))
+
+# List with which to add in correlation annotations
+dat_corr_dev <- data.frame(
+    xposition = c(25, 10, 10),
+    yposition = c(0.18, 5, 5),
+    label = c("0.33", " ", " "),
+    analyte_N = c("NH3_N", "NO3_N", "TDN"))
+
+(corr11 <- ggplot(N_corr_dat_trim,
+                  aes(x = nlcd_dev,
+                      y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        geom_text(data = dat_corr_dev,
+                  mapping = aes(x = xposition,
+                                y = yposition,
+                                label = label),
+                  color = "red", fontface = "bold") +
+        labs(x = "% Developed", y = "VWM (mg/L)") +
+        scale_x_log10() +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(axis.title.y = element_blank()))
+
+dat_corr_temp <- data.frame(
+    xposition = c(15, 12.5, 12.5),
+    yposition = c(0.175, 5, 4.75),
+    label = c(" ", "0.32", "0.41"),
+    analyte_N = c("NH3_N", "NO3_N", "TDN"))
+
+(corr12 <- ggplot(N_corr_dat_trim,
+                  aes(x = mean_mean_ann_temp20,
+                      y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        geom_text(data = dat_corr_temp,
+                  mapping = aes(x = xposition,
+                                y = yposition,
+                                label = label),
+                  color = "red", fontface = "bold") +
+        labs(x = "Mean Annual Temp. (°C)", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank(),
+              axis.title.y = element_blank()))
+
+dat_corr_ppt <- data.frame(
+    xposition = c(2000, 2000, 2000),
+    yposition = c(0.175, 5, 4.75),
+    label = c(" ", " ", "-0.42"),
+    analyte_N = c("NH3_N", "NO3_N", "TDN"))
+
+(corr13 <- ggplot(N_corr_dat_trim,
+                  aes(x = mean_sum_ann_ppt20,
+                      y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        geom_text(data = dat_corr_ppt,
+                  mapping = aes(x = xposition,
+                                y = yposition,
+                                label = label),
+                  color = "blue", fontface = "bold") +
+        labs(x = "Mean Annual Ppt. (mm)", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        xlim(0, 3000) +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank(),
+              axis.title.y = element_blank()))
+
+dat_corr_gpp <- data.frame(
+    xposition = c(1.75, 1.75, 1.75),
+    yposition = c(0.18, 5, 4.75),
+    label = c("0.34", " ", " "),
+    analyte_N = c("NH3_N", "NO3_N", "TDN"))
+
+(corr14 <- ggplot(N_corr_dat_trim,
+                  aes(x = mean_sum_ann_prod20,
+                      y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        geom_text(data = dat_corr_gpp,
+                  mapping = aes(x = xposition,
+                                y = yposition,
+                                label = label),
+                  color = "red", fontface = "bold") +
+        labs(x = "Mean Annual Prod. (kg C/m^2)", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank(),
+              axis.title.y = element_blank()))
+
+dat_corr_dep <- data.frame(
+    xposition = c(5, 5, 5),
+    yposition = c(0.18, 5, 4.75),
+    label = c("0.34", " ", "-0.40"),
+    analyte_N = c("NH3_N", "NO3_N", "TDN"),
+    sign = c("positive", NA, "negative"))
+
+(corr15 <- ggplot(N_corr_dat_trim,
+                  aes(x = mean_mean_ann_Ndep20,
+                      y = mean_annual_VWM_mgL)) +
+        geom_point(shape = 21) +
+        geom_text(data = dat_corr_dep,
+                  mapping = aes(x = xposition,
+                                y = yposition,
+                                label = label,
+                                color = sign),
+                  fontface = "bold") +
+        scale_color_manual(values = c("blue", "red")) +
+        labs(x = "Mean Annual N Dep. (kg/ha)", y = "VWM (mg/L)") +
+        facet_wrap(.~analyte_N, scales = "free_y") +
+        theme_bw() +
+        theme(strip.background = element_blank(),
+              strip.text.x = element_blank(),
+              axis.title.y = element_blank(),
+              legend.position = "none"))
+
+# And combine them into a single figure.
+(corr_all <- ((corr1 / corr2 / corr3 / corr4 / corr5) |
+                 (corr6 / corr7 / corr8 / corr9 / corr10) |
+                    (corr11 / corr12 / corr13 / corr14 / corr15)))
+
+# And export figure.
+# ggsave(corr_all,
+#        filename = "figures/correlationfig_N_2010_to_2020.jpeg",
+#        height = 25,
+#        width = 40,
+#        units = "cm")
+
 ##### CQ #####
 
-# Select for most recent 10 years of data to be comparable to other
-# summary figures.
-mean_N_CQ_annual20 <- N_CQ_annual %>%
-    filter(water_year > 2009) %>%
-    filter(water_year > 2021) %>%
-    # And site-years with two or fewer observations
-    filter(n_of_obs > 2) %>%
-    group_by(site_code, analyte_N) %>%
-    summarize(mean_annual_CQ_slope = mean(annual_cq_slope),
-              mean_annual_CQ_int = mean(annual_cq_int),
-              mean_annual_obs = mean(n_of_obs),
-              total_years = as.numeric(n())) %>%
-    ungroup()
+###### Seasonal #######
+
+# Filter down to desired analytes and minimum of 10 observations,
+# using data from the past 10 years.
+N_CQ_trim <- N_CQ_seasonal20 %>%
+    filter(analyte_N %in% c("NO3_N", "NH3_N", "TDN")) %>%
+    filter(n_of_obs > 9)
 
 # And join with site data to filter out experimental sites.
-mean_N_CQ_annual20 <- left_join(mean_N_CQ_annual20, ms_site_data)
+N_CQ_trim <- left_join(N_CQ_trim, ms_site_data)
 
-mean_N_CQ_annual20_nonexp <- mean_N_CQ_annual20 %>%
+N_CQ_trim_nonexp <- N_CQ_trim %>%
     filter(ws_status == "non-experimental")
 
-(summaryfig6 <- ggplot(mean_N_CQ_annual20_nonexp %>%
-                           filter(analyte_N %in% c("NO3_N",
-                                                   "NH3_N",
-                                                   "TDN"))) +
-        geom_histogram(aes(x = mean_annual_CQ_slope,
+(n_cq_seas <- ggplot(N_CQ_trim_nonexp) +
+        geom_histogram(aes(x = cq_slope,
                            fill = ..x..),
                        color = "black", bins = 30) +
         geom_vline(xintercept = 0, linetype = "dashed") +
-        ylim(0, 13) +
-        xlim(-1,1) +
         scale_fill_gradient2(low = "#045CB4",
                              mid = "white",
                              high = "#FAB455",
                              midpoint = 0) +
-        facet_grid(analyte_N~., scales = "free") +
-        labs(x = "Mean Annual C-Q Slope", y = "Site Count") +
-        theme_bw() +
-        theme(strip.background = element_rect(colour="NA", fill="NA"),
-              strip.text = element_blank(),
-              legend.position = "none"))
-
-(summaryfig6b <- ggplot(mean_N_CQ_annual20_nonexp %>%
-                           filter(analyte_N %in% c("NO3_N",
-                                                   "NH3_N",
-                                                   "TDN"))) +
-        geom_histogram(aes(x = mean_annual_CQ_int,
-                           fill = ..x..),
-                       color = "black", bins = 30) +
-        geom_vline(xintercept = 0, linetype = "dashed") +
-        ylim(0, 13) +
-        xlim(-10, 10) +
-        scale_fill_gradient2(low = "#045CB4",
-                             mid = "white",
-                             high = "#FAB455",
-                             midpoint = 0) +
-        facet_grid(analyte_N~., scales = "free") +
-        labs(x = "Mean Annual C-Q Intercept", y = "Site Count") +
+        facet_grid(analyte_N~season, scales = "free") +
+        labs(x = "Seasonal C-Q Slope", y = "Site Count") +
         theme_bw() +
         theme(strip.background = element_rect(colour="NA", fill="NA"),
               legend.position = "none"))
 
-(cq_fig <- (summaryfig6 + summaryfig6b))
-
-# ggsave(cq_fig,
-#        filename = "figures/summaryfig_cq_slope_intercept_2010_to_2020.jpeg",
+# ggsave(n_cq_seas,
+#        filename = "figures/seasonal_cq_slope_2010_to_2020.jpeg",
 #        height = 16,
 #        width = 16,
+#        units = "cm")
+
+(n_int_seas <- ggplot(N_CQ_trim_nonexp) +
+        geom_histogram(aes(x = cq_int,
+                           fill = ..x..),
+                       color = "black", bins = 30) +
+        geom_vline(xintercept = 0, linetype = "dashed") +
+        scale_fill_gradient2(low = "#045CB4",
+                             mid = "white",
+                             high = "#FAB455",
+                             midpoint = 0) +
+        facet_grid(analyte_N~season, scales = "free") +
+        labs(x = "Seasonal C-Q Intercept", y = "Site Count") +
+        theme_bw() +
+        theme(strip.background = element_rect(colour="NA", fill="NA"),
+              legend.position = "none"))
+
+# ggsave(n_int_seas,
+#        filename = "figures/seasonal_cq_int_2010_to_2020.jpeg",
+#        height = 16,
+#        width = 16,
+#        units = "cm")
+
+###### Decadal #######
+
+# Filter down to desired analytes and minimum of 10 observations.
+N_CQ_dec_trim <- N_CQ_decadal %>%
+    filter(analyte_N %in% c("NO3_N", "NH3_N", "TDN")) %>%
+    filter(n_of_obs > 9)
+
+# And join with site data to filter out experimental sites.
+N_CQ_dec_trim <- left_join(N_CQ_dec_trim, ms_site_data)
+
+N_CQ_dec_trim_nonexp <- N_CQ_dec_trim %>%
+    filter(ws_status == "non-experimental")
+
+(n_cq_dec <- ggplot(N_CQ_dec_trim_nonexp) +
+        geom_histogram(aes(x = cq_slope,
+                           fill = ..x..),
+                       color = "black", bins = 30) +
+        geom_vline(xintercept = 0, linetype = "dashed") +
+        # this omits an outlier, but doing this for consistent viewing
+        xlim(-2, 2) +
+        scale_fill_gradient2(low = "#045CB4",
+                             mid = "white",
+                             high = "#FAB455",
+                             midpoint = 0) +
+        facet_grid(analyte_N~decade, scales = "free") +
+        labs(x = "Decadal C-Q Slope", y = "Site Count") +
+        theme_bw() +
+        theme(strip.background = element_rect(colour="NA", fill="NA"),
+              legend.position = "none"))
+
+# ggsave(n_cq_dec,
+#        filename = "figures/decadal_cq_slope.jpeg",
+#        height = 16,
+#        width = 32,
+#        units = "cm")
+
+(n_int_dec <- ggplot(N_CQ_dec_trim_nonexp) +
+        geom_histogram(aes(x = cq_int,
+                           fill = ..x..),
+                       color = "black", bins = 30) +
+        geom_vline(xintercept = 0, linetype = "dashed") +
+        # this omits an outlier, but doing this for consistent viewing
+        xlim(-15, 5) +
+        scale_fill_gradient2(low = "#045CB4",
+                             mid = "white",
+                             high = "#FAB455",
+                             midpoint = 0) +
+        facet_grid(analyte_N~decade, scales = "free") +
+        labs(x = "Decadal C-Q Intercept", y = "Site Count") +
+        theme_bw() +
+        theme(strip.background = element_rect(colour="NA", fill="NA"),
+              legend.position = "none"))
+
+# ggsave(n_int_dec,
+#        filename = "figures/decadal_cq_intercept.jpeg",
+#        height = 16,
+#        width = 32,
 #        units = "cm")
 
 ##### N vs. Climate #####
@@ -1445,6 +1959,17 @@ dep_clim_trends_ann <- rbind(ndep_trends_ann, clim_trends)
 
 # Join NO3 and climate trends
 no3_clim_trends_ann <- full_join(no3_trends_ann, dep_clim_trends_ann)
+
+# Quick check of overlaps
+no3_sites <- no3_trends_ann %>% select(site_code) %>% unique()
+clim_sites <- dep_clim_trends_ann %>% select(site_code) %>% unique()
+inner <- inner_join(no3_sites, clim_sites) # 148 sites max overlap
+only_no3 <- no3_sites %>%
+    filter(!site_code %in% inner$site_code) # 53 sites only with NO3 data
+# i.e., the PR, Krycklan, McMurdo, Toolik, etc. sites
+only_clim <- clim_sites %>%
+    filter(!site_code %in% inner$site_code) # 18 sites with only climate data
+# i.e., sites part of other regions but missing N data
 
 # Trim to variables of interest
 no3_clim_trends_ann_wide <- no3_clim_trends_ann %>%
@@ -1486,59 +2011,6 @@ no3_clim_trends_ann_wide <- full_join(no3_clim_trends_ann_wide,
 # Join with site level data.
 no3_clim_trends_ann_wide <- left_join(no3_clim_trends_ann_wide,
                                       ms_site_data)
-
-# NO3 V TEMP - removed MCDN
-(figNO3_temp <- ggplot(no3_clim_trends_ann_wide,
-                           aes(x = temp_mean,
-                               y = NO3_N)) +
-        geom_point(size = 6,
-                   aes(alpha = mean_ann_records)) +
-        ylim(-0.0015, 0.0015) +
-        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
-        labs(x = "Mean Annual Temperature Trend",
-             y = "Mean Annual NO3 Trend",
-             alpha = "Mean Annual Obs.") +
-        theme_bw())
-
-# NO3 V PPT - removed MCDN
-(figNO3_ppt <- ggplot(no3_clim_trends_ann_wide,
-                       aes(x = precip_mean,
-                           y = NO3_N)) +
-        geom_point(size = 6,
-                   aes(alpha = mean_ann_records)) +
-        ylim(-0.0015, 0.0015) +
-        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
-        labs(x = "Mean Annual Precipitation Trend",
-             y = "Mean Annual NO3 Trend",
-             alpha = "Mean Annual Obs.") +
-        theme_bw())
-
-# NO3 V GPP - removed MCDN
-(figNO3_gpp <- ggplot(no3_clim_trends_ann_wide,
-                      aes(x = gpp_CONUS_30m_median,
-                          y = NO3_N)) +
-        geom_point(size = 6,
-                   aes(alpha = mean_ann_records)) +
-        ylim(-0.0015, 0.0015) +
-        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
-        labs(x = "Mean Annual GPP Trend",
-             y = "Mean Annual NO3 Trend",
-             alpha = "Mean Annual Obs.") +
-        theme_bw())
-
-# NO3 V obs - removed MCDN
-(figNO3_obs <- ggplot(no3_clim_trends_ann_wide,
-                      aes(x = mean_ann_records,
-                          y = NO3_N)) +
-        geom_point(size = 6,
-                   aes(alpha = mean_ann_records)) +
-        #ylim(-0.0015, 0.0015) +
-        xlim(0, 100) +
-        scale_alpha_continuous(trans = "log", breaks = c(6, 12, 52, 365)) +
-        labs(x = "Mean Annual Obs.",
-             y = "Mean Annual NO3 Trend",
-             alpha = "Mean Annual Obs.") +
-        theme_bw())
 
 # Need to order dataset properly before plotting.
 no3_clim_trends_ann_wide_ed <- no3_clim_trends_ann_wide %>%
@@ -1595,21 +2067,22 @@ no3_clim_trends_ann_wide_ed <- no3_clim_trends_ann_wide %>%
         annotate("text",x = -0.04, y = -0.001, label = "Cooling, Browning") +
         annotate("text",x = 0.04, y = 0.001, label = "Warming, Greening") +
         annotate("text",x = 0.04, y = -0.001, label = "Warming, Browning") +
-        scale_shape_manual(values = c(20, 20, 4),
-                           guide = "none") +
-        scale_size_manual(values = c(6, 4, 2),
-                           guide = "none") +
+        scale_shape_manual(values = c(20, 20, 4)) +
+        scale_size_manual(values = c(6, 4, 2)) +
         scale_color_manual(values = c("blue", #"royalblue1",
                                       #"cadetblue3",
                                       "gray46",
                                       #"lightsalmon1",
                                       #"coral1",
                                       #"firebrick2",
-                                      "gray76"),
-                           guide = "none") +
+                                      "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
-             y = "Mean Annual GPP Trend") +
-        theme_bw())
+             y = "Mean Annual N Deposition Trend",
+             color = "NO3 Trend",
+             shape = "NO3 Trend",
+             size = "NO3 Trend") +
+        theme_bw() +
+        theme(legend.position = "bottom"))
 
 # DEP V TEMP
 (figNO3_dep_temp <- ggplot(no3_clim_trends_ann_wide_ed,
@@ -1623,31 +2096,30 @@ no3_clim_trends_ann_wide_ed <- no3_clim_trends_ann_wide %>%
                        size = group)) +
         xlim(-0.06, 0.06) +
         ylim(-0.12, 0.12) +
-        annotate("text", x = -0.035, y = 0.12, label = "Cooling, Eutrophic") +
-        annotate("text",x = -0.035, y = -0.12, label = "Cooling, Oligotrophic") +
-        annotate("text",x = 0.035, y = 0.12, label = "Warming, Eutrophic") +
-        annotate("text",x = 0.035, y = -0.12, label = "Warming, Oligotrophic") +
-        scale_shape_manual(values = c(20, 20, 4)) +
-        scale_size_manual(values = c(6, 4, 2)) +
+        annotate("text", x = -0.035, y = 0.12, label = "Cooling, Eutrophying") +
+        annotate("text",x = -0.035, y = -0.12, label = "Cooling, Oligotrophying") +
+        annotate("text",x = 0.035, y = 0.12, label = "Warming, Eutrophying") +
+        annotate("text",x = 0.035, y = -0.12, label = "Warming, Oligotrophying") +
+        scale_shape_manual(values = c(20, 20, 4), guide = "none") +
+        scale_size_manual(values = c(6, 4, 2), guide = "none") +
         scale_color_manual(values = c("blue", #"royalblue1",
                                       #"cadetblue3",
                                       "gray46",
                                       #"lightsalmon1",
                                       # "coral1",
                                       #"firebrick2",
-                                      "gray76")) +
+                                      "gray76"),
+                           guide = "none") +
         labs(x = "Mean Annual Temperature Trend",
-             y = "Mean Annual N Deposition Trend",
-             color = "NO3 Trend",
-             shape = "NO3 Trend",
-             size = "NO3 Trend") +
+             y = "Mean Annual N Deposition Trend") +
         theme_bw())
 
-(figNO3_all <- figNO3_ppt_temp + figNO3_gpp_temp + figNO3_dep_temp)
+(figNO3_all <- figNO3_ppt_temp + figNO3_gpp_temp + figNO3_dep_temp +
+        plot_annotation(tag_levels = "a"))
 
 # ggsave(figNO3_all,
 #        filename = "figures/panelfig_no3_clim_dep_trends.jpeg",
-#        height = 10,
+#        height = 14,
 #        width = 40,
 #        units = "cm")
 
