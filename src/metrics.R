@@ -686,35 +686,70 @@ log_info({nrow(n_q_vwm_ann)}, ' rows of annual vwm N chemistry data')
 
 ###### CQ slopes & ints ######
 
-# Create dataset of annual CQ slopes.
-n_q_cq_ann <- n_q_data %>%
+# Create dataset of seasonal CQ slopes.
+n_q_cq_seasonal <- n_q_data %>%
     # Remove missing data.
     drop_na(val_dailymean) %>%
     drop_na(val) %>%
     filter(val_dailymean > 0) %>%
     filter(val > 0) %>%
-    # Group by year.
-    group_by(site_code, analyte_N, water_year) %>%
+    # Group by season.
+    group_by(site_code, analyte_N, season) %>%
     # Calculate CQ slope.
-    summarize(annual_cq_slope = coef(lm(log(val_dailymean) ~ log(val)))[2],
-              annual_cq_int = coef(lm(log(val_dailymean) ~ log(val)))[1],
+    summarize(cq_slope = coef(lm(log(val_dailymean) ~ log(val)))[2],
+              cq_int = coef(lm(log(val_dailymean) ~ log(val)))[1],
               n_of_obs = n()) %>%
     ungroup()
 
-ggplot(n_q_data %>%
-           filter(analyte_N == "NO3_N") %>%
-           filter(site_code == "GREEN4"),
-       aes(x = val, y = val_dailymean,
-           group = water_year, color = water_year)) +
-    geom_point() +
-    geom_smooth(method = "lm", se = FALSE)
+# And another that includes only data from the past decade.
+n_q_cq_seasonal20 <- n_q_data %>%
+    # Remove missing data.
+    drop_na(val_dailymean) %>%
+    drop_na(val) %>%
+    filter(val_dailymean > 0) %>%
+    filter(val > 0) %>%
+    # Trim down to necessary years.
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021) %>%
+    # Group by season.
+    group_by(site_code, analyte_N, season) %>%
+    # Calculate CQ slope.
+    summarize(cq_slope = coef(lm(log(val_dailymean) ~ log(val)))[2],
+              cq_int = coef(lm(log(val_dailymean) ~ log(val)))[1],
+              n_of_obs = n()) %>%
+    ungroup()
+
+# Create dataset of decadal CQ slopes.
+n_q_cq_decadal <- n_q_data %>%
+    # Add decadal column.
+    mutate(decade = case_when(water_year > 1959 & water_year <= 1969 ~ 1960,
+                              water_year > 1969 & water_year <= 1979 ~ 1970,
+                              water_year > 1979 & water_year <= 1989 ~ 1980,
+                              water_year > 1989 & water_year <= 1999 ~ 1990,
+                              water_year > 1999 & water_year <= 2009 ~ 2000,
+                              water_year > 2009 & water_year <= 2019 ~ 2010,
+                              water_year > 2019 & water_year <= 2029 ~ 2020)) %>%
+    # Remove missing data.
+    drop_na(val_dailymean) %>%
+    drop_na(val) %>%
+    filter(val_dailymean > 0) %>%
+    filter(val > 0) %>%
+    # Group by season.
+    group_by(site_code, analyte_N, decade) %>%
+    # Calculate CQ slope.
+    summarize(cq_slope = coef(lm(log(val_dailymean) ~ log(val)))[2],
+              cq_int = coef(lm(log(val_dailymean) ~ log(val)))[1],
+              n_of_obs = n()) %>%
+    ungroup()
 
 ##### Export VWM N data #####
 
 saveRDS(n_q_vwm_month, "data_working/N_VWM_monthly.rds")
 saveRDS(n_q_vwm_seas, "data_working/N_VWM_seasonal.rds")
 saveRDS(n_q_vwm_ann, "data_working/N_VWM_annual.rds")
-saveRDS(n_q_cq_ann, "data_working/N_CQ_annual.rds")
+saveRDS(n_q_cq_seasonal, "data_working/N_CQ_seasonal.rds")
+saveRDS(n_q_cq_seasonal20, "data_working/N_CQ_seasonal20.rds")
+saveRDS(n_q_cq_decadal, "data_working/N_CQ_decadal.rds")
 
 #### DOC ####
 

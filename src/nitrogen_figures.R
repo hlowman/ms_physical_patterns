@@ -49,6 +49,15 @@ N_VWM_seasonal <- readRDS("data_working/N_VWM_seasonal.rds")
 # All sites and analytes for which we could fit annual CQ models.
 N_CQ_annual <- readRDS("data_working/N_CQ_annual.rds")
 
+# And seasonal CQ models.
+N_CQ_seasonal <- readRDS("data_working/N_CQ_seasonal.rds")
+
+# And seasonal CQ models for the most recent decade.
+N_CQ_seasonal20 <- readRDS("data_working/N_CQ_seasonal20.rds")
+
+# And decadal CQ models.
+N_CQ_decadal <- readRDS("data_working/N_CQ_decadal.rds")
+
 # NO3 annual trends
 no3_trends_ann <- readRDS("data_working/no3_trends_annual.rds")
 
@@ -1828,73 +1837,119 @@ dat_corr_dep <- data.frame(
 
 ##### CQ #####
 
-# Select for most recent 10 years of data to be comparable to other
-# summary figures.
-mean_N_CQ_annual20 <- N_CQ_annual %>%
-    filter(water_year > 2009) %>%
-    filter(water_year > 2021) %>%
-    # And site-years with two or fewer observations
-    filter(n_of_obs > 2) %>%
-    group_by(site_code, analyte_N) %>%
-    summarize(mean_annual_CQ_slope = mean(annual_cq_slope),
-              mean_annual_CQ_int = mean(annual_cq_int),
-              mean_annual_obs = mean(n_of_obs),
-              total_years = as.numeric(n())) %>%
-    ungroup()
+###### Seasonal #######
+
+# Filter down to desired analytes and minimum of 10 observations,
+# using data from the past 10 years.
+N_CQ_trim <- N_CQ_seasonal20 %>%
+    filter(analyte_N %in% c("NO3_N", "NH3_N", "TDN")) %>%
+    filter(n_of_obs > 9)
 
 # And join with site data to filter out experimental sites.
-mean_N_CQ_annual20 <- left_join(mean_N_CQ_annual20, ms_site_data)
+N_CQ_trim <- left_join(N_CQ_trim, ms_site_data)
 
-mean_N_CQ_annual20_nonexp <- mean_N_CQ_annual20 %>%
+N_CQ_trim_nonexp <- N_CQ_trim %>%
     filter(ws_status == "non-experimental")
 
-(summaryfig6 <- ggplot(mean_N_CQ_annual20_nonexp %>%
-                           filter(analyte_N %in% c("NO3_N",
-                                                   "NH3_N",
-                                                   "TDN"))) +
-        geom_histogram(aes(x = mean_annual_CQ_slope,
+(n_cq_seas <- ggplot(N_CQ_trim_nonexp) +
+        geom_histogram(aes(x = cq_slope,
                            fill = ..x..),
                        color = "black", bins = 30) +
         geom_vline(xintercept = 0, linetype = "dashed") +
-        ylim(0, 13) +
-        xlim(-1,1) +
         scale_fill_gradient2(low = "#045CB4",
                              mid = "white",
                              high = "#FAB455",
                              midpoint = 0) +
-        facet_grid(analyte_N~., scales = "free") +
-        labs(x = "Mean Annual C-Q Slope", y = "Site Count") +
-        theme_bw() +
-        theme(strip.background = element_rect(colour="NA", fill="NA"),
-              strip.text = element_blank(),
-              legend.position = "none"))
-
-(summaryfig6b <- ggplot(mean_N_CQ_annual20_nonexp %>%
-                           filter(analyte_N %in% c("NO3_N",
-                                                   "NH3_N",
-                                                   "TDN"))) +
-        geom_histogram(aes(x = mean_annual_CQ_int,
-                           fill = ..x..),
-                       color = "black", bins = 30) +
-        geom_vline(xintercept = 0, linetype = "dashed") +
-        ylim(0, 13) +
-        xlim(-10, 10) +
-        scale_fill_gradient2(low = "#045CB4",
-                             mid = "white",
-                             high = "#FAB455",
-                             midpoint = 0) +
-        facet_grid(analyte_N~., scales = "free") +
-        labs(x = "Mean Annual C-Q Intercept", y = "Site Count") +
+        facet_grid(analyte_N~season, scales = "free") +
+        labs(x = "Seasonal C-Q Slope", y = "Site Count") +
         theme_bw() +
         theme(strip.background = element_rect(colour="NA", fill="NA"),
               legend.position = "none"))
 
-(cq_fig <- (summaryfig6 + summaryfig6b))
-
-# ggsave(cq_fig,
-#        filename = "figures/summaryfig_cq_slope_intercept_2010_to_2020.jpeg",
+# ggsave(n_cq_seas,
+#        filename = "figures/seasonal_cq_slope_2010_to_2020.jpeg",
 #        height = 16,
 #        width = 16,
+#        units = "cm")
+
+(n_int_seas <- ggplot(N_CQ_trim_nonexp) +
+        geom_histogram(aes(x = cq_int,
+                           fill = ..x..),
+                       color = "black", bins = 30) +
+        geom_vline(xintercept = 0, linetype = "dashed") +
+        scale_fill_gradient2(low = "#045CB4",
+                             mid = "white",
+                             high = "#FAB455",
+                             midpoint = 0) +
+        facet_grid(analyte_N~season, scales = "free") +
+        labs(x = "Seasonal C-Q Intercept", y = "Site Count") +
+        theme_bw() +
+        theme(strip.background = element_rect(colour="NA", fill="NA"),
+              legend.position = "none"))
+
+# ggsave(n_int_seas,
+#        filename = "figures/seasonal_cq_int_2010_to_2020.jpeg",
+#        height = 16,
+#        width = 16,
+#        units = "cm")
+
+###### Decadal #######
+
+# Filter down to desired analytes and minimum of 10 observations.
+N_CQ_dec_trim <- N_CQ_decadal %>%
+    filter(analyte_N %in% c("NO3_N", "NH3_N", "TDN")) %>%
+    filter(n_of_obs > 9)
+
+# And join with site data to filter out experimental sites.
+N_CQ_dec_trim <- left_join(N_CQ_dec_trim, ms_site_data)
+
+N_CQ_dec_trim_nonexp <- N_CQ_dec_trim %>%
+    filter(ws_status == "non-experimental")
+
+(n_cq_dec <- ggplot(N_CQ_dec_trim_nonexp) +
+        geom_histogram(aes(x = cq_slope,
+                           fill = ..x..),
+                       color = "black", bins = 30) +
+        geom_vline(xintercept = 0, linetype = "dashed") +
+        # this omits an outlier, but doing this for consistent viewing
+        xlim(-2, 2) +
+        scale_fill_gradient2(low = "#045CB4",
+                             mid = "white",
+                             high = "#FAB455",
+                             midpoint = 0) +
+        facet_grid(analyte_N~decade, scales = "free") +
+        labs(x = "Decadal C-Q Slope", y = "Site Count") +
+        theme_bw() +
+        theme(strip.background = element_rect(colour="NA", fill="NA"),
+              legend.position = "none"))
+
+# ggsave(n_cq_dec,
+#        filename = "figures/decadal_cq_slope.jpeg",
+#        height = 16,
+#        width = 32,
+#        units = "cm")
+
+(n_int_dec <- ggplot(N_CQ_dec_trim_nonexp) +
+        geom_histogram(aes(x = cq_int,
+                           fill = ..x..),
+                       color = "black", bins = 30) +
+        geom_vline(xintercept = 0, linetype = "dashed") +
+        # this omits an outlier, but doing this for consistent viewing
+        xlim(-15, 5) +
+        scale_fill_gradient2(low = "#045CB4",
+                             mid = "white",
+                             high = "#FAB455",
+                             midpoint = 0) +
+        facet_grid(analyte_N~decade, scales = "free") +
+        labs(x = "Decadal C-Q Intercept", y = "Site Count") +
+        theme_bw() +
+        theme(strip.background = element_rect(colour="NA", fill="NA"),
+              legend.position = "none"))
+
+# ggsave(n_int_dec,
+#        filename = "figures/decadal_cq_intercept.jpeg",
+#        height = 16,
+#        width = 32,
 #        units = "cm")
 
 ##### N vs. Climate #####
