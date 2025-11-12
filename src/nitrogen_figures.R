@@ -1893,6 +1893,26 @@ N_CQ_trim_nonexp <- N_CQ_trim %>%
 #        width = 16,
 #        units = "cm")
 
+# Examining percent of diluting (slope = -1),
+# chemostatic (slope = 0), and flushing (slope = 1)
+regimes <- N_CQ_trim_nonexp %>%
+    mutate(group = case_when(cq_slope <= -1 ~ "diluting",
+                             cq_slope >-1 &
+                                 cq_slope < 1 ~ "chemostatic",
+                             cq_slope >=1 ~ "flushing")) %>%
+    group_by(analyte_N, season, group) %>%
+    summarize(count = n()) %>%
+    ungroup()
+
+mean_slopes <- N_CQ_trim_nonexp %>%
+    mutate(group = case_when(cq_slope <= -1 ~ "diluting",
+                             cq_slope >-1 &
+                                 cq_slope < 1 ~ "chemostatic",
+                             cq_slope >=1 ~ "flushing")) %>%
+    group_by(analyte_N, season) %>%
+    summarize(mean_slope = mean(cq_slope)) %>%
+    ungroup()
+
 ###### Decadal #######
 
 # Filter down to desired analytes and minimum of 10 observations.
