@@ -548,9 +548,6 @@ chem_data <- ms_load_product(
 # Leaving in Liters per second per hectare since many chem data
 # values are expressed in milligrams per Liter.
 
-# Do not need to scale discharge to watershed area because it
-# cancels out - instead we do this after calculating VWMs.
-
 q_trim <- q_data_scaled %>%
     select(date, month, year, water_year,
            site_code, ws_area_ha, val) # val in L/second
