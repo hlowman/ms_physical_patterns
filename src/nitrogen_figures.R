@@ -1313,6 +1313,184 @@ peak_months <- mean_N_VWM_monthly_nonexp_keep %>%
 #        width = 10,
 #        units = "cm")
 
+###### New Fig 3 ######
+
+# First, I need to calculate monthly averages
+# NOTE- I've edited this code again to mirror the Fig 2 (CQ) filters.
+N_VWM_monthly20 <- N_VWM_monthly %>%
+    # trim to 2010-2020
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021)
+
+# And see which site-years have min. 8 months represented.
+n_month_counts <- N_VWM_monthly20 %>%
+    select(site_code, analyte_N, water_year, month, n_of_obs_chem) %>%
+    pivot_wider(values_from = n_of_obs_chem,
+                names_from = month) %>%
+    # reordering just for ease of viewing
+    select(site_code, analyte_N, water_year, `1`, `2`, `3`, `4`,
+           `5`, `6`, `7`, `8`, `9`, `10`, `11`, `12`) %>%
+    # now to add appropriate flags
+    mutate(flag_10 = case_when(`10` >= 1 ~ 1,
+                               TRUE ~ 0),
+           flag_11 = case_when(`11` >= 1 ~ 1,
+                               TRUE ~ 0),
+           flag_12 = case_when(`12` >= 1 ~ 1,
+                               TRUE ~ 0),
+           flag_1 = case_when(`1` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_2 = case_when(`2` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_3 = case_when(`3` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_4 = case_when(`4` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_5 = case_when(`5` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_6 = case_when(`6` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_7 = case_when(`7` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_8 = case_when(`8` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_9 = case_when(`9` >= 1 ~ 1,
+                              TRUE ~ 0)) %>%
+    mutate(flag_months = flag_10 + flag_11 + flag_12 +
+               flag_1 + flag_2 + flag_3 +
+               flag_4 + flag_5 + flag_6 +
+               flag_7 + flag_8 + flag_9)
+
+# And only include sites with an average of 8 months of observations.
+n_mos_sites_trim <- n_month_counts %>%
+    group_by(site_code, analyte_N) %>%
+    summarize(mean_months = mean(flag_months)) %>%
+    ungroup() %>%
+    filter(mean_months >= 8)
+
+# And use the dataset above to trim down the included sites.
+
+N_VWM_monthly20_8mo <- right_join(N_VWM_monthly20, n_mos_sites_trim)
+
+
+mean_N_VWM_monthly <- N_VWM_monthly20_8mo%>%
+    group_by(site_code, analyte_N, month) %>%
+    summarize(mean_monthly_VWM_mgL = mean(monthly_vwm_mgL,
+                                          na.rm = TRUE),
+              mean_monthly_obs = mean(n_of_obs_chem,
+                                      na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup()
+
+# Join with site info so that we can filter out experimental sites.
+mean_N_VWM_monthly <- left_join(mean_N_VWM_monthly, ms_site_data)
+
+mean_N_VWM_monthly_nonexp <- mean_N_VWM_monthly %>%
+    filter(ws_status == "non-experimental")
+
+# Also, need to bring in Q data to do the same.
+q_monthly <- q_metrics %>%
+    filter(agg_code %in% c("1", "2", "3", "4", "5", "6",
+                           "7", "8", "9", "10", "11", "12"))
+
+# calculate monthly averages
+# First, I need to calculate monthly averages
+# NOTE MAKING SAME ADJUSTMENTS HERE AS ABOVE
+mean_q_monthly <- q_monthly %>%
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021) %>%
+    group_by(site_code, month) %>%
+    summarize(mean_monthly_q = mean(q_mean, na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup() %>%
+    filter(!is.nan(mean_monthly_q)) %>%
+    filter(!is.na(month))
+
+# And find peak discharge months.
+peak_q_months <- mean_q_monthly %>%
+    group_by(site_code) %>%
+    slice_max(mean_monthly_q) %>%
+    mutate(analyte_N = "Q")
+
+# Calculate peak months.
+peak_months <- mean_N_VWM_monthly_nonexp %>%
+    filter(analyte_N %in% c("NO3_N", "NH3_N", "TDN")) %>%
+    group_by(site_code, analyte_N) %>%
+    slice_max(mean_monthly_VWM_mgL) %>%
+    # and join with Q data above
+    full_join(peak_q_months) %>%
+    # reorder analytes %>%
+    mutate(analyte = factor(analyte_N,
+                            levels = c("Q",
+                                       "NO3_N",
+                                       "NH3_N",
+                                       "TDN"))) %>%
+    ungroup()
+
+# Peak months figure
+(q_peaks <- ggplot(peak_months %>%
+                       filter(analyte == "Q"), aes(x = month)) +
+        geom_bar(stat = "count", color = "black", fill = "white",
+                 alpha = 0.9) +
+        geom_text(x = 10, y = 20, label = "n = 121") +
+        labs(x = "Peak Q Month", y = "Site Count") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(0,13)) +
+        scale_y_continuous(breaks = c(0,5,10,15,20),
+                           limits = c(0,23)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+(no3_peaks <- ggplot(peak_months %>%
+                         filter(analyte == "NO3_N"), aes(x = month)) +
+        geom_bar(stat = "count", color = "black", fill = "black",
+                 alpha = 0.9) +
+        geom_text(x = 10, y = 20, label = "n = 72") +
+        labs(x = expression(paste("Peak ", NO[3], "-N Month")),
+             y = "Site Count") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(0,13)) +
+        scale_y_continuous(breaks = c(0,5,10,15,20),
+                           limits = c(0,23)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+(nh3_peaks <- ggplot(peak_months %>%
+                         filter(analyte == "NH3_N"), aes(x = month)) +
+        geom_bar(stat = "count", color = "black", fill = "#3C3C3C",
+                 alpha = 0.9) +
+        geom_text(x = 10, y = 20, label = "n = 50") +
+        labs(x = expression(paste("Peak ", NH[3], "-N Month")),
+             y = "Site Count") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(0,13)) +
+        scale_y_continuous(breaks = c(0,5,10,15,20),
+                           limits = c(0,23)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+(tdn_peaks <- ggplot(peak_months %>%
+                         filter(analyte == "TDN"), aes(x = month)) +
+        geom_bar(stat = "count", color = "black", fill = "#BABABA",
+                 alpha = 0.9) +
+        geom_text(x = 10, y = 20, label = "n = 35") +
+        labs(x = "Peak TDN Month", y = "Site Count") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(0,13)) +
+        scale_y_continuous(breaks = c(0,5,10,15,20),
+                           limits = c(0,23)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+# And combine them into a single figure.
+(peaks_all_bw <- (q_peaks / no3_peaks / nh3_peaks / tdn_peaks))
+
+# And export figure.
+ggsave(peaks_all_bw,
+       filename = "figures/peak_months_N_bw.jpeg",
+       height = 20,
+       width = 7,
+       units = "cm")
+
 ##### Site Attributes #####
 
 # Also going to make plots to investigate watershed and climate
@@ -1962,17 +2140,24 @@ N_CQ_trim_nonexp <- N_CQ_trim %>%
                                             analyte_N == "TDN" ~ "TDN"),
                                   levels = c("NO[3]-N",
                                              "NH[3]-N",
-                                             "TDN")))
+                                             "TDN"))) %>%
+    # Renaming seasons
+    mutate(season_ed = factor(case_when(season == "Fall" ~ "Autumn",
+                                 TRUE ~ season),
+                              levels = c("Spring", "Summer",
+                                         "Autumn", "Winter")))
 
 (n_cq_seas <- ggplot(N_CQ_trim_nonexp, aes(x = cq_slope)) +
         annotate("rect", xmin = -0.2, xmax = 0.2, ymin = 0, ymax = 40,
                  alpha = 0.2, fill = "black") +
         geom_vline(xintercept = 0.2, linetype = "dashed") +
         geom_vline(xintercept = -0.2, linetype = "dashed") +
-        geom_histogram(fill = "white", color = "black", bins = 30) +
+        geom_histogram(aes(fill = analyte_label),
+                       color = "black", bins = 30, alpha = 0.9) +
+        scale_fill_manual(values = c("black", "#3C3C3C", "#BABABA")) +
         scale_x_continuous(trans = pseudo_log_trans(base = 10),
                            breaks = c(-5, -2, -1, 0, 1, 2, 5)) +
-        facet_grid(analyte_label~season,
+        facet_grid(analyte_label~season_ed,
                    label = label_parsed) +
         labs(x = "Seasonal C-Q Slope", y = "Site Count") +
         theme_bw() +

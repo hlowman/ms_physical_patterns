@@ -69,6 +69,8 @@ n_vwm80_2 <- n_vwm80 %>%
     filter(n_of_obs_chem > 1)
 
 # Timesteps with a minimum of 10 observations.
+# note, this should be revised if decide to examine
+# sub-annual trends
 n_vwm80_10 <- n_vwm80 %>%
     filter(n_of_obs_chem > 9)
 
