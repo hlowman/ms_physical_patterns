@@ -2339,8 +2339,8 @@ no3_sites <- no3_trends_ann %>% select(site_code) %>% unique()
 clim_sites <- dep_clim_trends_ann %>% select(site_code) %>% unique()
 inner <- inner_join(no3_sites, clim_sites) # 148 sites max overlap
 only_no3 <- no3_sites %>%
-    filter(!site_code %in% inner$site_code) # 53 sites only with NO3 data
-# i.e., the PR, Krycklan, McMurdo, Toolik, etc. sites
+    filter(!site_code %in% inner$site_code) # 53 sites with only NO3 data
+# i.e., the PR, Krycklan, McMurdo, Toolik, etc. sites (outside CONUS)
 only_clim <- clim_sites %>%
     filter(!site_code %in% inner$site_code) # 18 sites with only climate data
 # i.e., sites part of other regions but missing N data
@@ -2482,11 +2482,11 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual Productivity Trend",
-             color = "NO3 Trend",
-             shape = "NO3 Trend",
-             size = "NO3 Trend") +
+             color = expression(paste(NO[3], "-N Trend")),
+             shape = expression(paste(NO[3], "-N Trend")),
+             size = expression(paste(NO[3], "-N Trend"))) +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # GPP V TEMP - including exp sites
 (figNO3_gpp_temp2 <- ggplot(no3_clim_trends_ann_wide,
@@ -2514,11 +2514,11 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual Productivity Trend",
-             color = "NO3 Trend",
-             shape = "NO3 Trend",
-             size = "NO3 Trend") +
+             color = expression(paste(NO[3], "-N Trend")),
+             shape = expression(paste(NO[3], "-N Trend")),
+             size = expression(paste(NO[3], "-N Trend"))) +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # DEP V TEMP
 (figNO3_dep_temp <- ggplot(no3_clim_trends_ann_wide_ed,
@@ -2575,25 +2575,25 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
              y = "Mean Annual N Deposition Trend") +
         theme_bw())
 
-(figNO3_all <- figNO3_ppt_temp + figNO3_gpp_temp + figNO3_dep_temp +
+(figNO3_both <- figNO3_ppt_temp + figNO3_gpp_temp +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figNO3_all,
-#        filename = "figures/panelfig_no3_clim_dep_trends.jpeg",
-#        height = 14,
-#        width = 40,
+# ggsave(figNO3_both,
+#        filename = "figures/panelfig_no3_clim_trends.jpeg",
+#        height = 12,
+#        width = 28,
 #        units = "cm")
 
 # and export version including experimental sites
 
-(figNO3_all2 <- figNO3_ppt_temp2 + figNO3_gpp_temp2 + figNO3_dep_temp2 +
+(figNO3_both2 <- figNO3_ppt_temp2 + figNO3_gpp_temp2 +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figNO3_all2,
-#        filename = "figures/panelfig_no3_clim_dep_trends_exp.jpeg",
-#        height = 14,
-#        width = 40,
-#        units = "cm")
+ggsave(figNO3_both2,
+       filename = "figures/panelfig_no3_clim_trends_exp.jpeg",
+       height = 12,
+       width = 28,
+       units = "cm")
 
 ###### NH3 ######
 
@@ -2744,11 +2744,11 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual Productivity Trend",
-             color = "NH3 Trend",
-             shape = "NH3 Trend",
-             size = "NH3 Trend") +
+             color = expression(paste(NH[3], "-N Trend")),
+             shape = expression(paste(NH[3], "-N Trend")),
+             size = expression(paste(NH[3], "-N Trend"))) +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # GPP V TEMP - including exp sites
 (figNH3_gpp_temp2 <- ggplot(nh3_clim_trends_ann_wide,
@@ -2775,11 +2775,11 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual Productivity Trend",
-             color = "NH3 Trend",
-             shape = "NH3 Trend",
-             size = "NH3 Trend") +
+             color = expression(paste(NH[3], "-N Trend")),
+             shape = expression(paste(NH[3], "-N Trend")),
+             size = expression(paste(NH[3], "-N Trend"))) +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # DEP V TEMP
 (figNH3_dep_temp <- ggplot(nh3_clim_trends_ann_wide_ed,
@@ -2835,24 +2835,24 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
              y = "Mean Annual N Deposition Trend") +
         theme_bw())
 
-(figNH3_all <- figNH3_ppt_temp + figNH3_gpp_temp + figNH3_dep_temp +
+(figNH3_both <- figNH3_ppt_temp + figNH3_gpp_temp +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figNH3_all,
-#        filename = "figures/panelfig_nh3_clim_dep_trends.jpeg",
-#        height = 14,
-#        width = 40,
+# ggsave(figNH3_both,
+#        filename = "figures/panelfig_nh3_clim_trends.jpeg",
+#        height = 12,
+#        width = 28,
 #        units = "cm")
 
 # and export figure with experimental sites included as well
 
-(figNH3_all2 <- figNH3_ppt_temp2 + figNH3_gpp_temp2 + figNH3_dep_temp2 +
+(figNH3_both2 <- figNH3_ppt_temp2 + figNH3_gpp_temp2 +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figNH3_all2,
-#        filename = "figures/panelfig_nh3_clim_dep_trends_exp.jpeg",
-#        height = 14,
-#        width = 40,
+# ggsave(figNH3_both2,
+#        filename = "figures/panelfig_nh3_clim_trends_exp.jpeg",
+#        height = 12,
+#        width = 28,
 #        units = "cm")
 
 ###### TDN ######
@@ -3011,7 +3011,7 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
              shape = "TDN Trend",
              size = "TDN Trend") +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # GPP V TEMP - including exp sites
 (figTDN_gpp_temp2 <- ggplot(tdn_clim_trends_ann_wide,
@@ -3043,7 +3043,7 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
              shape = "TDN Trend",
              size = "TDN Trend") +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # DEP V TEMP
 (figTDN_dep_temp <- ggplot(tdn_clim_trends_ann_wide_ed,
@@ -3101,24 +3101,24 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
              y = "Mean Annual N Deposition Trend") +
         theme_bw())
 
-(figTDN_all <- figTDN_ppt_temp + figTDN_gpp_temp + figTDN_dep_temp +
+(figTDN_both <- figTDN_ppt_temp + figTDN_gpp_temp +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figTDN_all,
-#        filename = "figures/panelfig_tdn_clim_dep_trends.jpeg",
-#        height = 14,
-#        width = 40,
+# ggsave(figTDN_both,
+#        filename = "figures/panelfig_tdn_clim_trends.jpeg",
+#        height = 12,
+#        width = 28,
 #        units = "cm")
 
 # and export figure including experimental sites
 
-(figTDN_all2 <- figTDN_ppt_temp2 + figTDN_gpp_temp2 + figTDN_dep_temp2 +
+(figTDN_both2 <- figTDN_ppt_temp2 + figTDN_gpp_temp2 +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figTDN_all2,
-#        filename = "figures/panelfig_tdn_clim_dep_trends_exp.jpeg",
-#        height = 14,
-#        width = 40,
+# ggsave(figTDN_both2,
+#        filename = "figures/panelfig_tdn_clim_trends_exp.jpeg",
+#        height = 12,
+#        width = 28,
 #        units = "cm")
 
 # Quick check of sites with trends that overlap.
