@@ -242,6 +242,7 @@ no3_trends_ann <- full_join(no3_trends_ann, no3_records) %>%
 
 # Export for use in making figures.
 saveRDS(no3_trends_ann, "data_working/no3_trends_annual.rds")
+saveRDS(no3_vwm_ann, "data_working/no3_data_for_trends_annual.rds")
 
 #### NH4 ####
 
@@ -283,6 +284,7 @@ all_data_counts_nh3_trim <- nh3_trends_ann %>%
 
 # Export for use in making figures.
 saveRDS(nh3_trends_ann, "data_working/nh3_trends_annual.rds")
+saveRDS(nh3_vwm_ann, "data_working/nh3_data_for_trends_annual.rds")
 
 #### TDN ####
 
@@ -324,6 +326,7 @@ all_data_counts_tdn_trim <- tdn_trends_ann %>%
 
 # Export for use in making figures.
 saveRDS(tdn_trends_ann, "data_working/tdn_trends_annual.rds")
+saveRDS(tdn_vwm_ann, "data_working/tdn_data_for_trends_annual.rds")
 
 #### N Deposition ####
 
@@ -353,6 +356,7 @@ ndep_trends_ann <- detect_trends(ndep_ann)
 
 # Export for use in making figures.
 saveRDS(ndep_trends_ann, "data_working/ndep_trends_annual.rds")
+saveRDS(ndep_ann, "data_working/ndep_data_for_trends_annual.rds")
 
 #### Old Seasonal Data Exploration Below ####
 
