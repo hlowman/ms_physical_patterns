@@ -421,6 +421,8 @@ ppt_days_yr <- clim %>%
     rename(ppt_days = n) %>%
     mutate(agg_code = 'annual')
 
+## annual clim summaries #####
+
 # join together
 clim_metrics_out <- clim %>%
     group_by(site_code, water_year) %>%
