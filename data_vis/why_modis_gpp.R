@@ -69,10 +69,10 @@ p_a <- ggplot() +
     scale_x_continuous(breaks = seq(1985, 2025, 5)) +
     coord_cartesian(ylim = c(-3, 2.4)) +
     theme_few(base_size = 12) +
-    theme(legend.position = c(0.17, 0.9), legend.background = element_rect(fill = 'white', color = NA)) +
+    theme(legend.position = c(0.8, 0.1), legend.background = element_rect(fill = 'white', color = NA)) +
     labs(title = '(a) Landsat GPP shifts level at sensor transitions; single-sensor MODIS does not',
-         subtitle = paste0('Cross-site median of site-standardized annual GPP (', length(sites),
-                           ' MacroSheds sites); bands = interquartile range; thick bars = mean per sensor era'),
+         subtitle = paste0('Cross-site median of site-standardized annual GPP, ', length(sites),
+                           ' MacroSheds sites; band = interquartile range; bar = sensor-era mean'),
          x = 'Water year', y = 'GPP anomaly (SD units; each site scaled on 2001–2021)')
 
 # ---- (b) same sites, same years: trend flags by product ----
