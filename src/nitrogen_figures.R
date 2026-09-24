@@ -1196,6 +1196,13 @@ ggsave(fig_N_3panel_int,
        units = "cm")
 
 # calculating stats for manuscript.
+counts <- N_VWM_annual_sites_nonexp %>%
+    select(site_code, analyte_N) %>%
+    unique() %>%
+    group_by(analyte_N) %>%
+    count() %>%
+    ungroup()
+
 summ_stats <- N_VWM_annual_sites_nonexp %>%
     group_by(site_code, analyte_N) %>%
     summarize(median = median(annual_vwm_mgL, na.rm = TRUE)) %>%
