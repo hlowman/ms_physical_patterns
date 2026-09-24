@@ -61,14 +61,26 @@ N_CQ_decadal <- readRDS("data_working/N_CQ_decadal.rds")
 # NO3 annual trends
 no3_trends_ann <- readRDS("data_working/no3_trends_annual.rds")
 
+# data used to estimate NO3 annual trends
+no3_data_for_trends_ann <- readRDS("data_working/no3_data_for_trends_annual.rds")
+
 # NH3 annual trends
 nh3_trends_ann <- readRDS("data_working/nh3_trends_annual.rds")
+
+# data used to estimate NH3 annual trends
+nh3_data_for_trends_ann <- readRDS("data_working/nh3_data_for_trends_annual.rds")
 
 # TDN annual trends
 tdn_trends_ann <- readRDS("data_working/tdn_trends_annual.rds")
 
+# data used to estimate TDN annual trends
+tdn_data_for_trends_ann <- readRDS("data_working/tdn_data_for_trends_annual.rds")
+
 # N Deposition annual trends
 ndep_trends_ann <- readRDS("data_working/ndep_trends_annual.rds")
+
+# data used to estimate N deposition annual trends
+ndep_data_for_trends_ann <- readRDS("data_working/ndep_data_for_trends_annual.rds")
 
 # Climate trends (from mega_zipper_data.R script)
 clim_trends <- read_csv("data_working/trends/full_prisim_climate.csv")
@@ -924,7 +936,13 @@ mean_N_VWM_annual20 <- N_VWM_annual %>%
 mean_N_VWM_annual20 <- left_join(mean_N_VWM_annual20, ms_site_data)
 
 mean_N_VWM_annual20_nonexp <- mean_N_VWM_annual20 %>%
-    filter(ws_status == "non-experimental")
+    filter(ws_status == "non-experimental") %>%
+    # re-order analytes for density
+    mutate(analyte_N_f = factor(analyte_N,
+                              levels = c("NO3_N", "NH3_N", "DIN",
+                                         "TDN", "TN", "NO2_N",
+                                         "TPN", "N2O", "TIN",
+                                         "TKN")))
 
 # Set color legend break points.
 color_breaks <- c(1, 10, 50)
@@ -936,19 +954,19 @@ site_counts20 <- mean_N_VWM_annual20_nonexp %>%
 
 # And create list with which to add in count annotations
 dat_text <- data.frame(
-    label = c("n = 116", "n = 20", "n = 116", "n = 46", "n = 142",
-              "n = 84", "n = 10", "n = 1", "n = 60", "n = 31"),
-    analyte_N = c("DIN", "N2O", "NH3_N", "NO2_N", "NO3_N",
-                  "TDN", "TIN", "TKN", "TN", "TPN"))
-
-# This is the figure included in the manuscript as the
-# first data summary figure.
+    label = c("n = 142", "n = 116", "n = 116", "n = 84", "n = 60",
+              "n = 46", "n = 31", "n = 20", "n = 10", "n = 1"),
+    analyte_N = c("NO3_N", "NH3_N", "DIN", "TDN", "TN",
+                  "NO2_N", "TPN", "N2O", "TIN", "TKN")) %>%
+    mutate(analyte_N_f = factor(analyte_N,
+                                levels = c("NO3_N", "NH3_N", "DIN", "TDN", "TN",
+                                           "NO2_N", "TPN", "N2O", "TIN", "TKN")))
 
 # Note, the log transformation on the x-axis only removes
 # one site's data for one analyte - ONO2 for NH3_N.
 (summaryfig4 <- ggplot(mean_N_VWM_annual20_nonexp) +
         geom_jitter(aes(x = mean_annual_VWM_mgL,
-                        y = analyte_N,
+                        y = analyte_N_f,
                         fill = mean_annual_obs,
                         size = total_years),
                     width = 0.05, alpha = 0.9, shape = 21) +
@@ -961,13 +979,16 @@ dat_text <- data.frame(
         scale_size_continuous(breaks = size_breaks) +
         scale_x_log10(labels = scales::comma,
                       breaks = c(0.001, 0.01, 0.1, 1, 10)) +
-        facet_grid(analyte_N~., scales = "free") +
+        facet_grid(analyte_N_f~., scales = "free") +
+        scale_y_discrete(drop = TRUE) +
         labs(x = "Mean Annual Concentration (mg/L)",
              y = "Analyte",
              fill = "Mean No. of Annual Observations",
              size = "Record Length (yrs)") +
         geom_text(data = dat_text,
-                  mapping = aes(x = 20, y = analyte_N, label = label)) +
+                  mapping = aes(x = 20,
+                                y = analyte_N_f,
+                                label = label)) +
         theme_bw() +
         theme(strip.text.y = element_blank(),
               legend.position = "top"))
@@ -1067,6 +1088,100 @@ dat_text_seas <- data.frame(
 #        filename = "figures/summaryfig_N_season_2010_to_2020.jpeg",
 #        height = 20,
 #        width = 20,
+#        units = "cm")
+
+# Since the above figures collapse a bit too much of the variability,
+# here is an alternate figure with more of it retained.
+
+###### New Fig 1 ######
+
+# First, join the raw data with site info.
+N_VWM_annual_sites <- left_join(N_VWM_annual, ms_site_data)
+
+# And edit for plotting
+N_VWM_annual_sites_nonexp <- N_VWM_annual_sites %>%
+    # remove experimental sites
+    filter(ws_status == "non-experimental") %>%
+    # and analytes that are not included
+    filter(analyte_N %in% c("NO3_N", "TDN", "NH3_N")) %>%
+    mutate(analyte_N = factor(analyte_N,
+                              levels = c("NO3_N", "NH3_N", "TDN"))) %>%
+    # and add a column with median values (to sort by)
+    group_by(site_code, analyte_N) %>%
+    mutate(median_N = median(annual_vwm_mgL)) %>%
+    ungroup() %>%
+    mutate(site_code = factor(site_code))
+
+# Make a separate dataset for preserving the ordering by NO3 values.
+NO3_sites_nonexp <- N_VWM_annual_sites_nonexp %>%
+    filter(analyte_N == "NO3_N") %>%
+    mutate(site_code = factor(site_code)) %>%
+    mutate(site_code_NO3 = fct_reorder(site_code,
+                                   annual_vwm_mgL,
+                                   .fun = median)) %>%
+    select(site_code, site_code_NO3) %>%
+    unique()
+
+# And join this back on.
+N_VWM_annual_sites_nonexp <- left_join(N_VWM_annual_sites_nonexp, NO3_sites_nonexp)
+
+# And a triple paneled plot in greyscale.
+(fig_N_3panel <- ggplot(N_VWM_annual_sites_nonexp,
+                        aes(x = annual_vwm_mgL,
+                            y = site_code_NO3,
+                            color = analyte_N)) +
+        geom_boxplot(outlier.size = 0.5) +
+        scale_color_manual(values = c("#3C3C3C", "#717171", "#BABABA")) +
+        xlim(0, 100) +
+        scale_x_log10() +
+        # scale_x_log10(breaks = c(0.001, 0.01, 0.10, 1.00, 10.00),
+        #               limits = c(0.0001, 10)) +
+        labs(x = "Annual Volume Weighted Mean\nConcentration (mg/L)",
+             y = "Sites") +
+        theme_classic() +
+        theme(axis.text.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              legend.position = "none") +
+        facet_grid(.~analyte_N))
+
+# ggsave(fig_N_3panel,
+#        filename = "figures/N3panel_summaryfig.jpeg",
+#        height = 10,
+#        width = 20,
+#        units = "cm")
+
+# I don't love the amount of white space in the figure above, so
+# attempting another version using interval strips instead.
+(fig_N_3panel_int <- ggplot(N_VWM_annual_sites_nonexp %>%
+                                mutate(analyte_label = factor(case_when(analyte_N == "NO3_N" ~ "NO[3]-N",
+                                                                 analyte_N == "NH3_N" ~ "NH[3]-N",
+                                                                 analyte_N == "TDN" ~ "TDN"),
+                                                              levels = c("NO[3]-N",
+                                                                         "NH[3]-N",
+                                                                         "TDN"))) %>%
+                                filter(annual_vwm_mgL > 0),
+                            # else the log scale won't work
+                        aes(x = annual_vwm_mgL,
+                            y = site_code_NO3)) +
+        ggdist::stat_interval(size = 0.5, .width = c(0.5, 0.95)) +
+        scale_color_manual(values = c( "#BABABA","#3C3C3C"),
+                           name = "Level:") +
+        stat_summary(geom = "point", fun = median, color = "black",
+                     size = 0.5, shape = 16) +
+        scale_x_log10() +
+        labs(x = "Annual Volume Weighted Mean\nConcentration (mg/L)",
+             y = "Sites") +
+        theme_classic() +
+        theme(axis.text.y = element_blank(),
+              axis.ticks.y = element_blank(),
+              legend.position = "none") +
+        facet_grid(.~analyte_label,
+                   labeller = label_parsed))
+
+# ggsave(fig_N_3panel_int,
+#        filename = "figures/N3panel_intfig.jpeg",
+#        height = 10,
+#        width = 25,
 #        units = "cm")
 
 ##### Peak Months #####
@@ -1209,6 +1324,184 @@ peak_months <- mean_N_VWM_monthly_nonexp_keep %>%
 #        height = 20,
 #        width = 10,
 #        units = "cm")
+
+###### New Fig 3 ######
+
+# First, I need to calculate monthly averages
+# NOTE- I've edited this code again to mirror the Fig 2 (CQ) filters.
+N_VWM_monthly20 <- N_VWM_monthly %>%
+    # trim to 2010-2020
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021)
+
+# And see which site-years have min. 8 months represented.
+n_month_counts <- N_VWM_monthly20 %>%
+    select(site_code, analyte_N, water_year, month, n_of_obs_chem) %>%
+    pivot_wider(values_from = n_of_obs_chem,
+                names_from = month) %>%
+    # reordering just for ease of viewing
+    select(site_code, analyte_N, water_year, `1`, `2`, `3`, `4`,
+           `5`, `6`, `7`, `8`, `9`, `10`, `11`, `12`) %>%
+    # now to add appropriate flags
+    mutate(flag_10 = case_when(`10` >= 1 ~ 1,
+                               TRUE ~ 0),
+           flag_11 = case_when(`11` >= 1 ~ 1,
+                               TRUE ~ 0),
+           flag_12 = case_when(`12` >= 1 ~ 1,
+                               TRUE ~ 0),
+           flag_1 = case_when(`1` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_2 = case_when(`2` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_3 = case_when(`3` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_4 = case_when(`4` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_5 = case_when(`5` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_6 = case_when(`6` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_7 = case_when(`7` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_8 = case_when(`8` >= 1 ~ 1,
+                              TRUE ~ 0),
+           flag_9 = case_when(`9` >= 1 ~ 1,
+                              TRUE ~ 0)) %>%
+    mutate(flag_months = flag_10 + flag_11 + flag_12 +
+               flag_1 + flag_2 + flag_3 +
+               flag_4 + flag_5 + flag_6 +
+               flag_7 + flag_8 + flag_9)
+
+# And only include sites with an average of 8 months of observations.
+n_mos_sites_trim <- n_month_counts %>%
+    group_by(site_code, analyte_N) %>%
+    summarize(mean_months = mean(flag_months)) %>%
+    ungroup() %>%
+    filter(mean_months >= 8)
+
+# And use the dataset above to trim down the included sites.
+
+N_VWM_monthly20_8mo <- right_join(N_VWM_monthly20, n_mos_sites_trim)
+
+
+mean_N_VWM_monthly <- N_VWM_monthly20_8mo%>%
+    group_by(site_code, analyte_N, month) %>%
+    summarize(mean_monthly_VWM_mgL = mean(monthly_vwm_mgL,
+                                          na.rm = TRUE),
+              mean_monthly_obs = mean(n_of_obs_chem,
+                                      na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup()
+
+# Join with site info so that we can filter out experimental sites.
+mean_N_VWM_monthly <- left_join(mean_N_VWM_monthly, ms_site_data)
+
+mean_N_VWM_monthly_nonexp <- mean_N_VWM_monthly %>%
+    filter(ws_status == "non-experimental")
+
+# Also, need to bring in Q data to do the same.
+q_monthly <- q_metrics %>%
+    filter(agg_code %in% c("1", "2", "3", "4", "5", "6",
+                           "7", "8", "9", "10", "11", "12"))
+
+# calculate monthly averages
+# First, I need to calculate monthly averages
+# NOTE MAKING SAME ADJUSTMENTS HERE AS ABOVE
+mean_q_monthly <- q_monthly %>%
+    filter(water_year > 2009) %>%
+    filter(water_year < 2021) %>%
+    group_by(site_code, month) %>%
+    summarize(mean_monthly_q = mean(q_mean, na.rm = TRUE),
+              total_years = as.numeric(n())) %>%
+    ungroup() %>%
+    filter(!is.nan(mean_monthly_q)) %>%
+    filter(!is.na(month))
+
+# And find peak discharge months.
+peak_q_months <- mean_q_monthly %>%
+    group_by(site_code) %>%
+    slice_max(mean_monthly_q) %>%
+    mutate(analyte_N = "Q")
+
+# Calculate peak months.
+peak_months <- mean_N_VWM_monthly_nonexp %>%
+    filter(analyte_N %in% c("NO3_N", "NH3_N", "TDN")) %>%
+    group_by(site_code, analyte_N) %>%
+    slice_max(mean_monthly_VWM_mgL) %>%
+    # and join with Q data above
+    full_join(peak_q_months) %>%
+    # reorder analytes %>%
+    mutate(analyte = factor(analyte_N,
+                            levels = c("Q",
+                                       "NO3_N",
+                                       "NH3_N",
+                                       "TDN"))) %>%
+    ungroup()
+
+# Peak months figure
+(q_peaks <- ggplot(peak_months %>%
+                       filter(analyte == "Q"), aes(x = month)) +
+        geom_bar(stat = "count", color = "black", fill = "white",
+                 alpha = 0.9) +
+        geom_text(x = 10, y = 20, label = "n = 121") +
+        labs(x = "Peak Q Month", y = "Site Count") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(0,13)) +
+        scale_y_continuous(breaks = c(0,5,10,15,20),
+                           limits = c(0,23)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+(no3_peaks <- ggplot(peak_months %>%
+                         filter(analyte == "NO3_N"), aes(x = month)) +
+        geom_bar(stat = "count", color = "black", fill = "black",
+                 alpha = 0.9) +
+        geom_text(x = 10, y = 20, label = "n = 72") +
+        labs(x = expression(paste("Peak ", NO[3], "-N Month")),
+             y = "Site Count") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(0,13)) +
+        scale_y_continuous(breaks = c(0,5,10,15,20),
+                           limits = c(0,23)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+(nh3_peaks <- ggplot(peak_months %>%
+                         filter(analyte == "NH3_N"), aes(x = month)) +
+        geom_bar(stat = "count", color = "black", fill = "#3C3C3C",
+                 alpha = 0.9) +
+        geom_text(x = 10, y = 20, label = "n = 50") +
+        labs(x = expression(paste("Peak ", NH[3], "-N Month")),
+             y = "Site Count") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(0,13)) +
+        scale_y_continuous(breaks = c(0,5,10,15,20),
+                           limits = c(0,23)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+(tdn_peaks <- ggplot(peak_months %>%
+                         filter(analyte == "TDN"), aes(x = month)) +
+        geom_bar(stat = "count", color = "black", fill = "#BABABA",
+                 alpha = 0.9) +
+        geom_text(x = 10, y = 20, label = "n = 35") +
+        labs(x = "Peak TDN Month", y = "Site Count") +
+        scale_x_continuous(breaks = c(1,2,3,4,5,6,7,8,9,10,11,12),
+                           limits = c(0,13)) +
+        scale_y_continuous(breaks = c(0,5,10,15,20),
+                           limits = c(0,23)) +
+        theme_bw() +
+        theme(plot.title = element_text(hjust = 0.5)))
+
+# And combine them into a single figure.
+(peaks_all_bw <- (q_peaks / no3_peaks / nh3_peaks / tdn_peaks))
+
+# And export figure.
+ggsave(peaks_all_bw,
+       filename = "figures/peak_months_N_bw.jpeg",
+       height = 20,
+       width = 7,
+       units = "cm")
 
 ##### Site Attributes #####
 
@@ -1841,7 +2134,7 @@ dat_corr_dep <- data.frame(
 
 ##### CQ #####
 
-###### Seasonal #######
+###### Seasonal (Fig 2) #######
 
 # Filter down to desired analytes and minimum of 10 observations,
 # using data from the past 10 years.
@@ -1853,18 +2146,31 @@ N_CQ_trim <- N_CQ_seasonal20 %>%
 N_CQ_trim <- left_join(N_CQ_trim, ms_site_data)
 
 N_CQ_trim_nonexp <- N_CQ_trim %>%
-    filter(ws_status == "non-experimental")
+    filter(ws_status == "non-experimental") %>%
+    mutate(analyte_label = factor(case_when(analyte_N == "NO3_N" ~ "NO[3]-N",
+                                            analyte_N == "NH3_N" ~ "NH[3]-N",
+                                            analyte_N == "TDN" ~ "TDN"),
+                                  levels = c("NO[3]-N",
+                                             "NH[3]-N",
+                                             "TDN"))) %>%
+    # Renaming seasons
+    mutate(season_ed = factor(case_when(season == "Fall" ~ "Autumn",
+                                 TRUE ~ season),
+                              levels = c("Spring", "Summer",
+                                         "Autumn", "Winter")))
 
-(n_cq_seas <- ggplot(N_CQ_trim_nonexp) +
-        geom_histogram(aes(x = cq_slope,
-                           fill = ..x..),
-                       color = "black", bins = 30) +
-        geom_vline(xintercept = 0, linetype = "dashed") +
-        scale_fill_gradient2(low = "#045CB4",
-                             mid = "white",
-                             high = "#FAB455",
-                             midpoint = 0) +
-        facet_grid(analyte_N~season) +
+(n_cq_seas <- ggplot(N_CQ_trim_nonexp, aes(x = cq_slope)) +
+        annotate("rect", xmin = -0.2, xmax = 0.2, ymin = 0, ymax = 40,
+                 alpha = 0.2, fill = "black") +
+        geom_vline(xintercept = 0.2, linetype = "dashed") +
+        geom_vline(xintercept = -0.2, linetype = "dashed") +
+        geom_histogram(aes(fill = analyte_label),
+                       color = "black", bins = 30, alpha = 0.9) +
+        scale_fill_manual(values = c("black", "#3C3C3C", "#BABABA")) +
+        scale_x_continuous(trans = pseudo_log_trans(base = 10),
+                           breaks = c(-5, -2, -1, 0, 1, 2, 5)) +
+        facet_grid(analyte_label~season_ed,
+                   label = label_parsed) +
         labs(x = "Seasonal C-Q Slope", y = "Site Count") +
         theme_bw() +
         theme(strip.background = element_rect(colour="NA", fill="NA"),
@@ -1873,8 +2179,28 @@ N_CQ_trim_nonexp <- N_CQ_trim %>%
 # ggsave(n_cq_seas,
 #        filename = "figures/seasonal_cq_slope_2010_to_2020.jpeg",
 #        height = 16,
-#        width = 16,
+#        width = 20,
 #        units = "cm")
+
+# Examining outlier sites
+flushing <- N_CQ_trim_nonexp %>%
+    mutate(flushing = case_when(cq_slope > 0.2 ~ 1,
+                                TRUE ~ 0)) %>%
+    group_by(site_code, analyte_N) %>%
+    summarize(sum_flushing = sum(flushing)) %>%
+    ungroup() %>%
+    filter(sum_flushing >= 3) %>%
+    left_join(ms_site_data)
+
+diluting <- N_CQ_trim_nonexp %>%
+    mutate(diluting = case_when(cq_slope < -0.2 ~ 1,
+                                TRUE ~ 0)) %>%
+    group_by(site_code, analyte_N) %>%
+    summarize(sum_diluting = sum(diluting)) %>%
+    ungroup() %>%
+    filter(sum_diluting >= 3) %>%
+    left_join(ms_site_data)
+
 
 (n_int_seas <- ggplot(N_CQ_trim_nonexp) +
         geom_histogram(aes(x = cq_int,
@@ -1916,6 +2242,40 @@ mean_slopes <- N_CQ_trim_nonexp %>%
     group_by(analyte_N, season) %>%
     summarize(mean_slope = mean(cq_slope)) %>%
     ungroup()
+
+# And examine if CQ slopes are at all related to
+# annual or seasonal VWM values.
+
+# First, need to join annual VWMs with CQ values above.
+# Both of these datasets include only 2010-2020.
+cq_seas_and_annual_vwm <- left_join(N_CQ_trim_nonexp,
+                                    mean_N_VWM_annual20_nonexp)
+
+(fig_cq_v_vwm <- ggplot(cq_seas_and_annual_vwm) +
+    geom_point(aes(x = mean_annual_VWM_mgL,
+                   y = cq_slope)) +
+    scale_x_log10() +
+    facet_grid(analyte_label~season,
+               label = label_parsed) +
+    labs(x = "Annual VWM (mg/L)", y = "Seasonal C-Q Slope") +
+    theme_bw() +
+    theme(strip.background = element_rect(colour="NA", fill="NA"),
+          legend.position = "none")) # no apparent relationship
+
+cq_seas_and_seas_vwm <- left_join(N_CQ_trim_nonexp,
+                                  mean_N_VWM_seasonal20_nonexp)
+
+(fig_cq_v_vwm_seas <- ggplot(cq_seas_and_seas_vwm) +
+        geom_point(aes(x = mean_seasonal_VWM_mgL,
+                       y = cq_slope)) +
+        scale_x_log10() +
+        facet_grid(analyte_label~season,
+                   label = label_parsed) +
+        labs(x = "Seasonal VWM (mg/L)",
+             y = "Seasonal C-Q Slope") +
+        theme_bw() +
+        theme(strip.background = element_rect(colour="NA", fill="NA"),
+              legend.position = "none")) # again no relationship
 
 ###### Decadal #######
 
@@ -1976,6 +2336,365 @@ N_CQ_dec_trim_nonexp <- N_CQ_dec_trim %>%
 #        width = 32,
 #        units = "cm")
 
+##### Trends #####
+
+###### New Fig 4 ######
+# Plotting actual data used to estimate trends so as not
+# to over-represent the data.
+
+# join together the annual VWM and trend data for NO3
+no3_all <- no3_data_for_trends_ann %>%
+    left_join(ms_site_data) %>%
+    left_join(no3_trends_ann) %>%
+    arrange(flag)
+
+(fig4a <- ggplot(no3_all %>%
+                    filter(ws_status == "non-experimental") %>%
+                        drop_na(flag),
+                aes(x = water_year,
+                    y = val,
+                    color = flag,
+                    group = site_code,
+                    alpha = flag)) +
+     geom_line(linewidth = 1) +
+     scale_color_manual(values = c("blue", "gray56")) +
+     scale_alpha_manual(values = c(1, 0.5)) +
+     labs(x = "Water Year",
+          y = "Annual VWM NO<sub>3</sub><sup>-</sup>-N (mg/L)",
+          color = "Trend") +
+     scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
+     theme_bw() +
+     theme(axis.title.y = element_markdown(),
+           legend.position = "none"))
+
+# join together the annual VWM and trend data for NH3
+nh3_all <- nh3_data_for_trends_ann %>%
+    left_join(ms_site_data) %>%
+    left_join(nh3_trends_ann) %>%
+    arrange(flag)
+
+(fig4b <- ggplot(nh3_all %>%
+                        filter(ws_status == "non-experimental") %>%
+                        drop_na(flag),
+                    aes(x = water_year,
+                        y = val,
+                        color = flag,
+                        group = site_code,
+                        alpha = flag)) +
+        geom_line(linewidth = 1) +
+        scale_color_manual(values = c("blue", "gray56")) +
+        scale_alpha_manual(values = c(1, 0.5)) +
+        labs(x = "Water Year",
+             y = "Annual VWM NH<sub>3</sub>-N (mg/L)",
+             color = "Trend") +
+        scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
+        theme_bw() +
+        theme(axis.title.y = element_markdown(),
+              legend.position = "none"))
+
+# join together the annual VWM and trend data for TDN
+tdn_all <- tdn_data_for_trends_ann %>%
+    left_join(ms_site_data) %>%
+    left_join(tdn_trends_ann) %>%
+    arrange(flag)
+
+(fig4c <- ggplot(tdn_all %>%
+                     filter(ws_status == "non-experimental") %>%
+                     drop_na(flag),
+                 aes(x = water_year,
+                     y = val,
+                     color = flag,
+                     group = site_code,
+                     alpha = flag)) +
+        geom_line(linewidth = 1) +
+        scale_color_manual(values = c("blue",
+                                      "darkorange",
+                                      "gray56")) +
+        scale_alpha_manual(values = c(1, 1, 0.5)) +
+        labs(x = "Water Year",
+             y = "Annual VWM TDN (mg/L)",
+             color = "Trend",
+             alpha = "Trend") +
+        scale_y_log10(labels = label_comma(accuracy = 0.0001)) +
+        theme_bw() +
+        theme(axis.title.y = element_markdown(),
+              legend.position = "bottom"))
+
+(fig4_new <- fig4a / fig4b / fig4c +
+        plot_annotation(tag_levels = "A"))
+
+ggsave(fig4_new,
+       filename = "figures/trends_no3_nh3_tdn_1980onwards.jpeg",
+       height = 20,
+       width = 15,
+       units = "cm")
+
+###### New Fig 5 ######
+
+# compare seasonal changes across a few sites with longer records
+
+# Hubbard Brook
+(fig_HB <- ggplot(N_VWM_monthly %>%
+                    filter(analyte_N == "NO3_N") %>%
+                    filter(site_code == "w6") %>%
+                    filter(water_year >= 1965 &
+                            water_year < 1975 |
+                           water_year >= 2010 &
+                             water_year < 2020) %>%
+                    mutate(decade = factor(case_when(
+                              water_year < 2000 ~ "1965-1975",
+                              TRUE ~ "2010-2020"),
+                              levels = c("1965-1975", "2010-2020"))),
+                       aes(x = factor(month),
+                           y = monthly_vwm_mgL,
+                           color = decade,
+                           fill = decade)) +
+     geom_boxplot(alpha = 0.2) +
+     scale_color_manual(values = c("black", "blue")) +
+     scale_fill_manual(values = c("black", "blue")) +
+     ylim(0, 1.25) +
+     labs(title = "Hubbard Brook Exp. Forest (NH)",
+          x = "Month",
+          y = "Monthly VWM NO<sub>3</sub><sup>-</sup> (mg/L)",
+          fill = "Decade",
+          color = "Decade") +
+     theme_bw() +
+     theme(axis.title.y = element_markdown(),
+           legend.position = "inside",
+           legend.position.inside = c(0.8,0.8),
+           legend.background = element_rect(fill = NA, color = NA)))
+
+# H.J. Andrews
+(fig_HJA <- ggplot(N_VWM_monthly %>%
+                      filter(analyte_N == "NO3_N") %>%
+                      filter(site_code == "GSWS08") %>%
+                      filter(water_year >= 1975 &
+                                 water_year < 1985 |
+                                 water_year >= 2005 &
+                                 water_year < 2015) %>%
+                      mutate(decade = factor(case_when(
+                          water_year < 2000 ~ "1975-1985",
+                          TRUE ~ "2005-2015"),
+                          levels = c("1975-1985", "2005-2015"))),
+                  aes(x = factor(month),
+                      y = monthly_vwm_mgL,
+                      color = decade,
+                      fill = decade)) +
+        geom_boxplot(alpha = 0.2) +
+        scale_color_manual(values = c("black", "blue")) +
+        scale_fill_manual(values = c("black", "blue")) +
+        ylim(0, 0.02) + # removes two outliers that squish everything
+        labs(title = "H.J. Andrews Exp. Forest (OR)",
+             x = "Month",
+             y = "Monthly VWM NO<sub>3</sub><sup>-</sup> (mg/L)",
+             fill = "Decade",
+             color = "Decade") +
+        theme_bw() +
+        theme(axis.title.y = element_markdown(),
+              legend.position = "inside",
+              legend.position.inside = c(0.8,0.8),
+              legend.background = element_rect(fill = NA, color = NA)))
+
+# Luquillo
+(fig_LUQ <- ggplot(N_VWM_monthly %>%
+                       filter(analyte_N == "NO3_N") %>%
+                       filter(site_code == "MPR") %>%
+                       filter(water_year >= 1990 &
+                                  water_year < 2000 |
+                                  water_year >= 2010 &
+                                  water_year < 2020) %>%
+                       mutate(decade = factor(case_when(
+                           water_year < 2005 ~ "1990-2000",
+                           TRUE ~ "2010-2020"),
+                           levels = c("1990-2000", "2010-2020"))),
+                   aes(x = factor(month),
+                       y = monthly_vwm_mgL,
+                       color = decade,
+                       fill = decade)) +
+        geom_boxplot(alpha = 0.2) +
+        scale_color_manual(values = c("black", "blue")) +
+        scale_fill_manual(values = c("black", "blue")) +
+        labs(title = "Luquillo Exp. Forest (PR)",
+             x = "Month",
+             y = "Monthly VWM NO<sub>3</sub><sup>-</sup> (mg/L)",
+             fill = "Decade",
+             color = "Decade") +
+        theme_bw() +
+        theme(axis.title.y = element_markdown(),
+              legend.position = "inside",
+              legend.position.inside = c(0.8,0.8),
+              legend.background = element_rect(fill = NA, color = NA)))
+
+# Baltimore
+(fig_BES <- ggplot(N_VWM_monthly %>%
+                       filter(analyte_N == "NO3_N") %>%
+                       filter(site_code == "GFVN") %>%
+                       filter(water_year >= 2000 &
+                                  water_year < 2010 |
+                                  water_year >= 2010 &
+                                  water_year < 2020) %>%
+                       mutate(decade = factor(case_when(
+                           water_year < 2010 ~ "2000-2010",
+                           TRUE ~ "2010-2020"),
+                           levels = c("2000-2010", "2010-2020"))),
+                   aes(x = factor(month),
+                       y = monthly_vwm_mgL,
+                       color = decade,
+                       fill = decade)) +
+        geom_boxplot(alpha = 0.2) +
+        scale_color_manual(values = c("black", "blue")) +
+        scale_fill_manual(values = c("black", "blue")) +
+        labs(title = "Baltimore Ecosystem Study (MD)",
+             x = "Month",
+             y = "Monthly VWM NO<sub>3</sub><sup>-</sup> (mg/L)",
+             fill = "Decade",
+             color = "Decade") +
+        theme_bw() +
+        theme(axis.title.y = element_markdown(),
+              legend.position = "inside",
+              legend.position.inside = c(0.15,0.15),
+              legend.background = element_rect(fill = NA, color = NA)))
+
+# and knit together
+(fig5_new <- (fig_HB + fig_HJA) / (fig_LUQ + fig_BES) +
+    plot_annotation(tag_levels = "A"))
+
+ggsave(fig5_new,
+       filename = "figures/monthly_vwm_old_v_new_decade.jpeg",
+       height = 20,
+       width = 24,
+       units = "cm")
+
+###### New Fig 6 ######
+
+# also want to plot progression of N Deposition versus NO3
+# for a few key sites - here's a few to look through
+
+# Using full annual VWM data now and joining to deposition data.
+no3_stream_and_dep <- N_VWM_annual %>%
+    filter(analyte_N == "NO3_N") %>%
+    rename(val = annual_vwm_mgL,
+           var = analyte_N) %>%
+    select(-c(ws_area_ha, n_of_obs_chem)) %>%
+    full_join(ndep_data_for_trends_ann) %>%
+    select(-c(network, domain, pctCellErr, timestep)) %>%
+    pivot_wider(names_from = var, values_from = val) %>%
+    filter(water_year > 1984)
+
+(figW6 <- ggplot(no3_stream_and_dep %>%
+                     filter(site_code == "w6"),
+                aes(x = N_flux_mean,
+                    y = NO3_N,
+                    fill = water_year)) +
+    geom_point(shape = 21, size = 4) +
+    labs(title = "Hubbard Brook Exp. Forest (NH)",
+         x = "Atmospheric N Deposition (kg/ha)",
+         y = "Annual VWM NO<sub>3</sub><sup>-</sup>-N (mg/L)") +
+    scale_y_log10() +
+    scale_fill_gradient(low = "black",
+                        high = "gray85") +
+    theme_bw() +
+    theme(axis.title.y = element_markdown(),
+          legend.position = "none")) # textbook
+
+(figAB <- ggplot(no3_stream_and_dep %>%
+                     filter(site_code == "AB00"),
+                 aes(x = N_flux_mean,
+                     y = NO3_N,
+                     fill = water_year)) +
+    geom_point(shape = 21, size = 2) +
+    labs(title = "AB00 - Santa Barbara") +
+    scale_y_log10() +
+    xlim(0,3) +
+    scale_fill_gradient(low = "black",
+                        high = "gray85") +
+    theme_bw() +
+    theme(legend.position = "none")) # not so many points to be compelling
+
+(figGSW <- ggplot(no3_stream_and_dep %>%
+                     filter(site_code == "GSWS08"),
+                 aes(x = N_flux_mean,
+                     y = NO3_N,
+                     fill = water_year)) +
+        geom_point(shape = 21, size = 4) +
+        labs(title = "H.J. Andrews Exp. Forest (OR)",
+             x = "Atmospheric N Deposition (kg/ha)",
+             y = "Annual VWM NO<sub>3</sub><sup>-</sup>-N (mg/L)") +
+        scale_y_log10() +
+        scale_fill_gradient(low = "black",
+                            high = "gray85") +
+        theme_bw() +
+        theme(axis.title.y = element_markdown(),
+              legend.position = "none")) # not responsive in the same way
+
+(figGFGL <- ggplot(no3_stream_and_dep %>%
+                      filter(site_code == "GFGL"),
+                  aes(x = N_flux_mean,
+                      y = NO3_N,
+                      fill = water_year)) +
+        geom_point(shape = 21, size = 2) +
+        labs(title = "GFGL - Baltimore") +
+        scale_y_log10() +
+        scale_fill_viridis(option = "rocket") +
+        theme_bw() +
+        theme(legend.position = "none")) # not really enough points
+
+(figEB <- ggplot(no3_stream_and_dep %>%
+                       filter(site_code == "EB"),
+                   aes(x = N_flux_mean,
+                       y = NO3_N,
+                       fill = water_year)) +
+        geom_point(shape = 21, size = 2) +
+        labs(title = "EB - Bear Brook") +
+        scale_y_log10() +
+        scale_fill_viridis(option = "rocket") +
+        theme_bw() +
+        theme(legend.position = "right")) # nice long time series
+
+(figW9 <- ggplot(no3_stream_and_dep %>%
+                       filter(site_code == "W-9"),
+                   aes(x = N_flux_mean,
+                       y = NO3_N,
+                       fill = water_year)) +
+        geom_point(shape = 21, size = 4) +
+        labs(title = "Sleepers River Res. Watershed (VT)",
+             fill = "Water Year",
+             x = "Atmospheric N Deposition (kg/ha)",
+             y = "Annual VWM NO<sub>3</sub><sup>-</sup>-N (mg/L)") +
+        scale_y_log10() +
+        scale_fill_gradient(low = "black",
+                            high = "gray85") +
+        theme_bw() +
+        theme(axis.title.y = element_markdown(),
+              legend.position = "right")) # huh a funny funnel shape
+
+(figW4 <- ggplot(no3_stream_and_dep %>%
+                     filter(site_code == "WS-4"),
+                 aes(x = N_flux_mean,
+                     y = NO3_N,
+                     fill = water_year)) +
+        geom_point(shape = 21, size = 4) +
+        labs(title = "Fernow Exp. Forest (WV)",
+             x = "Atmospheric N Deposition (kg/ha)",
+             y = "Annual VWM NO<sub>3</sub><sup>-</sup>-N (mg/L)") +
+        scale_y_log10() +
+        scale_fill_gradient(low = "black",
+                            high = "gray85") +
+        theme_bw() +
+        theme(axis.title.y = element_markdown(),
+              legend.position = "none")) # also textbook
+
+# Lets join HB & Fernow (as textbook examples), and contrast
+# with HJA and Sleepers (showing other trends).
+(fig6_new <- (figW6 + figW4) / (figGSW + figW9) +
+        plot_annotation(tag_levels = "A"))
+
+# ggsave(fig6_new,
+#        filename = "figures/annual_vwm_v_dep_1980onwards.jpeg",
+#        height = 20,
+#        width = 24,
+#        units = "cm")
+
 ##### N vs. Climate #####
 
 # Join climate and deposition trends
@@ -1991,8 +2710,8 @@ no3_sites <- no3_trends_ann %>% select(site_code) %>% unique()
 clim_sites <- dep_clim_trends_ann %>% select(site_code) %>% unique()
 inner <- inner_join(no3_sites, clim_sites) # 148 sites max overlap
 only_no3 <- no3_sites %>%
-    filter(!site_code %in% inner$site_code) # 53 sites only with NO3 data
-# i.e., the PR, Krycklan, McMurdo, Toolik, etc. sites
+    filter(!site_code %in% inner$site_code) # 53 sites with only NO3 data
+# i.e., the PR, Krycklan, McMurdo, Toolik, etc. sites (outside CONUS)
 only_clim <- clim_sites %>%
     filter(!site_code %in% inner$site_code) # 18 sites with only climate data
 # i.e., sites part of other regions but missing N data
@@ -2134,11 +2853,11 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual Productivity Trend",
-             color = "NO3 Trend",
-             shape = "NO3 Trend",
-             size = "NO3 Trend") +
+             color = expression(paste(NO[3], "-N Trend")),
+             shape = expression(paste(NO[3], "-N Trend")),
+             size = expression(paste(NO[3], "-N Trend"))) +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # GPP V TEMP - including exp sites
 (figNO3_gpp_temp2 <- ggplot(no3_clim_trends_ann_wide,
@@ -2166,11 +2885,11 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual Productivity Trend",
-             color = "NO3 Trend",
-             shape = "NO3 Trend",
-             size = "NO3 Trend") +
+             color = expression(paste(NO[3], "-N Trend")),
+             shape = expression(paste(NO[3], "-N Trend")),
+             size = expression(paste(NO[3], "-N Trend"))) +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # DEP V TEMP
 (figNO3_dep_temp <- ggplot(no3_clim_trends_ann_wide_ed,
@@ -2227,25 +2946,25 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
              y = "Mean Annual N Deposition Trend") +
         theme_bw())
 
-(figNO3_all <- figNO3_ppt_temp + figNO3_gpp_temp + figNO3_dep_temp +
+(figNO3_both <- figNO3_ppt_temp + figNO3_gpp_temp +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figNO3_all,
-#        filename = "figures/panelfig_no3_clim_dep_trends.jpeg",
-#        height = 14,
-#        width = 40,
+# ggsave(figNO3_both,
+#        filename = "figures/panelfig_no3_clim_trends.jpeg",
+#        height = 12,
+#        width = 28,
 #        units = "cm")
 
 # and export version including experimental sites
 
-(figNO3_all2 <- figNO3_ppt_temp2 + figNO3_gpp_temp2 + figNO3_dep_temp2 +
+(figNO3_both2 <- figNO3_ppt_temp2 + figNO3_gpp_temp2 +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figNO3_all2,
-#        filename = "figures/panelfig_no3_clim_dep_trends_exp.jpeg",
-#        height = 14,
-#        width = 40,
-#        units = "cm")
+ggsave(figNO3_both2,
+       filename = "figures/panelfig_no3_clim_trends_exp.jpeg",
+       height = 12,
+       width = 28,
+       units = "cm")
 
 ###### NH3 ######
 
@@ -2396,11 +3115,11 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual Productivity Trend",
-             color = "NH3 Trend",
-             shape = "NH3 Trend",
-             size = "NH3 Trend") +
+             color = expression(paste(NH[3], "-N Trend")),
+             shape = expression(paste(NH[3], "-N Trend")),
+             size = expression(paste(NH[3], "-N Trend"))) +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # GPP V TEMP - including exp sites
 (figNH3_gpp_temp2 <- ggplot(nh3_clim_trends_ann_wide,
@@ -2427,11 +3146,11 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual Productivity Trend",
-             color = "NH3 Trend",
-             shape = "NH3 Trend",
-             size = "NH3 Trend") +
+             color = expression(paste(NH[3], "-N Trend")),
+             shape = expression(paste(NH[3], "-N Trend")),
+             size = expression(paste(NH[3], "-N Trend"))) +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # DEP V TEMP
 (figNH3_dep_temp <- ggplot(nh3_clim_trends_ann_wide_ed,
@@ -2487,24 +3206,24 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
              y = "Mean Annual N Deposition Trend") +
         theme_bw())
 
-(figNH3_all <- figNH3_ppt_temp + figNH3_gpp_temp + figNH3_dep_temp +
+(figNH3_both <- figNH3_ppt_temp + figNH3_gpp_temp +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figNH3_all,
-#        filename = "figures/panelfig_nh3_clim_dep_trends.jpeg",
-#        height = 14,
-#        width = 40,
+# ggsave(figNH3_both,
+#        filename = "figures/panelfig_nh3_clim_trends.jpeg",
+#        height = 12,
+#        width = 28,
 #        units = "cm")
 
 # and export figure with experimental sites included as well
 
-(figNH3_all2 <- figNH3_ppt_temp2 + figNH3_gpp_temp2 + figNH3_dep_temp2 +
+(figNH3_both2 <- figNH3_ppt_temp2 + figNH3_gpp_temp2 +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figNH3_all2,
-#        filename = "figures/panelfig_nh3_clim_dep_trends_exp.jpeg",
-#        height = 14,
-#        width = 40,
+# ggsave(figNH3_both2,
+#        filename = "figures/panelfig_nh3_clim_trends_exp.jpeg",
+#        height = 12,
+#        width = 28,
 #        units = "cm")
 
 ###### TDN ######
@@ -2663,7 +3382,7 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
              shape = "TDN Trend",
              size = "TDN Trend") +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # GPP V TEMP - including exp sites
 (figTDN_gpp_temp2 <- ggplot(tdn_clim_trends_ann_wide,
@@ -2695,7 +3414,7 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
              shape = "TDN Trend",
              size = "TDN Trend") +
         theme_bw() +
-        theme(legend.position = "bottom"))
+        theme(legend.position = "right"))
 
 # DEP V TEMP
 (figTDN_dep_temp <- ggplot(tdn_clim_trends_ann_wide_ed,
@@ -2753,24 +3472,24 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
              y = "Mean Annual N Deposition Trend") +
         theme_bw())
 
-(figTDN_all <- figTDN_ppt_temp + figTDN_gpp_temp + figTDN_dep_temp +
+(figTDN_both <- figTDN_ppt_temp + figTDN_gpp_temp +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figTDN_all,
-#        filename = "figures/panelfig_tdn_clim_dep_trends.jpeg",
-#        height = 14,
-#        width = 40,
+# ggsave(figTDN_both,
+#        filename = "figures/panelfig_tdn_clim_trends.jpeg",
+#        height = 12,
+#        width = 28,
 #        units = "cm")
 
 # and export figure including experimental sites
 
-(figTDN_all2 <- figTDN_ppt_temp2 + figTDN_gpp_temp2 + figTDN_dep_temp2 +
+(figTDN_both2 <- figTDN_ppt_temp2 + figTDN_gpp_temp2 +
         plot_annotation(tag_levels = "a"))
 
-# ggsave(figTDN_all2,
-#        filename = "figures/panelfig_tdn_clim_dep_trends_exp.jpeg",
-#        height = 14,
-#        width = 40,
+# ggsave(figTDN_both2,
+#        filename = "figures/panelfig_tdn_clim_trends_exp.jpeg",
+#        height = 12,
+#        width = 28,
 #        units = "cm")
 
 # Quick check of sites with trends that overlap.
@@ -2791,5 +3510,122 @@ all_sig_trends <- full_join(no3_sig_trends,
                             nh3_sig_trends)
 all_sig_trends <- full_join(all_sig_trends,
                             tdn_sig_trends)
+
+##### N VWM v. N Dep. #####
+
+# Pull relevant deposition data (n = 166) and join with NO3 VWMs.
+NO3_VWM_annual <- N_VWM_annual %>%
+    filter(analyte_N == "NO3_N") %>%
+    group_by(site_code) %>%
+    summarize(mean_annual_vwm_mgL = mean(annual_vwm_mgL)) %>%
+    ungroup()
+
+no3_dep_trends_ann <- no3_clim_trends_ann %>%
+    filter(var %in% c("NO3_N", "N_flux_mean"))
+
+# Trim to variables of interest
+no3_dep_trends_ann_wide <- no3_dep_trends_ann %>%
+    select(site_code, var, trend) %>%
+    pivot_wider(names_from = var,
+                values_from = trend)
+
+# And join with vwm data
+no3_dep_trends_ann_wide <- full_join(no3_dep_trends_ann_wide,
+                                      NO3_VWM_annual) %>%
+    # and join with flags dataset created above
+    full_join(no3_confidence) %>%
+    mutate(group = factor(case_when(flag %in% c("increasing", "decreasing",
+                                                "non-significant") ~ flag,
+                                    TRUE ~ "insufficient data"),
+                          levels = c("decreasing",
+                                     "increasing",
+                                     "non-significant",
+                                     "insufficient data")))
+
+# Join with site level data.
+no3_dep_trends_ann_wide <- left_join(no3_dep_trends_ann_wide,
+                                      ms_site_data) %>%
+    mutate(group2 = factor(case_when(flag %in% c("increasing", "decreasing",
+                                                 "non-significant") &
+                                         ws_status == "non-experimental" ~ flag,
+                                     flag %in% c("increasing") &
+                                         ws_status == "experimental" ~ "increasing exp",
+                                     flag %in% c("decreasing") &
+                                         ws_status == "experimental" ~ "decreasing exp",
+                                     flag %in% c("non-significant") &
+                                         ws_status == "experimental" ~ "non-significant exp",
+                                     TRUE ~ "insufficient data"),
+                           levels = c("decreasing",
+                                      "decreasing exp",
+                                      "increasing",
+                                      "increasing exp",
+                                      "non-significant",
+                                      "non-significant exp",
+                                      "insufficient data")))
+
+# Need to order dataset properly before plotting.
+# This helps points appear better.
+no3_dep_trends_ann_wide_ed <- no3_dep_trends_ann_wide %>%
+    filter(ws_status == "non-experimental") %>%
+    arrange(NO3_N) %>%
+    arrange(desc(group))
+
+# This helps points appear better.
+no3_dep_trends_ann_wide <- no3_dep_trends_ann_wide %>%
+    arrange(NO3_N) %>%
+    arrange(desc(group))
+
+# VWM V DEP
+(figNO3_dep <- ggplot(no3_dep_trends_ann_wide_ed,
+                           aes(x = N_flux_mean,
+                               y = mean_annual_vwm_mgL)) +
+        geom_point(alpha = 0.7,
+                   aes(shape = group,
+                       color = group,
+                       size = group)) +
+        scale_y_log10() +
+        scale_shape_manual(values = c(20, 20, 4)) +
+        scale_size_manual(values = c(6, 4, 2)) +
+        scale_color_manual(values = c("blue",
+                                      "gray56",
+                                      "gray76")) +
+        labs(x = "Mean Annual N Deposition Trend",
+             y = expression(paste("Mean Annual ", NO[3]-N, " VWM Concentration (mg/L)")),
+             color = expression(paste(NO[3], "-N Trend")),
+             shape = expression(paste(NO[3], "-N Trend")),
+             size = expression(paste(NO[3], "-N Trend"))) +
+        theme_bw())
+
+# ggsave(figNO3_dep,
+#        filename = "figures/no3_dep_trends.jpeg",
+#        height = 12,
+#        width = 17,
+#        units = "cm")
+
+# VWM V DEP - including exp sites
+(figNO3_dep2 <- ggplot(no3_dep_trends_ann_wide,
+                            aes(x = N_flux_mean,
+                                y = mean_annual_vwm_mgL)) +
+        geom_point(alpha = 0.7,
+                   aes(shape = group2,
+                       color = group2,
+                       size = group2)) +
+        scale_y_log10() +
+        scale_shape_manual(values = c(20, 15, 15, 20, 15, 4)) +
+        scale_size_manual(values = c(6, 4, 4, 4, 3, 2)) +
+        scale_color_manual(values = c("blue", "blue", "orange",
+                                      "gray56", "gray56", "gray76")) +
+        labs(x = "Mean Annual N Deposition Trend",
+             y = expression(paste("Mean Annual ", NO[3]-N, " VWM Concentration (mg/L)")),
+             color = expression(paste(NO[3], "-N Trend")),
+             shape = expression(paste(NO[3], "-N Trend")),
+             size = expression(paste(NO[3], "-N Trend"))) +
+        theme_bw())
+
+# ggsave(figNO3_dep2,
+#        filename = "figures/no3_dep_trends_exp.jpeg",
+#        height = 12,
+#        width = 17,
+#        units = "cm")
 
 # End of script.
