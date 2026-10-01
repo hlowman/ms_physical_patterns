@@ -27,6 +27,9 @@ nonexp_sites <- n_vwm_ann %>%
 
 length(unique(nonexp_sites$site_code)) # 161 sites
 
+# BUT NOTE - WE CALCULATE TRENDS FOR ALL SITES BELOW,
+# including both experimental, and non-experimental sites.
+
 # Tidy column names.
 n_vwm_month <- n_vwm_month %>%
     rename(analyte = analyte_N,
@@ -61,6 +64,9 @@ n_vwm <- full_join(n_vwm_ann, n_vwm_month)
 n_vwm <- full_join(n_vwm, n_vwm_seas)
 
 # Trim all nitrogen data to only calculate trends post 1980.
+# This, we felt was the most inclusive option while still trying
+# to best match the other datasets - climate data typically begins
+# in 1981, deposition data in 1985, and productivity data in 1986.
 n_vwm80 <- n_vwm %>%
     filter(water_year > 1979)
 

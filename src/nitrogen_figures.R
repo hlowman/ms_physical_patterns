@@ -2649,6 +2649,26 @@ tdn_declines <- tdn_trends_ann %>%
     filter(ws_status == "non-experimental") %>%
     filter(flag == "decreasing")
 
+# And summarize which sites had declines across analytes
+no3_declines_sites <- no3_declines %>%
+    select(site_code) %>%
+    mutate(no3 = 1)
+nh3_declines_sites <- nh3_declines %>%
+    select(site_code) %>%
+    mutate(nh3 = 1)
+tdn_declines_sites <- tdn_declines %>%
+    select(site_code) %>%
+    mutate(tdn = 1)
+all_sites_decreasing <- full_join(no3_declines_sites,
+                                  nh3_declines_sites)
+all_sites_decreasing <- full_join(all_sites_decreasing,
+                                  tdn_declines_sites) %>%
+    mutate(across(everything(), \(x) replace_na(x, 0))) %>%
+    mutate(all = no3 + nh3 + tdn) %>%
+    left_join(ms_site_data)
+min_two_decreasing <- all_sites_decreasing %>%
+    filter(all >=2)
+
 ###### New Fig 5 ######
 
 # compare seasonal changes over the decades
