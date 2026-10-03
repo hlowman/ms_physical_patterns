@@ -1359,7 +1359,7 @@ peak_months <- mean_N_VWM_monthly_nonexp_keep %>%
 #        width = 10,
 #        units = "cm")
 
-###### New Fig 3 ######
+###### New SI Fig ######
 
 # First, I need to calculate monthly averages
 # NOTE- I've edited this code again to mirror the Fig 2 (CQ) filters.
@@ -2202,7 +2202,7 @@ dat_corr_dep <- data.frame(
 
 ##### CQ #####
 
-###### Seasonal (Fig 2) #######
+###### Seasonal (SI Fig) #######
 
 # Filter down to desired analytes and minimum of 10 observations,
 # using data from the past 10 years.
@@ -2409,7 +2409,7 @@ N_CQ_dec_trim_nonexp <- N_CQ_dec_trim %>%
 
 ##### Trends #####
 
-###### New Fig 4 ######
+###### New Fig 2 ######
 # Plotting actual data used to estimate trends so as not
 # to over-represent the data.
 
@@ -2669,7 +2669,7 @@ all_sites_decreasing <- full_join(all_sites_decreasing,
 min_two_decreasing <- all_sites_decreasing %>%
     filter(all >=2)
 
-###### New Fig 5 ######
+###### New Fig 3 ######
 
 # compare seasonal changes over the decades
 # across a few sites with longer records
@@ -2691,8 +2691,8 @@ min_two_decreasing <- all_sites_decreasing %>%
                            color = decade,
                            fill = decade)) +
      geom_boxplot(alpha = 0.2) +
-     scale_color_manual(values = c("black", "#4CA49E")) +
-     scale_fill_manual(values = c("black", "#4CA49E")) +
+     scale_color_manual(values = c("black", "blue")) +
+     scale_fill_manual(values = c("black", "blue")) +
      ylim(0, 1.25) +
      labs(title = "Hubbard Brook Exp. Forest (NH)",
           x = "Month",
@@ -2722,8 +2722,8 @@ min_two_decreasing <- all_sites_decreasing %>%
                       color = decade,
                       fill = decade)) +
         geom_boxplot(alpha = 0.2) +
-        scale_color_manual(values = c("black", "#4CA49E")) +
-        scale_fill_manual(values = c("black", "#4CA49E")) +
+        scale_color_manual(values = c("black", "blue")) +
+        scale_fill_manual(values = c("black", "blue")) +
         ylim(0, 0.02) + # removes two outliers that squish everything
         labs(title = "H.J. Andrews Exp. Forest (OR)",
              x = "Month",
@@ -2753,8 +2753,8 @@ min_two_decreasing <- all_sites_decreasing %>%
                        color = decade,
                        fill = decade)) +
         geom_boxplot(alpha = 0.2) +
-        scale_color_manual(values = c("black", "#4CA49E")) +
-        scale_fill_manual(values = c("black", "#4CA49E")) +
+        scale_color_manual(values = c("black", "blue")) +
+        scale_fill_manual(values = c("black", "blue")) +
         labs(title = "Luquillo Exp. Forest (PR)",
              x = "Month",
              y = "Monthly VWM NO<sub>3</sub><sup>-</sup> (mg/L)",
@@ -2783,8 +2783,8 @@ min_two_decreasing <- all_sites_decreasing %>%
                        color = decade,
                        fill = decade)) +
         geom_boxplot(alpha = 0.2) +
-        scale_color_manual(values = c("black", "#4CA49E")) +
-        scale_fill_manual(values = c("black", "#4CA49E")) +
+        scale_color_manual(values = c("black", "blue")) +
+        scale_fill_manual(values = c("black", "blue")) +
         labs(title = "Baltimore Ecosystem Study (MD)",
              x = "Month",
              y = "Monthly VWM NO<sub>3</sub><sup>-</sup> (mg/L)",
@@ -2806,7 +2806,7 @@ ggsave(fig5_new,
        width = 24,
        units = "cm")
 
-###### New Fig 6 ######
+###### New add SI Fig ######
 
 # also want to plot progression of N Deposition versus NO3
 # for a few key sites - here's a few to look through
@@ -3041,7 +3041,7 @@ ADDDDEEEE
 #        width = 28,
 #        units = "cm")
 
-##### N vs. Climate #####
+##### N vs. Climate (Fig 4) #####
 
 # Join climate and deposition trends
 dep_clim_trends_ann <- rbind(ndep_trends_ann, clim_trends)

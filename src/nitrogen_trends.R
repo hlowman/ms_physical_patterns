@@ -18,6 +18,9 @@ n_vwm_month <- readRDS("data_working/N_VWM_monthly.rds")
 n_vwm_seas <- readRDS("data_working/N_VWM_seasonal.rds")
 n_vwm_ann <- readRDS("data_working/N_VWM_annual.rds")
 
+# Load in discharge trends.
+q_trends <- read_csv("data_working/trends/longest_site_run_prism.csv")
+
 #### Prep data ####
 
 # The baseline number of non-experimental sites we have to work with.
@@ -139,6 +142,22 @@ n_vwm80_trim <- right_join(n_vwm80_10, n_mos_yrs_trim)
 # Keep in mind the number of sites above will decrease due to this
 # filtering, so need to reference the original n_vwm80 dataset to
 # ensure correct counting of number of sites with insufficient data.
+
+#### Q ####
+
+# Nic has already run these trends, so I'm just summarizing them here.
+q_trends <- left_join(q_trends, ms_site_data)
+
+# Further trim dataset.
+mean_q_trends_nonexp <- q_trends %>%
+    # remove experimental sites
+    filter(ws_status == "non-experimental") %>%
+    # and keep only records for mean discharge
+    filter(var == "q_mean")
+
+# And aggregate by trend designation.
+mean_q_trend_counts <- mean_q_trends_nonexp %>%
+    count(flag)
 
 #### NO3 ####
 
