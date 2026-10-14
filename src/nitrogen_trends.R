@@ -2,7 +2,7 @@
 
 #### README ####
 # The following script will estimate trends
-# for nitrogen data.
+# for nitrogen and greenness data.
 
 #### Load packages ####
 library(here)
@@ -12,6 +12,9 @@ source(here('src', 'setup.R'))
 
 # Load in climate data (for N deposition).
 clim_raw <- read_feather(here('data_raw/ms/v2/spatial_timeseries_climate.feather'))
+
+# Load in greenness data (for productivity).
+green <- read_csv("data_raw/ms_landsat_greenness_annual.csv")
 
 # Load VWM nitrogen datasets.
 n_vwm_month <- readRDS("data_working/N_VWM_monthly.rds")
@@ -380,6 +383,42 @@ ndep_ann <- ndep_ann %>%
 ndep_trends_ann <- detect_trends(ndep_ann)
 
 # Export for use in making figures.
+saveRDS(ndep_trends_ann, "data_working/ndep_trends_annual.rds")
+saveRDS(ndep_ann, "data_working/ndep_data_for_trends_annual.rds")
+
+#### Greenness ####
+
+##### Annual #####
+
+# Using new NIRv dataset courtesy of Mike for productivity
+# metric that properly harmonizes between LANDSAT missions.
+
+# Editing greenness dataset so things match up with function below.
+green_ed <- green %>%
+    select(-n_points_ndvi) %>%
+    select(-n_points_nirv) %>%
+    select(-n_points_site) %>%
+    pivot_longer(ndvi:nirv, values_to = "val",
+                 names_to = "analyte") %>%
+    mutate(timestep = "Annual")
+
+# Data start in 1984, so not doing any additional trimming here.
+# Reduce to best range.
+green_ann <- gen_reduce_to_best_range(data_in = green_ed,
+                                     solute = 'nirv',
+                                     aggregation = 'Annual')
+
+# Renaming a column to work with the function below.
+green_ann <- green_ann %>%
+    rename(var = analyte) %>%
+    drop_na(var)
+
+# Detect trends.
+green_trends_ann <- detect_trends(green_ann)
+
+# Export for use in making figures.
+saveRDS(green_trends_ann, "data_working/green_trends_annual.rds")
+saveRDS(green_ann, "data_working/green_data_for_trends_annual.rds")
 saveRDS(ndep_trends_ann, "data_working/ndep_trends_annual.rds")
 saveRDS(ndep_ann, "data_working/ndep_data_for_trends_annual.rds")
 
