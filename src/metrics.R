@@ -905,9 +905,16 @@ q_data_out <- q_metrics_out %>%
     distinct() %>%
     drop_na(agg_code)
 
-out_path <- here('data_working', 'discharge_metrics_siteyear_nTest.rds')
+# Written under two names so every reader keeps working:
+#   discharge_metrics_siteyear.rds       shared name, read by src/nitrogen_figures.R and by PR #104
+#   discharge_metrics_siteyear_nTest.rds read by this repo's data_vis/ and figure scripts
+# Same object in both files.
+out_path <- here('data_working', 'discharge_metrics_siteyear.rds')
 saveRDS(q_data_out, out_path)
 log_info('file saved to ', out_path)
+out_path_ntest <- here('data_working', 'discharge_metrics_siteyear_nTest.rds')
+saveRDS(q_data_out, out_path_ntest)
+log_info('file also saved to ', out_path_ntest)
 
 # commening out as no analyses use this now
 ## site level Q ####

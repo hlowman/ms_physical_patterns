@@ -8,7 +8,7 @@ daymet <- ms_load_product(here('data_raw', 'ms'),
                           prodname = 'ws_attr_CAMELS_Daymet_forcings',
                           warn = FALSE)
 
-metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear_nTest.RDS')) %>%
+metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear_nTest.rds')) %>%
     distinct()
 
 p <- ms_load_product(my_ms_dir,
