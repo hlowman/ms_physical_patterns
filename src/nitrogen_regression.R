@@ -151,7 +151,7 @@ no3_scaled <- no3_select %>%
 
 # First, building simple linear regression.
 lm1 <- lm(scale_NO3 ~ scale_area + scale_slope + scale_wetland +
-              scale_dev + scale_temp + scale_precip + scale_dep,
+              scale_temp + scale_precip + scale_dep,
           data = no3_scaled)
 summary(lm1) # summary of results
 plot(lm1) # examine residuals - look good!
@@ -159,26 +159,26 @@ plot(lm1) # examine residuals - look good!
 # Refit with GLS to better compare with LMEM
 # And need to remove all instances of missingness
 lm2 <- gls(scale_NO3 ~ scale_area + scale_slope + scale_wetland +
-               scale_dev + scale_temp + scale_precip + scale_dep,
+           scale_temp + scale_precip + scale_dep,
            data = drop_na(no3_scaled))
 
 # Fit multi-level model to account for variation w/i ecoregion
 lmm <- lme(scale_NO3 ~ scale_area + scale_slope + scale_wetland +
-               scale_dev + scale_temp + scale_precip + scale_dep,
+           scale_temp + scale_precip + scale_dep,
            random = ~1|ecoregion,
            data = drop_na(no3_scaled))
 
 # Compare the model structures
-AIC(lm2, lmm) # LMEM is better (AIC = 269.3890)
+AIC(lm2, lmm) # LMEM is better
 
 # Examine residuals and results
 plot(lmm)
-qqnorm(lmm)
+qqnorm(lmm) # look alright!
 summary(lmm)
 
 # Examine multi-level model with gpp in place of temperature
 lmm_gpp <- lme(scale_NO3 ~ scale_area + scale_slope + scale_wetland +
-               scale_dev + scale_gpp + scale_precip + scale_dep,
+               scale_gpp + scale_precip + scale_dep,
            random = ~1|ecoregion,
            data = drop_na(no3_scaled))
 summary(lmm_gpp) # same outcome, gpp not sig.
@@ -248,13 +248,13 @@ nh3_scaled <- nh3_select %>%
 
 # First, building simple linear regression.
 lm1.2 <- lm(scale_NH3 ~ scale_area + scale_slope + scale_wetland +
-              scale_dev + scale_temp + scale_precip + scale_dep,
+            scale_temp + scale_precip + scale_dep,
           data = nh3_scaled)
 summary(lm1.2) # summary of results
 plot(lm1.2) # examine residuals - need to remove that ONO2 site that had
 # a zero value, it's a clear outlier
 lm1.2.2 <- lm(scale_NH3 ~ scale_area + scale_slope + scale_wetland +
-                scale_dev + scale_temp + scale_precip + scale_dep,
+              scale_temp + scale_precip + scale_dep,
             data = nh3_scaled[-45,])
 summary(lm1.2.2) # summary of results
 plot(lm1.2.2) # examine residuals - MUCH better fit
@@ -262,29 +262,29 @@ plot(lm1.2.2) # examine residuals - MUCH better fit
 # Refit with GLS to better compare with LMEM
 # And need to remove all instances of missingness
 lm2.2 <- gls(scale_NH3 ~ scale_area + scale_slope + scale_wetland +
-               scale_dev + scale_temp + scale_precip + scale_dep,
+             scale_temp + scale_precip + scale_dep,
            data = drop_na(nh3_scaled[-45,]))
 
 # Fit multi-level model to account for variation w/i ecoregion
 lmm.2 <- lme(scale_NH3 ~ scale_area + scale_slope + scale_wetland +
-               scale_dev + scale_temp + scale_precip + scale_dep,
+             scale_temp + scale_precip + scale_dep,
            random = ~1|ecoregion,
            data = drop_na(nh3_scaled[-45,]))
 
 # Compare the model structures
-AIC(lm2.2, lmm.2) # LMEM is better (AIC = 149.2763)
+AIC(lm2.2, lmm.2) # LMEM is better
 
 # Examine residuals and results
 plot(lmm.2)
-qqnorm(lmm.2)
+qqnorm(lmm.2) # looks good again!
 summary(lmm.2)
 
 # Examine multi-level model with gpp in place of temperature
 lmm.2_gpp <- lme(scale_NH3 ~ scale_area + scale_slope + scale_wetland +
-                   scale_dev + scale_gpp + scale_precip + scale_dep,
+                 scale_gpp + scale_precip + scale_dep,
                random = ~1|ecoregion,
                data = drop_na(nh3_scaled[-45,]))
-summary(lmm.2_gpp) # same outcome, gpp not sig.
+summary(lmm.2_gpp) # temp appears to be a stronger predictor.
 
 #### TDN Regression ####
 
@@ -351,7 +351,7 @@ tdn_scaled <- tdn_select %>%
 
 # First, building simple linear regression.
 lm1.3 <- lm(scale_TDN ~ scale_area + scale_slope + scale_wetland +
-                scale_dev + scale_temp + scale_precip + scale_dep,
+            scale_temp + scale_precip + scale_dep,
             data = tdn_scaled)
 summary(lm1.3) # summary of results
 plot(lm1.3) # examine residuals - look good!
@@ -359,26 +359,26 @@ plot(lm1.3) # examine residuals - look good!
 # Refit with GLS to better compare with LMEM
 # And need to remove all instances of missingness
 lm2.3 <- gls(scale_TDN ~ scale_area + scale_slope + scale_wetland +
-                 scale_dev + scale_temp + scale_precip + scale_dep,
+             scale_temp + scale_precip + scale_dep,
              data = drop_na(tdn_scaled))
 
 # Fit multi-level model to account for variation w/i ecoregion
 lmm.3 <- lme(scale_TDN ~ scale_area + scale_slope + scale_wetland +
-                 scale_dev + scale_temp + scale_precip + scale_dep,
+             scale_temp + scale_precip + scale_dep,
              random = ~1|ecoregion,
              data = drop_na(tdn_scaled))
 
 # Compare the model structures
-AIC(lm2.3, lmm.3) # LMEM is better (AIC = 167.4829)
+AIC(lm2.3, lmm.3) # LMEM is better yet again
 
 # Examine residuals and results
 plot(lmm.3)
-qqnorm(lmm.3)
+qqnorm(lmm.3) # looking good!
 summary(lmm.3)
 
 # Examine multi-level model with gpp in place of temperature
 lmm.3_gpp <- lme(scale_TDN ~ scale_area + scale_slope + scale_wetland +
-                     scale_dev + scale_gpp + scale_precip + scale_dep,
+                 scale_gpp + scale_precip + scale_dep,
                  random = ~1|ecoregion,
                  data = drop_na(tdn_scaled))
 summary(lmm.3_gpp) # same outcome, gpp not sig.
