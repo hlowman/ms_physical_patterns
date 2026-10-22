@@ -90,11 +90,14 @@ green_trends_ann <- readRDS("data_working/green_trends_annual.rds")
 green_data_for_trends_ann <- readRDS("data_working/green_data_for_trends_annual.rds")
 
 # Climate trends (from mega_zipper_data.R script)
-# note, this was updated/re-run 10/8/26 to use Nic's new dataset
-clim_trends <- read_csv("data_working/trends/full_prisim_climate.csv")
+# note, this was updated/re-run 10/22/26 to use correct dataset
+# and workflow
+q_trends <- read_csv("data_working/trends/q_trends_1980onwards.csv")
+p_trends <- read_csv("data_working/trends/p_trends_1980onwards.csv")
+t_trends <- read_csv("data_working/trends/t_trends_1980onwards.csv")
 
 # Discharge metrics
-q_metrics <- readRDS("data_working/discharge_metrics_siteyear.rds")
+q_metrics <- readRDS("data_working/discharge_metrics_siteyear_nTest.rds")
 
 #### AGU Figures ####
 
@@ -3051,7 +3054,8 @@ ADDDDEEEE
 ##### N vs. Climate (Fig 4) #####
 
 # Join climate and deposition trends
-dep_clim_trends_ann <- rbind(ndep_trends_ann, clim_trends)
+dep_clim_trends_ann <- rbind(ndep_trends_ann, p_trends)
+dep_clim_trends_ann <- rbind(dep_clim_trends_ann, t_trends)
 
 # And join greenness trends as well
 green_dep_clim_trends_ann <- rbind(dep_clim_trends_ann, green_trends_ann)
@@ -3079,6 +3083,7 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann %>%
                 values_from = trend)
 
 # And join with trend flags and number of obs. data
+# Note, only the no3 trends have "flags" as of here
 no3_confidence <- no3_trends_ann %>%
     select(site_code, flag, mean_ann_records)
 
@@ -3154,6 +3159,12 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
     theme_bw() +
     theme(legend.position = "right"))
 
+# Quick check to see how many are missing temp/precip data
+test1 <- no3_clim_trends_ann_wide_ed %>%
+    drop_na(temp_mean) %>%
+    drop_na(precip_mean) # 126 remaining, so 47 dropped
+# which agrees with printout from ggplot above
+
 # PRECIP V TEMP - including exp sites
 (figNO3_ppt_temp2 <- ggplot(no3_clim_trends_ann_wide,
                            aes(x = temp_mean,
@@ -3211,6 +3222,12 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
              y = "Mean Annual Greenness Trend") +
         theme_bw() +
         theme(legend.position = "none"))
+
+# Quick check to see how many are missing temp/precip data
+test2 <- no3_clim_trends_ann_wide_ed %>%
+    drop_na(temp_mean) %>%
+    drop_na(nirv) # 126 again remaining, so 47 dropped
+# which agrees with printout from ggplot above
 
 # GPP V TEMP - including exp sites
 (figNO3_gpp_temp2 <- ggplot(no3_clim_trends_ann_wide,
@@ -3270,6 +3287,12 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
         theme_bw() +
         theme(legend.position = "none"))
 
+# Quick check to see how many are missing temp/precip data
+test3 <- no3_clim_trends_ann_wide_ed %>%
+    drop_na(temp_mean) %>%
+    drop_na(N_flux_mean) # 126 remaining, so 47 dropped
+# which agrees with printout from ggplot above
+
 # DEP V TEMP - including exp sites
 (figNO3_dep_temp2 <- ggplot(no3_clim_trends_ann_wide,
                            aes(x = temp_mean,
@@ -3300,7 +3323,8 @@ no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
         theme_bw())
 
 # Additional bar chart showing sum total trends
-all_trends_ed <- rbind(clim_trends, ndep_trends_ann,
+all_trends_ed <- rbind(p_trends, t_trends,
+                       ndep_trends_ann,
                        green_trends_ann) %>%
     left_join(ms_site_data) %>%
     filter(ws_status == "non-experimental") %>%
@@ -3316,7 +3340,6 @@ all_trends_counts <- all_trends_ed %>%
     ungroup()
 
 (figNO3_bar <- ggplot(all_trends_counts %>%
-                          filter(var != "gpp_CONUS_30m_median") %>%
                           mutate(flag = factor(flag,
                                                exclude = NULL)) %>%
                           mutate(var = factor(var,
@@ -3361,7 +3384,6 @@ all_trends_ed_wide <- all_trends_ed %>%
                 values_from = flag) %>%
     rename(precip_group = precip_mean,
            temp_group = temp_mean,
-           gpp_group = gpp_CONUS_30m_median,
            ndep_group = N_flux_mean,
            green_group = nirv)
 
@@ -3404,7 +3426,7 @@ no3_ppt_trends <- no3_clim_trends_ann_wide_groups %>%
 # And create a greenness-specific dataset
 no3_green_trends <- no3_clim_trends_ann_wide_groups %>%
     drop_na(nirv) %>%
-    count(nirv_group)
+    count(green_group)
 
 # and export version including experimental sites
 
