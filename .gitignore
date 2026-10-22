@@ -37,3 +37,13 @@ Rplot*.png
 
 # Word temp/lock files
 ~$*
+
+# Python
+__pycache__/
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Meeting notes / personal prep (not for the public repo)
+notes/

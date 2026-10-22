@@ -8,7 +8,7 @@ daymet <- ms_load_product(here('data_raw', 'ms'),
                           prodname = 'ws_attr_CAMELS_Daymet_forcings',
                           warn = FALSE)
 
-metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear_nTest.RDS')) %>%
+metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear_nTest.rds')) %>%
     distinct()
 
 p <- ms_load_product(my_ms_dir,
@@ -32,11 +32,11 @@ d <- inner_join(p, daymet, by = c('network', 'domain', 'site_code', 'date')) %>%
               precip = sum(`prcp(mm/day)`))  %>%
     full_join(., et, by = c('site_code', 'year')) %>%
     mutate(evaporative_index = val/(precip*10)) %>%
-    select(-year) %>%
     full_join(., et_obs, by = c('site_code', 'year' = 'wy'))
 
 
 aridity <- d %>%
+    filter(year >= analysis_start_year, year <= analysis_end_year) %>%
     select(site_code, aridity_index) %>%
     group_by(site_code) %>%
     summarize(mean_ai = mean(aridity_index, na.rm = T)) %>%
@@ -44,6 +44,8 @@ aridity <- d %>%
     filter(ws_status == 'non-experimental')
 aridity$q_flag[is.na(aridity$q_flag)] <- "data limited"
 aridity$q_flag <- fct_relevel(aridity$q_flag, 'increasing', 'decreasing', 'non-significant', 'data limited')
+q_colors <- c('increasing' = 'blue', 'decreasing' = 'red',
+              'non-significant' = 'grey', 'data limited' = 'black')
 
 
 # set axes the same
@@ -56,21 +58,22 @@ aridity %>%
            trend_temp_mean > 0) %>%
     nrow()
 
-aridity %>%
+hist_hw <- aridity %>%
     filter(trend_precip_mean > 0,
            trend_temp_mean > 0) %>%
     ggplot(aes(x = mean_ai, fill = q_flag))+
         #geom_density(lwd = 2)+
     geom_histogram()+
-    scale_fill_manual(values = c('blue','red', 'grey', 'black'))+
+    scale_fill_manual(values = q_colors, drop = FALSE)+
     scale_x_continuous(limits = xlims)+
     scale_y_continuous(limits = ylims)+
-    labs(x = 'Aridity Index (mean, 1980-2020)',
+    labs(x = paste0('Aridity Index (mean, ', analysis_start_year, '-', analysis_end_year, ')'),
          y = 'n',
          fill = 'Q trend',
          title = 'Hotter and wetter')+
     geom_vline(xintercept = 1, color = 'orange', lwd = 2, lty = 'longdash')+
     theme_few(base_size = 20)
+ggsave(here('figures', 'hist_hotter_wetter.png'), hist_hw, width = 10, height = 7, dpi = 300)
 
 
 #Hotter drier
@@ -79,21 +82,22 @@ aridity %>%
            trend_temp_mean > 0) %>%
     nrow()
 
-aridity %>%
+hist_hd <- aridity %>%
     filter(trend_precip_mean < 0,
            trend_temp_mean > 0) %>%
     ggplot(aes(x = mean_ai, fill = q_flag))+
     #geom_density(lwd = 2)+
     geom_histogram()+
-    scale_fill_manual(values = c('red', 'grey', 'black'))+
+    scale_fill_manual(values = q_colors, drop = FALSE)+
     scale_x_continuous(limits = xlims)+
     scale_y_continuous(limits = ylims)+
-    labs(x = 'Aridity Index (mean, 1980-2020)',
+    labs(x = paste0('Aridity Index (mean, ', analysis_start_year, '-', analysis_end_year, ')'),
          y = 'n',
          fill = 'Q trend',
          title = 'Hotter and drier')+
     geom_vline(xintercept = 1, color = 'orange', lwd = 2, lty = 'longdash')+
     theme_few(base_size = 20)
+ggsave(here('figures', 'hist_hotter_drier.png'), hist_hd, width = 10, height = 7, dpi = 300)
 
 #cooler drier
 aridity %>%
@@ -102,22 +106,23 @@ aridity %>%
     nrow()
 
 
-aridity %>%
+hist_cd <- aridity %>%
     filter(trend_precip_mean < 0,
            trend_temp_mean < 0) %>%
     ggplot(aes(x = mean_ai, fill = q_flag))+
     geom_histogram()+
     #geom_density(lwd = 2)+
     #geom_histogram()+
-    scale_fill_manual(values = c('black'))+
+    scale_fill_manual(values = q_colors, drop = FALSE)+
     scale_x_continuous(limits = xlims)+
     scale_y_continuous(limits = ylims)+
-    labs(x = 'Aridity Index (mean, 1980-2020)',
+    labs(x = paste0('Aridity Index (mean, ', analysis_start_year, '-', analysis_end_year, ')'),
          y = 'n',
          color = 'Q trend',
          title = 'Cooler and drier')+
     geom_vline(xintercept = 1, color = 'orange', lwd = 2, lty = 'longdash')+
     theme_few(base_size = 20)
+ggsave(here('figures', 'hist_cooler_drier.png'), hist_cd, width = 10, height = 7, dpi = 300)
 
 #cooler wetter
 aridity %>%
@@ -125,19 +130,20 @@ aridity %>%
            trend_temp_mean < 0) %>%
     nrow()
 
-aridity %>%
+hist_cw <- aridity %>%
     filter(trend_precip_mean > 0,
            trend_temp_mean < 0) %>%
     ggplot(aes(x = mean_ai, fill = q_flag))+
     geom_histogram()+
     geom_density(lwd = 2)+
-    scale_fill_manual(values = c('black'), drop=FALSE)+
+    scale_fill_manual(values = q_colors, drop = FALSE)+
     guides(fill = guide_legend(override.aes = list(alpha=1))) +
     scale_x_continuous(limits = xlims)+
     scale_y_continuous(limits = ylims)+
-    labs(x = 'Aridity Index (mean, 1980-2020)',
+    labs(x = paste0('Aridity Index (mean, ', analysis_start_year, '-', analysis_end_year, ')'),
          y = 'n',
          color = 'Q trend',
          title = 'Cooler and wetter')+
     geom_vline(xintercept = 1, color = 'orange', lwd = 2, lty = 'longdash')+
     theme_few(base_size = 20)
+ggsave(here('figures', 'hist_cooler_wetter.png'), hist_cw, width = 10, height = 7, dpi = 300)

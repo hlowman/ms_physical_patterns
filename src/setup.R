@@ -63,13 +63,22 @@ prisim_year <- 1980
 landsat_year <- 1984
 modis_year <- 2000
 
+# trend analysis window (MODIS GPP era)
+analysis_start_year <- 2001   # first full MODIS year
+analysis_end_year   <- 2023   # last MODIS GPP year
+
 # helper functions ####
 # set logger for other scripts
 set_logger <- function(){
-    log_file_name <- paste0(tools::file_path_sans_ext(basename(rstudioapi::getSourceEditorContext()$path)),
+    script_name <- tryCatch(
+        tools::file_path_sans_ext(basename(rstudioapi::getSourceEditorContext()$path)),
+        error = function(e) 'script'
+    )
+    log_file_name <- paste0(script_name,
                             '_', format(Sys.time(), '%D_%H_%M_%S'), '.txt') %>%
         gsub('/','',.)
     log_file_path <- file.path('log', log_file_name)
+    if(!dir.exists('log')) dir.create('log')
     file.create(log_file_path)
 
     log_appender(appender_file(log_file_path))

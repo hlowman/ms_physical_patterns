@@ -27,30 +27,25 @@ full_prism_trends <- read_csv(here('data_working', 'trends', 'full_prisim_climat
            warming = case_when(flag_temp_mean == 'increasing' ~ 'H',
                                flag_temp_mean == 'decreasing' ~ 'C',
                                flag_temp_mean == 'non-significant' ~ '-'),
-           greening = case_when(flag_gpp_CONUS_30m_median == 'increasing' ~ 'G',
-                                flag_gpp_CONUS_30m_median == 'decreasing' ~ 'B',
-                                flag_gpp_CONUS_30m_median == 'non-significant' ~ '-',
-                                is.na(flag_gpp_CONUS_30m_median) ~ '-'),
+           greening = case_when(flag_gpp_global_500m_median == 'increasing' ~ 'G',
+                                flag_gpp_global_500m_median == 'decreasing' ~ 'B',
+                                flag_gpp_global_500m_median == 'non-significant' ~ '-',
+                                is.na(flag_gpp_global_500m_median) ~ '-'),
            grouping = as.factor(paste0(warming, wetting, greening)),
            coarse_grouping = case_when(grouping %in% c('HDG', 'HD-', 'H-G', '-DG', 'HDB', 'H--', '--G', '-D-') ~ '(+)',
-                                       grouping %in% c('--B', '-W-', '-WB') ~ '(-)',
+                                       grouping %in% c('--B', '-W-', '-WB', 'C--', 'C-B', 'CW-', 'CWB') ~ '(-)',
                                        grouping %in% c('---') ~ 'no change',
-                                       grouping %in% c('HWG', 'HW-', 'H-B', '-DB', '-WG', 'HDB') ~ 'variable')
+                                       grouping %in% c('HWG', 'HW-', 'H-B', '-DB', '-WG', 'HWB', 'C-G', 'CWG', 'CD-', 'CDG', 'CDB') ~ 'variable')
            ) %>%
     left_join(., ms_site_data, by = 'site_code') %>%
     mutate(grouping_exp = case_when(ws_status == 'experimental' ~ 'EXP',
                                 .default = 'NON')) %>%
     left_join(., q_trends, by = 'site_code')
 
-full_prism_trends$grouping <- factor(full_prism_trends$grouping, levels = c('HDG', #strong down
-                                                                            'HD-', 'H-G', '-DG', # mid down
-                                                                            'H--', '--G', '-D-', # light down
-                                                                            '---', # no change
-                                                                            'HWG', 'HW-', 'H-B', '-DB', '-WG', 'HDB',# variable
-                                                                            '--B', '-W-', #light up
-                                                                            '-WB')) # strong up
-
-full_prism_trends$grouping <- factor(full_prism_trends$ws_status, levels = c('experimental', 'non-experimental'))
+full_prism_trends$grouping <- factor(full_prism_trends$grouping, levels = c('HDG', 'HD-', 'H-G', '-DG', 'HDB', 'H--', '--G', '-D-',
+                                                                            '---',
+                                                                            'HWG', 'HW-', 'H-B', '-DB', '-WG', 'HWB', 'C-G', 'CWG', 'CD-', 'CDG', 'CDB',
+                                                                            'C--', 'C-B', 'CW-', 'CWB', '--B', '-W-', '-WB'))
 
 full_prism_trends %>%
     #select(site_code, grouping, streamflow) %>%
@@ -61,11 +56,11 @@ full_prism_trends %>%
 
 gpp_plot <- ggplot(full_prism_trends, aes(x = trend_temp_mean*10, y = trend_precip_mean*10, text = paste("Site:", site_code, "<br>Domain:", domain))) +
     # Points with 'non-significant' flag
-    geom_point(data = subset(full_prism_trends, flag_gpp_CONUS_30m_median == "non-significant"),
+    geom_point(data = subset(full_prism_trends, flag_gpp_global_500m_median == "non-significant"),
                color = "grey", size = 2) +
     # Points with other flags
-    geom_point(data = subset(arrange(full_prism_trends, trend_gpp_CONUS_30m_median), flag_gpp_CONUS_30m_median != "non-significant"),
-               aes(color = trend_gpp_CONUS_30m_median*10, shape = ws_status), size = 5) +
+    geom_point(data = subset(arrange(full_prism_trends, trend_gpp_global_500m_median), flag_gpp_global_500m_median != "non-significant"),
+               aes(color = trend_gpp_global_500m_median*10, shape = ws_status), size = 5) +
     scale_color_distiller(palette = 'BrBG', direction = 1) +
     theme_few(base_size = 20) +
     geom_hline(yintercept = 0) +
@@ -79,6 +74,7 @@ gpp_plot <- ggplot(full_prism_trends, aes(x = trend_temp_mean*10, y = trend_prec
     scale_shape_manual(values = c(17,16), labels = c('experimental', 'non-experimental'))
 
 gpp_plot
+ggsave(here('figures', 'fig2_gpp_climate_trends.png'), gpp_plot, width = 10, height = 8, dpi = 300)
 library(plotly)
 ggplotly(gpp_plot, tooltip = 'text')
 
@@ -110,9 +106,10 @@ q_plot <- ggplot(full_prism_trends, aes(x = trend_temp_mean*10, y = trend_precip
          shape = 'Condition')
 
 q_plot
+ggsave(here('figures', 'fig3_q_climate_trends.png'), q_plot, width = 10, height = 8, dpi = 300)
 ggplotly(q_plot, tooltip = 'text')
 
-full_prism_trends %>%
+q_nonexp_plot <- full_prism_trends %>%
     filter(ws_status == 'non-experimental') %>%
 ggplot(., aes(x = trend_temp_mean, y = trend_precip_mean, text = paste("Site:", site_code, "<br>Domain:", domain))) +
     # Points with 'non-significant' flag
@@ -138,21 +135,24 @@ ggplot(., aes(x = trend_temp_mean, y = trend_precip_mean, text = paste("Site:", 
     labs(x = 'Temperature trend (mean annual, degrees C)',
          y = 'Precipitation trend (mean annual, mm)',
          color = 'Q trend (mean, mm/yr)')
+ggsave(here('figures', 'fig3b_q_nonexp_climate_trends.png'), q_nonexp_plot, width = 10, height = 8, dpi = 300)
 
 ## bar charts  by group ####
-ggplot(full_prism_trends, aes(x = coarse_grouping, fill = q_flag))+
+bar_coarse <- ggplot(full_prism_trends, aes(x = coarse_grouping, fill = q_flag))+
     geom_bar()+
     theme_few(base_size = 20)+
     scale_fill_manual(values = flag_colors)+#,
     labs(fill = target_q_trend)
+ggsave(here('figures', 'bar_coarse_grouping.png'), bar_coarse, width = 10, height = 7, dpi = 300)
 
-ggplot(full_prism_trends, aes(x = coarse_grouping, fill = q_flag))+
+bar_faceted <- ggplot(full_prism_trends, aes(x = coarse_grouping, fill = q_flag))+
     geom_bar()+
     theme_few(base_size = 20)+
     theme(axis.text.x = element_text(angle = 45, vjust = .5, hjust = .5))+
     scale_fill_manual(values = flag_colors)+#,
     facet_wrap(~grouping_exp) +
     labs(fill = target_q_trend)
+ggsave(here('figures', 'bar_coarse_by_exp.png'), bar_faceted, width = 12, height = 7, dpi = 300)
 
 
 full_prism_trends %>%
@@ -167,33 +167,33 @@ full_prism_trends %>%
 
 full_prism_trends %>%
     filter(grouping_exp == 'NON',
-           streamflow == 'decreasing') %>%
+           q_flag == 'decreasing') %>%
     select(domain)
 
-View(full_prism_trends %>%
-    filter(grouping == 'NNN',
-           streamflow == 'decreasing') %>%
+print(full_prism_trends %>%
+    filter(grouping == '---',
+           q_flag == 'decreasing') %>%
     select(domain, site_code, ws_status))
 
 
-metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.RDS')) %>%
+metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear_nTest.rds')) %>%
     distinct()
 
 metrics %>%
-    filter(site_code == 'GSWS06', water_year > 1980) %>%
-    ggplot(aes(x = water_year, y = gpp_CONUS_30m_median))+
+    filter(site_code == 'GSWS06', water_year >= analysis_start_year) %>%
+    ggplot(aes(x = water_year, y = gpp_global_500m_median))+
     geom_point()
 
 ## hydrographs ####
 q_data <- ms_load_product(prodname = 'discharge', macrosheds_root = my_ms_dir)
 
 group_counts <- full_prism_trends %>%
-    filter(streamflow != 'data limited') %>%
+    filter(q_flag != 'data limited') %>%
     group_by(grouping) %>%
     summarize(n = n())
 
 options(scipen = 999) # turn off scientific notation
-q_data %>%
+hydrograph_plot <- q_data %>%
     right_join(., full_prism_trends, by = 'site_code') %>%
     right_join(., group_counts) %>%
     filter(val != 0) %>%
@@ -210,6 +210,7 @@ q_data %>%
           legend.position = 'none',
           )+
     facet_wrap(~facet_lab, scales = 'fixed')
+ggsave(here('figures', 'hydrographs_by_grouping.png'), hydrograph_plot, width = 16, height = 12, dpi = 300)
 
 
 # Grid Groups ####
@@ -217,8 +218,7 @@ q_data %>%
 # handle setup
 library(RColorBrewer)
 source(here('src', 'setup.R'))
-library(tmap)
-library(usmap)
+library(maps)
 # read in full q_metrics.R output
 #source(here('src', 'q_metrics.R'))
 
@@ -232,9 +232,10 @@ grid_metrics <- read_csv(here('data_raw', 'grid_csvs', 'et2.csv')) %>%
     pivot_longer(cols = -c('water_year', 'site_code', 'geometry'), names_to = 'var', values_to = 'val')
 
 grid_trends <- grid_metrics %>%
+    filter(water_year >= analysis_start_year, water_year <= analysis_end_year) %>%
     detect_trends()
 
-#write_csv(grid_trends, here('data_working', 'grid_trends.csv'))
+write_csv(grid_trends, here('data_working', 'grid_trends.csv'))
 grid_trends <- read_csv(here('data_working', 'grid_trends.csv')) %>%
     add_flags()
 
@@ -264,9 +265,9 @@ grid_groups <- grid_trends %>%
                                 is.na(flag_GPP) ~ '-'),
            grouping = as.factor(paste0(warming, wetting, greening)),
            coarse_grouping = case_when(grouping %in% c('HDG', 'HD-', 'H-G', '-DG', 'HDB', 'H--', '--G', '-D-') ~ '(+)',
-                                       grouping %in% c('--B', '-W-', '-WB') ~ '(-)',
+                                       grouping %in% c('--B', '-W-', '-WB', 'C--', 'C-B', 'CW-', 'CWB') ~ '(-)',
                                        grouping %in% c('---') ~ 'no change',
-                                       grouping %in% c('HWG', 'HW-', 'H-B', '-DB', '-WG', 'HDB') ~ 'variable')
+                                       grouping %in% c('HWG', 'HW-', 'H-B', '-DB', '-WG', 'HWB', 'C-G', 'CWG', 'CD-', 'CDG', 'CDB') ~ 'variable')
     )
 #
 # grid_groups$grouping <- factor(grid_groups$grouping, levels = c('HDG', #strong down
@@ -281,8 +282,7 @@ write_csv(grid_groups, here('data_working', 'grid_groups.csv'))
 grid_groups <- read_csv(here('data_working', 'grid_groups.csv'))
 
 # read in ms data ####
-ms_groups <- read_csv(here('data_working', 'site_groupings_by_prsim_trend.csv')) %>%
-    st_as_sf(coords = c("longitude","latitude"), crs = 4326)
+ms_groups <- read_csv(here('data_working', 'site_groupings_by_prsim_trend.csv'))
 
 # munge ms and grid together ####
 ms_temp <- ms_groups %>%
@@ -298,7 +298,7 @@ grid_temp <- grid_groups  %>%
 
 both_groups <- rbind(ms_temp, grid_temp) %>% na.omit()
 
-both_groups %>%
+density_plot <- both_groups %>%
     group_by(source, coarse_grouping) %>%
     summarize(n =n()) %>%
     mutate(density = case_when(source == 'grid' ~ n/nrow(grid_temp),
@@ -311,13 +311,14 @@ both_groups %>%
          x = 'Density',
          fill = 'Dataset')+
     scale_fill_manual(labels = c('Grid', 'MacroSheds'), values = c('blue', 'black'))
+ggsave(here('figures', 'density_grid_vs_ms.png'), density_plot, width = 10, height = 7, dpi = 300)
 
 
 # gpp scatter
 # these are annual rn, need to make mean
 grid_groups$trend_ppt_scaled <- grid_groups$trend_ppt/365
 
-ggplot(grid_groups, aes(x = trend_tmean, y = trend_ppt_scaled)) +
+grid_gpp_scatter <- ggplot(grid_groups, aes(x = trend_tmean, y = trend_ppt_scaled)) +
     # Points with 'non-significant' flag
     geom_point(data = subset(grid_groups, flag_GPP == "non-significant"),
                color = "grey", size = 2) +
@@ -331,152 +332,65 @@ ggplot(grid_groups, aes(x = trend_tmean, y = trend_ppt_scaled)) +
     labs(x = 'Temperature trend (mean annual, degrees C)',
          y = 'Precipitation trend (mean annual, mm)',
          color = 'GPP trend (mean annual)')
+ggsave(here('figures', 'grid_gpp_climate_scatter.png'), grid_gpp_scatter, width = 10, height = 8, dpi = 300)
 
 
 # maps ####
-lat_lon_pattern <- "c\\((-?\\d+\\.\\d+),\\s*(-?\\d+\\.\\d+)\\)"
-
-
-map_data <- grid_metrics %>%
+grid_coords <- grid_metrics %>%
+    filter(water_year == min(water_year)) %>%
     select(site_code, geometry) %>%
-    distinct() %>%
     mutate(
-        Longitude = as.numeric(gsub("c\\((.*),.*", "\\1", geometry)),
-        Latitude = as.numeric(gsub("c\\(.*,(.*)\\)", "\\1", geometry))
+        lon = as.numeric(gsub("c\\((.*),.*", "\\1", geometry)),
+        lat = as.numeric(gsub("c\\(.*,(.*)\\)", "\\1", geometry))
     ) %>%
-    left_join(grid_groups, by = 'site_code', relationship = 'many-to-many') %>%
-    na.omit() %>%
-    st_as_sf(coords = c('Longitude', 'Latitude'), crs = 4326)
+    select(site_code, lon, lat)
 
+grid_map_df <- grid_groups %>%
+    left_join(grid_coords, by = 'site_code')
 
+states_df <- map_data('state')
 
-tm_shape(usmap::us_map(exclude = c('AK', 'HI'))) +
-    tm_polygons() + # Base US map
-    tm_shape(map_data) +
-    tm_symbols(
-        col = "trend_tmean", # Color by effect size
-        title.col = "Temperature (C/yr)",
-        #shape = "significant", # Different shape for significant points
-        #shapes = c(21, 24), # 21 (circle), 24 (cross-hatch-like triangle)
-        border.col = "black",
-        size = 0.1,
-        palette = "-RdBu", # Diverging palette for effect size
-        legend.col.show = TRUE,
-        border.alpha = 0,
-        style = 'cont'
-    ) +
-    tm_shape(ms_groups)+
-    tm_symbols(col = 'black',
-               title.col = 'MS sites',
-               legend.col.show = TRUE,
-               size = .2)+
-    # tm_symbols(
-    #     col = "trend_precip_mean", # Color by effect size
-    #     title.col = "Sen's slope",
-    #     #shape = "significant", # Different shape for significant points
-    #     #shapes = c(21, 24), # 21 (circle), 24 (cross-hatch-like triangle)
-    #     border.col = "black",
-    #     size = 0.5,
-    #     palette = "-RdBu", # Diverging palette for effect size
-    #     legend.col.show = TRUE#,
-    #     #legend.shape.show = TRUE
-    # )  +
-    tm_layout(
-        legend.outside = TRUE,
-        legend.outside.position = "right",
-        frame = F,
-        legend.title.size = 2,
-        legend.text.size = 1.5,
-        legend.outside.size = .3
-    )
+map_temp <- ggplot() +
+    geom_tile(data = grid_map_df, aes(x = lon, y = lat, fill = trend_tmean),
+              width = 0.7, height = 0.7) +
+    scale_fill_distiller(palette = 'RdBu', direction = -1,
+                         name = 'Temperature\n(°C/yr)') +
+    geom_polygon(data = states_df, aes(x = long, y = lat, group = group),
+                 fill = NA, color = 'grey30', linewidth = 0.3) +
+    geom_point(data = ms_groups, aes(x = longitude, y = latitude),
+               size = 1.5, color = 'black') +
+    coord_sf(xlim = c(-125, -66), ylim = c(24, 50), crs = 4326) +
+    theme_few(base_size = 14) +
+    theme(axis.title = element_blank(), panel.grid = element_blank())
+ggsave(here('figures', 'map_temperature_trends.png'), map_temp, width = 10, height = 7, dpi = 300)
 
+map_ppt <- ggplot() +
+    geom_tile(data = grid_map_df, aes(x = lon, y = lat, fill = trend_ppt),
+              width = 0.7, height = 0.7) +
+    scale_fill_distiller(palette = 'Spectral', direction = 1,
+                         name = 'PPT\n(mm/yr)') +
+    geom_polygon(data = states_df, aes(x = long, y = lat, group = group),
+                 fill = NA, color = 'grey30', linewidth = 0.3) +
+    geom_point(data = ms_groups, aes(x = longitude, y = latitude),
+               size = 1.5, color = 'black') +
+    coord_sf(xlim = c(-125, -66), ylim = c(24, 50), crs = 4326) +
+    theme_few(base_size = 14) +
+    theme(axis.title = element_blank(), panel.grid = element_blank())
+ggsave(here('figures', 'map_precip_trends.png'), map_ppt, width = 10, height = 7, dpi = 300)
 
-tm_shape(usmap::us_map(exclude = c('AK', 'HI'))) +
-    tm_polygons() + # Base US map
-    tm_shape(map_data) +
-    tm_symbols(
-        col = "trend_ppt", # Color by effect size
-        title.col = "PPT (mm/yr)",
-        #shape = "significant", # Different shape for significant points
-        #shapes = c(21, 24), # 21 (circle), 24 (cross-hatch-like triangle)
-        border.alpha = 0,
-        palette = "Spectral", # Diverging palette for effect size
-        legend.col.show = TRUE,
-        size = .1,
-        style = 'cont'
-        #legend.shape.show = TRUE
-    ) +
-    tm_shape(ms_groups)+
-    tm_symbols(col = 'black',
-               title.col = 'MS sites',
-               legend.col.show = TRUE,
-               size = .2)+
-    # tm_symbols(
-    #     col = "trend_precip_mean", # Color by effect size
-    #     title.col = "Sen's slope",
-    #     #shape = "significant", # Different shape for significant points
-    #     #shapes = c(21, 24), # 21 (circle), 24 (cross-hatch-like triangle)
-    #     border.col = "black",
-    #     size = 0.5,
-    #     palette = "-RdBu", # Diverging palette for effect size
-    #     legend.col.show = TRUE#,
-    #     #legend.shape.show = TRUE
-    # ) +
-    tm_layout(
-        legend.outside = TRUE,
-        legend.outside.position = "right",
-        frame = F,
-        legend.title.size = 2,
-        legend.text.size = 1.5,
-        legend.outside.size = .3
-    )
-
-tm_shape(usmap::us_map(exclude = c('AK', 'HI'))) +
-    tm_polygons() + # Base US map
-    tm_shape(map_data) +
-    tm_symbols(
-        col = "trend_GPP", # Color by effect size
-        title.col = "GPP (kgC/sqm/yr)",
-        #shape = "significant", # Different shape for significant points
-        #shapes = c(21, 24), # 21 (circle), 24 (cross-hatch-like triangle)
-        border.alpha = 0,
-        palette = "BrBG", # Diverging palette for effect size
-        legend.col.show = TRUE,
-        size = .1,
-        style = 'cont'
-        #legend.shape.show = TRUE
-    ) +
-    tm_shape(ms_groups)+
-    tm_symbols(col = 'black',
-               title.col = 'MS sites',
-               legend.col.show = TRUE,
-               size = .2)+
-    tm_add_legend(
-        type = "symbol",
-        labels = "MS sites", # Legend label
-        col = "black", # Color matching the points
-        shape = 16, # Default filled circle shape
-        size = .5
-    ) +
-    # tm_symbols(
-    #     col = "trend_precip_mean", # Color by effect size
-    #     title.col = "Sen's slope",
-    #     #shape = "significant", # Different shape for significant points
-    #     #shapes = c(21, 24), # 21 (circle), 24 (cross-hatch-like triangle)
-    #     border.col = "black",
-    #     size = 0.5,
-    #     palette = "-RdBu", # Diverging palette for effect size
-    #     legend.col.show = TRUE#,
-    #     #legend.shape.show = TRUE
-    # ) +
-    tm_layout(
-        legend.outside = TRUE,
-        legend.outside.position = "right",
-        frame = F,
-        legend.title.size = 2,
-        legend.text.size = 1.5,
-        legend.outside.size = .3
-    )
+map_gpp <- ggplot() +
+    geom_tile(data = grid_map_df, aes(x = lon, y = lat, fill = trend_GPP),
+              width = 0.7, height = 0.7) +
+    scale_fill_distiller(palette = 'BrBG', direction = 1,
+                         name = 'GPP\n(kgC/m²/yr)') +
+    geom_polygon(data = states_df, aes(x = long, y = lat, group = group),
+                 fill = NA, color = 'grey30', linewidth = 0.3) +
+    geom_point(data = ms_groups, aes(x = longitude, y = latitude),
+               size = 1.5, color = 'black') +
+    coord_sf(xlim = c(-125, -66), ylim = c(24, 50), crs = 4326) +
+    theme_few(base_size = 14) +
+    theme(axis.title = element_blank(), panel.grid = element_blank())
+ggsave(here('figures', 'map_gpp_trends.png'), map_gpp, width = 10, height = 7, dpi = 300)
 
 # map_data %>%
 #     filter(var == 'tmean') %>%
@@ -505,16 +419,16 @@ map_data %>%
 map_data %>%
     mapview(., zcol = 'trend_GPP', col.regions=brewer.pal(10, "PiYG"))
 
-map_data %>%
-    filter(p_GPP < 0.1) %>%
-    mapview(., zcol = 'trend_GPP', col.regions=brewer.pal(10, "PiYG"))
+# map_data %>%
+#     filter(p_GPP < 0.1) %>%
+#     mapview(., zcol = 'trend_GPP', col.regions=brewer.pal(10, "PiYG"))
 
 
 map_data %>%
     mapview(., zcol = 'trend_ppt', col.regions=brewer.pal(10, "Spectral"))
 
-map_data %>%
-    filter(p_tmean < 0.05) %>%
-    mapview(., zcol = 'trend_tmean', col.regions=rev(brewer.pal(10, "Spectral")))
+# map_data %>%
+#     filter(p_tmean < 0.05) %>%
+#     mapview(., zcol = 'trend_tmean', col.regions=rev(brewer.pal(10, "Spectral")))
 
 

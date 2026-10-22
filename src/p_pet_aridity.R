@@ -13,7 +13,7 @@ trends <- read_csv(here('data_working', 'site_groupings_by_prsim_trend.csv'))
 sums <- ms_load_product(my_ms_dir,
                                   prodname = "ws_attr_timeseries:all",
                                   warn = FALSE)
-metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds'))%>%
+metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear_nTest.rds'))%>%
     filter(agg_code == 'annual')
 
 # ms_download_ws_attr(ms_root, "time series", timeout = 10000, skip_existing = TRUE)
@@ -51,24 +51,24 @@ d <- inner_join(p, daymet, by = c('network', 'domain', 'site_code', 'date')) %>%
               precip = sum(`prcp(mm/day)`))  %>%
     full_join(., et, by = c('site_code', 'year')) %>%
     mutate(evaporative_index = val/(precip*10)) %>%
-    select(-year) %>%
     full_join(., et_obs, by = c('site_code', 'year' = 'wy'))
 
 
-d%>%
+ei_scatter <- d%>%
     left_join(., ms_site_data, by = 'site_code') %>%
 ggplot(., aes(x = ei_obs, y = evaporative_index, color = domain))+
     geom_point()+
     theme_few()+
     geom_abline(slope = 1, color = 'red', linewidth = 2)
     #geom_smooth(method = 'lm')
+ggsave(here('figures', 'ei_obs_vs_modeled.png'), ei_scatter, width = 10, height = 8, dpi = 300)
 
 
-d %>%
+pq_couple <- d %>%
     left_join(., ms_site_data, by = 'site_code') %>%
     #filter(q_totsum > 1000) %>%
     filter(ws_status == "non-experimental") %>%
-    filter(year > 1980) %>%
+    filter(year >= analysis_start_year, year <= analysis_end_year) %>%
     select(precip_total, q_totsum, domain, site_code, year) %>%
     na.omit() %>%
     ggplot(., aes(x = precip_total, y = q_totsum, color = domain, group = domain))+
@@ -87,11 +87,12 @@ d %>%
             y = 'total Q (mm)')+
     scale_color_viridis(discrete = T)+
     theme(legend.position = 'none')
+ggsave(here('figures', 'pq_coupling.png'), pq_couple, width = 10, height = 8, dpi = 300)
 
-ggplotly(pq_couple)
+# ggplotly(pq_couple)
 
 d_all <- d %>%
-    filter(year %in% 1980:2020) %>%
+    filter(year >= analysis_start_year, year <= analysis_end_year) %>%
     na.omit() %>%
     group_by(site_code) %>%
     summarize(aridity_index_min = min(aridity_index, na.rm = T),
@@ -104,7 +105,7 @@ d_all <- d %>%
               evaporative_index_max = max(evaporative_index, na.rm = T),
               evaporative_index_range = evaporative_index_max - evaporative_index_min,
               evaporative_index_sd = sd(evaporative_index, na.rm = T),
-              evaporative_index = mean(evaporative_index, an.rm = T),
+              evaporative_index = mean(evaporative_index, na.rm = T),
               ei_obs_min = min(ei_obs, na.rm = T),
               ei_obs_max = max(ei_obs, na.rm = T),
               ei_obs_range = ei_obs_max - ei_obs_min,
@@ -125,19 +126,22 @@ d_all <- d %>%
 # the aridity values given in ws_attr_CAMELS_summaries. It'll be most similar if you use "prcp(mm/day)"
 # from daymet instead of "precip_median" from prism.
 
-d_all %>%
+ei_range_bar <- d_all %>%
     filter(ei_obs_range > 0,
            !is.na(q_flag)) %>%
 ggplot(aes(x = reorder(site_code, ei_obs_range), y = ei_obs_range, fill = q_flag))+
     geom_bar(stat = "identity")+
+    scale_fill_manual(values = c('increasing' = 'red', 'decreasing' = 'blue', 'non-significant' = 'grey'))+
     theme_few()+
+    labs(fill = 'Q trend')+
     theme(axis.text.x = element_text(angle = 45))
+ggsave(here('figures', 'ei_range_by_site.png'), ei_range_bar, width = 14, height = 7, dpi = 300)
 
 
 
 
 
-d_all %>%
+budyko_plot <- d_all %>%
     filter(!is.na(q_flag)) %>%
     mutate(label = paste(domain.x, ' ', site_code)) %>%
 ggplot(.,aes(x = aridity_index, y = ei_obs, color = q_flag))+
@@ -148,9 +152,10 @@ ggplot(.,aes(x = aridity_index, y = ei_obs, color = q_flag))+
     geom_text(aes(label = label, vjust = 1))+
     geom_errorbar(aes(xmin = a_min, xmax = a_max))+
     theme_few(base_size = 20)+
-    scale_color_manual(values = c('red', 'blue', 'grey'))+
+    scale_color_manual(values = c('increasing' = 'red', 'decreasing' = 'blue', 'non-significant' = 'grey'))+
     labs(color = 'Q trend',
-         title = '1980-2020 average w/ sd error bars')
+         title = paste0(analysis_start_year, '-', analysis_end_year, ' average w/ sd error bars'))
+ggsave(here('figures', 'budyko_plot.png'), budyko_plot, width = 12, height = 10, dpi = 300)
 
 # time series graphs
 # north creek is increasing in flow
