@@ -22,7 +22,7 @@ n_vwm_seas <- readRDS("data_working/N_VWM_seasonal.rds")
 n_vwm_ann <- readRDS("data_working/N_VWM_annual.rds")
 
 # Load in discharge trends.
-q_trends <- read_csv("data_working/trends/longest_site_run_prism.csv")
+q_trends <- read_csv("data_working/trends/best_run_prisim.csv")
 
 #### Prep data ####
 
@@ -156,7 +156,12 @@ mean_q_trends_nonexp <- q_trends %>%
     # remove experimental sites
     filter(ws_status == "non-experimental") %>%
     # and keep only records for mean discharge
-    filter(var == "q_mean")
+    filter(var == "q_mean") %>%
+    mutate(flag = case_when(sign(trend_upper)!= sign(trend_lower) ~ 'non-significant',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) > 0 ~ 'increasing',
+                            sign(trend_upper) == sign(trend_lower) & sign(trend) < 0 ~ 'decreasing',
+                            sign(trend_upper)!= sign(trend_lower) & trend == 0 ~ 'flat',
+                            trend == NA ~ 'insufficient data'))
 
 # And aggregate by trend designation.
 mean_q_trend_counts <- mean_q_trends_nonexp %>%
@@ -419,8 +424,6 @@ green_trends_ann <- detect_trends(green_ann)
 # Export for use in making figures.
 saveRDS(green_trends_ann, "data_working/green_trends_annual.rds")
 saveRDS(green_ann, "data_working/green_data_for_trends_annual.rds")
-saveRDS(ndep_trends_ann, "data_working/ndep_trends_annual.rds")
-saveRDS(ndep_ann, "data_working/ndep_data_for_trends_annual.rds")
 
 #### Old Seasonal Data Exploration Below ####
 
