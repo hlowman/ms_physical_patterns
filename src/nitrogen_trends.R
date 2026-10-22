@@ -22,7 +22,7 @@ n_vwm_seas <- readRDS("data_working/N_VWM_seasonal.rds")
 n_vwm_ann <- readRDS("data_working/N_VWM_annual.rds")
 
 # Load in discharge trends.
-q_trends <- read_csv("data_working/trends/best_run_prisim.csv")
+q_trends <- read_csv("data_working/trends/q_trends_1980onwards.csv")
 
 #### Prep data ####
 
@@ -31,7 +31,7 @@ nonexp_sites <- n_vwm_ann %>%
     left_join(ms_site_data) %>%
     filter(ws_status == "non-experimental")
 
-length(unique(nonexp_sites$site_code)) # 161 sites
+length(unique(nonexp_sites$site_code)) # 156 sites
 
 # BUT NOTE - WE CALCULATE TRENDS FOR ALL SITES BELOW,
 # including both experimental, and non-experimental sites.
@@ -72,7 +72,7 @@ n_vwm <- full_join(n_vwm, n_vwm_seas)
 # Trim all nitrogen data to only calculate trends post 1980.
 # This, we felt was the most inclusive option while still trying
 # to best match the other datasets - climate data typically begins
-# in 1981, deposition data in 1985, and productivity data in 1986.
+# in 1981, deposition data in 1985, and productivity data in 1984.
 n_vwm80 <- n_vwm %>%
     filter(water_year > 1979)
 
@@ -148,7 +148,8 @@ n_vwm80_trim <- right_join(n_vwm80_10, n_mos_yrs_trim)
 
 #### Q ####
 
-# Nic has already run these trends, so I'm just summarizing them here.
+# These trends were already generated in `mega_zipper_data.R`,
+# so I am simply summarizing them here.
 q_trends <- left_join(q_trends, ms_site_data)
 
 # Further trim dataset.
