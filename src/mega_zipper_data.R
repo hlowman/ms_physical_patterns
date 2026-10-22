@@ -5,11 +5,10 @@ source(here('src', 'setup.R'))
 # read in full q_metrics.R output
 #source(here('src', 'q_metrics.R'))
 
-
-
-#metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear.rds')) %>%
 metrics <- readRDS(here('data_working', 'discharge_metrics_siteyear_nTest.rds')) %>%
     distinct()
+
+#### Nic's trend analyses (2000-present) ####
 
 # run full climate trends first
 clim_trends <- metrics %>%
@@ -85,3 +84,66 @@ prism_site_run_trends <- detect_trends(prism_site_run_trends_data)
 #write_csv(prism_site_run_trends , here('data_working', 'trends', 'longest_site_run_prisim.csv'))
 write_csv(prism_site_run_trends , here('data_working', 'trends', 'best_run_prisim.csv'))
 
+#### Heili's trend analyses (1980-present) ####
+
+# Skipping the seasonal filtering from above since not necessary.
+post_1980_trends_data <- metrics %>%
+    select(-contains('date')) %>% # dates breaking math
+    filter(agg_code == 'annual') %>%
+    select(site_code, water_year, agg_code,
+           # climate
+           temp_mean,
+           precip_mean,
+           p_q50_dowy_exceed = p50_dowy_exceed,
+           p_n_days = ppt_days,
+           ppt_intensity_ratio,
+           # hydro
+           q_mean, q_ar1, q_rbi,
+           q_q50_dowy_exceed = q50_exceed,
+           runoff_ratio,
+           # in-stream
+           stream_temp_mean,
+           # productivity
+           gpp_modis = gpp_global_500m_median) %>%
+    #drop_na(temp_mean_ann, precip_mean_ann, q_mean) %>%
+    pivot_longer(cols = -c('site_code',
+                           'water_year',
+                           'agg_code'),
+                 names_to = 'var',
+                 values_to = 'val') %>%
+    filter(water_year >= 1980) %>%
+    rename("timestep" = "agg_code",
+           "analyte" = "var")
+
+# And making separate Q, temp, and precip datasets
+# so as not to constrain trends based on a single variable.
+q_trends_data <- post_1980_trends_data %>%
+    filter(analyte == "q_mean") %>%
+    gen_reduce_to_best_range(., solute = 'q_mean',
+                             aggregation = 'annual') %>%
+    rename("var" = "analyte")
+t_trends_data <- post_1980_trends_data %>%
+    filter(analyte == "temp_mean") %>%
+    gen_reduce_to_best_range(., solute = 'temp_mean',
+                             aggregation = 'annual') %>%
+    rename("var" = "analyte")
+p_trends_data <- post_1980_trends_data %>%
+    filter(analyte == "precip_mean") %>%
+    gen_reduce_to_best_range(., solute = 'precip_mean',
+                             aggregation = 'annual') %>%
+    rename("var" = "analyte")
+
+# trend detection #
+q_run_trends <- detect_trends(q_trends_data) %>%
+    drop_na(trend)
+t_run_trends <- detect_trends(t_trends_data) %>%
+    drop_na(trend)
+p_run_trends <- detect_trends(p_trends_data) %>%
+    drop_na(trend)
+
+# export
+write_csv(q_run_trends, here('data_working', 'trends', 'q_trends_1980onwards.csv'))
+write_csv(t_run_trends, here('data_working', 'trends', 't_trends_1980onwards.csv'))
+write_csv(p_run_trends, here('data_working', 'trends', 'p_trends_1980onwards.csv'))
+
+# End of script.
