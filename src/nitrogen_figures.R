@@ -952,6 +952,8 @@ ts_counts <- N_VWM_annual %>%
 #        width = 30,
 #        units = "cm")
 
+###### Revised Fig S1 ######
+
 # Calculate means of VWM concentrations & number of obs.
 # BUT FILTER DOWN TO 2010-2020 [INCLUSIVE]
 # AND REMOVE EXPERIMENTAL SITES
@@ -974,7 +976,7 @@ mean_N_VWM_annual20_nonexp <- mean_N_VWM_annual20 %>%
     filter(ws_status == "non-experimental") %>%
     # re-order analytes for density
     mutate(analyte_N_f = factor(analyte_N,
-                              levels = c("NO3_N", "NH3_N", "DIN",
+                              levels = c("NH3_N", "NO3_N", "DIN",
                                          "TDN", "TN", "NO2_N",
                                          "TPN", "N2O", "TIN",
                                          "TKN")))
@@ -989,13 +991,15 @@ site_counts20 <- mean_N_VWM_annual20_nonexp %>%
 
 # And create list with which to add in count annotations
 dat_text <- data.frame(
-    label = c("n = 142", "n = 116", "n = 116", "n = 84", "n = 60",
-              "n = 46", "n = 31", "n = 20", "n = 10", "n = 1"),
-    analyte_N = c("NO3_N", "NH3_N", "DIN", "TDN", "TN",
+    label = c("n = 112", "n = 106", "n = 80", "n = 80", "n = 56",
+              "n = 42", "n = 26", "n = 16", "n = 10", "n = 1"),
+    analyte_N = c("NH3_N", "NO3_N", "DIN", "TDN", "TN",
                   "NO2_N", "TPN", "N2O", "TIN", "TKN")) %>%
     mutate(analyte_N_f = factor(analyte_N,
-                                levels = c("NO3_N", "NH3_N", "DIN", "TDN", "TN",
-                                           "NO2_N", "TPN", "N2O", "TIN", "TKN")))
+                                levels = c("NH3_N", "NO3_N", "DIN",
+                                           "TDN", "TN",
+                                           "NO2_N", "TPN", "N2O",
+                                           "TIN", "TKN")))
 
 # Note, the log transformation on the x-axis only removes
 # one site's data for one analyte - ONO2 for NH3_N.
@@ -1016,7 +1020,7 @@ dat_text <- data.frame(
                       breaks = c(0.001, 0.01, 0.1, 1, 10)) +
         facet_grid(analyte_N_f~., scales = "free") +
         scale_y_discrete(drop = TRUE) +
-        labs(x = "Mean Annual Concentration (mg/L)",
+        labs(x = "Mean Annual VWM Concentration (mg/L)",
              y = "Analyte",
              fill = "Mean No. of Annual Observations",
              size = "Record Length (yrs)") +
@@ -1199,11 +1203,11 @@ N_VWM_annual_sites_nonexp <- left_join(N_VWM_annual_sites_nonexp,
         facet_grid(analyte_label~.,
                    labeller = label_parsed))
 
-ggsave(fig_N_3panel_int,
-       filename = "figures/N3panel_intfig.jpeg",
-       height = 15,
-       width = 10,
-       units = "cm")
+# ggsave(fig_N_3panel_int,
+#        filename = "figures/N3panel_intfig.jpeg",
+#        height = 15,
+#        width = 10,
+#        units = "cm")
 
 # calculating stats for manuscript.
 counts <- N_VWM_annual_sites_nonexp %>%
@@ -1226,6 +1230,15 @@ summ_stats_yrs <- no_years %>%
     group_by(analyte_N) %>%
     summarize(mean_yrs = mean(n, na.rm = TRUE),
               sd_yrs = sd(n, na.rm = TRUE)) %>%
+    ungroup()
+
+summ_stats_freq <- N_VWM_annual_sites_nonexp %>%
+    group_by(site_code, analyte_N) %>%
+    summarize(median = median(n_of_obs_chem, na.rm = TRUE)) %>%
+    ungroup() %>%
+    group_by(analyte_N) %>%
+    summarize(mean_median = mean(median, na.rm = TRUE),
+              sd_median = sd(median, na.rm =TRUE)) %>%
     ungroup()
 
 ##### Peak Months #####
@@ -2212,7 +2225,7 @@ dat_corr_dep <- data.frame(
 
 ##### CQ #####
 
-###### Seasonal (SI Fig) #######
+###### Revised Fig S2 #######
 
 # Filter down to desired analytes and minimum of 10 observations,
 # using data from the past 10 years.
@@ -3060,7 +3073,7 @@ dep_clim_trends_ann <- rbind(dep_clim_trends_ann, t_trends)
 # And join greenness trends as well
 green_dep_clim_trends_ann <- rbind(dep_clim_trends_ann, green_trends_ann)
 
-###### NO3 ######
+###### NO3 (Fig 4) ######
 
 # Join NO3 and climate trends
 no3_clim_trends_ann <- full_join(no3_trends_ann, green_dep_clim_trends_ann)
@@ -3129,6 +3142,11 @@ no3_clim_trends_ann_wide_ed <- no3_clim_trends_ann_wide %>%
 no3_clim_trends_ann_wide <- no3_clim_trends_ann_wide %>%
     arrange(NO3_N) %>%
     arrange(desc(group))
+
+# Double checking total number of sites
+no3_sites_nonexp <- no3_clim_trends_ann_wide %>%
+    filter(ws_status == "non-experimental") %>% # drops to 173
+    drop_na(precip_mean) # drops to 126
 
 # PRECIP V TEMP
 (figNO3_ppt_temp <- ggplot(no3_clim_trends_ann_wide_ed,
@@ -3439,19 +3457,19 @@ no3_green_trends <- no3_clim_trends_ann_wide_groups %>%
 #        width = 28,
 #        units = "cm")
 
-###### NH3 ######
+###### NH3 (Fig S3) ######
 
 # Join NH3 and climate trends
-nh3_clim_trends_ann <- full_join(nh3_trends_ann, dep_clim_trends_ann)
+nh3_clim_trends_ann <- full_join(nh3_trends_ann, green_dep_clim_trends_ann)
 
 # Quick check of overlaps
 nh3_sites <- nh3_trends_ann %>% select(site_code) %>% unique()
 clim_sites <- dep_clim_trends_ann %>% select(site_code) %>% unique()
-inner_nh3 <- inner_join(nh3_sites, clim_sites) # 71 sites max overlap
+inner_nh3 <- inner_join(nh3_sites, clim_sites) # 68 sites max overlap
 only_nh3 <- nh3_sites %>%
     filter(!site_code %in% inner_nh3$site_code) # 22 sites only with NH3 data
 only_clim <- clim_sites %>%
-    filter(!site_code %in% inner_nh3$site_code) # 95 sites with only climate data
+    filter(!site_code %in% inner_nh3$site_code) # 98 sites with only climate data
 
 # Trim to variables of interest
 nh3_clim_trends_ann_wide <- nh3_clim_trends_ann %>%
@@ -3505,6 +3523,11 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
     arrange(NH3_N) %>%
     arrange(desc(group))
 
+# Double checking total number of sites
+nh3_sites_nonexp <- nh3_clim_trends_ann_wide %>%
+    filter(ws_status == "non-experimental") %>% # drops to 148
+    drop_na(precip_mean) # drops to 126
+
 # PRECIP V TEMP
 (figNH3_ppt_temp <- ggplot(nh3_clim_trends_ann_wide_ed,
                            aes(x = temp_mean,
@@ -3521,17 +3544,16 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
         annotate("text", x = -0.042, y = -0.04, label = "Cooling, Drying") +
         annotate("text", x = 0.042, y = 0.04, label = "Warming, Wetting") +
         annotate("text", x = 0.042, y = -0.04, label = "Warming, Drying") +
-        scale_shape_manual(values = c(20, 20, 4),
-                           guide = "none") +
-        scale_size_manual(values = c(6, 4, 2),
-                          guide = "none") +
+        scale_shape_manual(values = c(20, 20, 4)) +
+        scale_size_manual(values = c(6, 4, 2)) +
         scale_color_manual(values = c("purple",
                                       "gray56",
-                                      "gray76"),
-                           guide = "none") +
+                                      "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual Precipitation Trend",
-             color = "Trend & Sampling Frequency") +
+             color = expression(paste(NH[3], "-N Trend")),
+             shape = expression(paste(NH[3], "-N Trend")),
+             size = expression(paste(NH[3], "-N Trend"))) +
         theme_bw())
 
 # PRECIP V TEMP - including exp sites
@@ -3566,9 +3588,9 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
         theme_bw())
 
 # GPP V TEMP
-(figNH3_gpp_temp <- ggplot(nh3_clim_trends_ann_wide_ed,
+(figNH3_green_temp <- ggplot(nh3_clim_trends_ann_wide_ed,
                            aes(x = temp_mean,
-                               y = gpp_CONUS_30m_median)) +
+                               y = nirv)) +
         geom_hline(yintercept = 0, color = "gray20") +
         geom_vline(xintercept = 0, color = "gray20") +
         geom_point(alpha = 0.7,
@@ -3587,12 +3609,9 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
                                       "gray56",
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
-             y = "Mean Annual Productivity Trend",
-             color = expression(paste(NH[3], "-N Trend")),
-             shape = expression(paste(NH[3], "-N Trend")),
-             size = expression(paste(NH[3], "-N Trend"))) +
+             y = "Mean Annual Greenness Trend") +
         theme_bw() +
-        theme(legend.position = "right"))
+        theme(legend.position = "none"))
 
 # GPP V TEMP - including exp sites
 (figNH3_gpp_temp2 <- ggplot(nh3_clim_trends_ann_wide,
@@ -3641,15 +3660,15 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
         annotate("text",x = -0.035, y = -0.12, label = "Cooling, Oligotrophying") +
         annotate("text",x = 0.035, y = 0.12, label = "Warming, Eutrophying") +
         annotate("text",x = 0.035, y = -0.12, label = "Warming, Oligotrophying") +
-        scale_shape_manual(values = c(20, 20, 4), guide = "none") +
-        scale_size_manual(values = c(6, 4, 2), guide = "none") +
+        scale_shape_manual(values = c(20, 20, 4)) +
+        scale_size_manual(values = c(6, 4, 2)) +
         scale_color_manual(values = c("purple",
                                       "gray56",
-                                      "gray76"),
-                           guide = "none") +
+                                      "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual N Deposition Trend") +
-        theme_bw())
+        theme_bw() +
+        theme(legend.position = "none"))
 
 # DEP V TEMP - including exp sites
 (figNH3_dep_temp2 <- ggplot(nh3_clim_trends_ann_wide,
@@ -3679,6 +3698,63 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
              y = "Mean Annual N Deposition Trend") +
         theme_bw())
 
+# Additional bar chart showing sum total trends
+# using dataset created in NO3 section
+
+(figNH3_bar <- ggplot(all_trends_counts %>%
+                          mutate(flag = factor(flag,
+                                               exclude = NULL)) %>%
+                          mutate(var = factor(var,
+                                              levels = c("temp_mean",
+                                                         "N_flux_mean",
+                                                         "precip_mean",
+                                                         "nirv"))), aes(fill = flag,
+                                                                        y = n, x = var)) +
+        geom_bar(position = "stack", stat = "identity") +
+        scale_fill_manual(values = c("purple",
+                                     "orange",
+                                     "gray56"),
+                          na.value = "black") +
+        scale_x_discrete(labels = c("temp_mean" = "Temperature",
+                                    "N_flux_mean" = "N Deposition",
+                                    "precip_mean" = "Precipitation",
+                                    "nirv" = "Greenness")) +
+        labs(y = "Site Count",
+             fill = "Trend") +
+        theme_bw() +
+        theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              axis.title.x = element_blank()))
+
+(figNH3_all4 <- figNH3_dep_temp + figNH3_ppt_temp +
+        figNH3_green_temp + figNH3_bar +
+        plot_annotation(tag_levels = "A"))
+
+# ggsave(figNH3_all4,
+#        filename = "figures/panel4fig_nh3_dep_and_clim_trends.jpeg",
+#        height = 22,
+#        width = 28,
+#        units = "cm")
+
+# Also investigating relative proportion of significant trends
+# for each variable of interest.
+
+# Remember, the climate dataset shows 126 sites,
+# whereas the full N trend dataset will show 173
+# which includes sites outside of CONUS.
+
+# Now, to join with n trends dataset.
+nh3_clim_trends_ann_wide_groups <- left_join(nh3_clim_trends_ann_wide_ed,
+                                             all_trends_ed_wide)
+
+# Create core dataset for investigating proportions of trends
+# for sites with certain NH3 trends.
+nh3_clim_trends_trim <- nh3_clim_trends_ann_wide_groups %>%
+    filter(group2 %in% c("decreasing", "increasing", "non-significant")) %>%
+    # and drop sites not on plot (aka not with climate data)
+    # checked to be sure this one column aligned with others' missingness
+    drop_na(precip_mean)
+
 (figNH3_both <- figNH3_ppt_temp + figNH3_gpp_temp +
         plot_annotation(tag_levels = "a"))
 
@@ -3699,19 +3775,19 @@ nh3_clim_trends_ann_wide <- nh3_clim_trends_ann_wide %>%
 #        width = 28,
 #        units = "cm")
 
-###### TDN ######
+###### TDN (Fig S4) ######
 
 # Join TDN and climate trends
-tdn_clim_trends_ann <- full_join(tdn_trends_ann, dep_clim_trends_ann)
+tdn_clim_trends_ann <- full_join(tdn_trends_ann, green_dep_clim_trends_ann)
 
 # Quick check of overlaps
 tdn_sites <- tdn_trends_ann %>% select(site_code) %>% unique()
 clim_sites <- dep_clim_trends_ann %>% select(site_code) %>% unique()
-inner_tdn <- inner_join(tdn_sites, clim_sites) # 62 sites max overlap
+inner_tdn <- inner_join(tdn_sites, clim_sites) # 59 sites max overlap
 only_tdn <- tdn_sites %>%
     filter(!site_code %in% inner_tdn$site_code) # 11 sites only with TDN data
 only_clim <- clim_sites %>%
-    filter(!site_code %in% inner_tdn$site_code) # 104 sites with only climate data
+    filter(!site_code %in% inner_tdn$site_code) # 107 sites with only climate data
 
 # Trim to variables of interest
 tdn_clim_trends_ann_wide <- tdn_clim_trends_ann %>%
@@ -3765,6 +3841,11 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
     arrange(TDN) %>%
     arrange(desc(group))
 
+# Double checking total number of sites
+tdn_sites_nonexp <- tdn_clim_trends_ann_wide %>%
+    filter(ws_status == "non-experimental") %>% # drops to 137
+    drop_na(precip_mean) # drops to 126
+
 # PRECIP V TEMP
 (figTDN_ppt_temp <- ggplot(tdn_clim_trends_ann_wide_ed,
                            aes(x = temp_mean,
@@ -3781,18 +3862,17 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
         annotate("text", x = -0.042, y = -0.04, label = "Cooling, Drying") +
         annotate("text", x = 0.042, y = 0.04, label = "Warming, Wetting") +
         annotate("text", x = 0.042, y = -0.04, label = "Warming, Drying") +
-        scale_shape_manual(values = c(20, 20, 20, 4),
-                           guide = "none") +
-        scale_size_manual(values = c(6, 6, 4, 2),
-                          guide = "none") +
+        scale_shape_manual(values = c(20, 20, 20, 4)) +
+        scale_size_manual(values = c(6, 6, 4, 2)) +
         scale_color_manual(values = c("cyan4",
                                       "darkorange",
                                       "gray56",
-                                      "gray76"),
-                           guide = "none") +
+                                      "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual Precipitation Trend",
-             color = "Trend & Sampling Frequency") +
+             color = "TDN Trend",
+             shape = "TDN Trend",
+             size = "TDN Trend") +
         theme_bw())
 
 # PRECIP V TEMP - including exp sites
@@ -3828,9 +3908,9 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
         theme_bw())
 
 # GPP V TEMP
-(figTDN_gpp_temp <- ggplot(tdn_clim_trends_ann_wide_ed,
+(figTDN_green_temp <- ggplot(tdn_clim_trends_ann_wide_ed,
                            aes(x = temp_mean,
-                               y = gpp_CONUS_30m_median)) +
+                               y = nirv)) +
         geom_hline(yintercept = 0, color = "gray20") +
         geom_vline(xintercept = 0, color = "gray20") +
         geom_point(alpha = 0.7,
@@ -3850,12 +3930,9 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
                                       "gray56",
                                       "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
-             y = "Mean Annual Productivity Trend",
-             color = "TDN Trend",
-             shape = "TDN Trend",
-             size = "TDN Trend") +
+             y = "Mean Annual Greenness Trend") +
         theme_bw() +
-        theme(legend.position = "right"))
+        theme(legend.position = "none"))
 
 # GPP V TEMP - including exp sites
 (figTDN_gpp_temp2 <- ggplot(tdn_clim_trends_ann_wide,
@@ -3905,16 +3982,16 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
         annotate("text",x = -0.035, y = -0.12, label = "Cooling, Oligotrophying") +
         annotate("text",x = 0.035, y = 0.12, label = "Warming, Eutrophying") +
         annotate("text",x = 0.035, y = -0.12, label = "Warming, Oligotrophying") +
-        scale_shape_manual(values = c(20, 20, 20, 4), guide = "none") +
-        scale_size_manual(values = c(6, 6, 4, 2), guide = "none") +
+        scale_shape_manual(values = c(20, 20, 20, 4)) +
+        scale_size_manual(values = c(6, 6, 4, 2)) +
         scale_color_manual(values = c("cyan4",
                                       "darkorange",
                                       "gray56",
-                                      "gray76"),
-                           guide = "none") +
+                                      "gray76")) +
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual N Deposition Trend") +
-        theme_bw())
+        theme_bw() +
+        theme(legend.position = "none"))
 
 # DEP V TEMP - including exp sites
 (figTDN_dep_temp2 <- ggplot(tdn_clim_trends_ann_wide,
@@ -3944,6 +4021,43 @@ tdn_clim_trends_ann_wide <- tdn_clim_trends_ann_wide %>%
         labs(x = "Mean Annual Temperature Trend",
              y = "Mean Annual N Deposition Trend") +
         theme_bw())
+
+# Additional bar chart showing sum total trends
+# using dataset created in NO3 section
+(figTDN_bar <- ggplot(all_trends_counts %>%
+                          mutate(flag = factor(flag,
+                                               exclude = NULL)) %>%
+                          mutate(var = factor(var,
+                                              levels = c("temp_mean",
+                                                         "N_flux_mean",
+                                                         "precip_mean",
+                                                         "nirv"))), aes(fill = flag,
+                                                                        y = n, x = var)) +
+        geom_bar(position = "stack", stat = "identity") +
+        scale_fill_manual(values = c("cyan4",
+                                     "darkorange",
+                                     "gray56"),
+                          na.value = "black") +
+        scale_x_discrete(labels = c("temp_mean" = "Temperature",
+                                    "N_flux_mean" = "N Deposition",
+                                    "precip_mean" = "Precipitation",
+                                    "nirv" = "Greenness")) +
+        labs(y = "Site Count",
+             fill = "Trend") +
+        theme_bw() +
+        theme(panel.grid.major = element_blank(),
+              panel.grid.minor = element_blank(),
+              axis.title.x = element_blank()))
+
+(figTDN_all4 <- figTDN_dep_temp + figTDN_ppt_temp +
+        figTDN_green_temp + figTDN_bar +
+        plot_annotation(tag_levels = "A"))
+
+# ggsave(figTDN_all4,
+#        filename = "figures/panel4fig_tdn_dep_and_clim_trends.jpeg",
+#        height = 22,
+#        width = 28,
+#        units = "cm")
 
 (figTDN_both <- figTDN_ppt_temp + figTDN_gpp_temp +
         plot_annotation(tag_levels = "a"))
